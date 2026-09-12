@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Color, DoubleSide } from 'three';
 import { compilePrimitiveAppearance } from '../generation/compile-primitives';
-import type { CreationSpec, MeshAppearance, PrimitiveAppearance, PowerUpSpec } from '@sky/shared';
+import type { CreationSpec, MeshAppearance, PrimitiveAppearance, PowerUpSpec, RaceEventCreation } from '@sky/shared';
 
 function MeshModel({appearance}: {appearance: MeshAppearance}) {
   const {positions, colors} = useMemo(() => {
@@ -37,7 +37,7 @@ function ProceduralModel({appearance}: {appearance: PrimitiveAppearance}) {
   </mesh>;
 }
 // Callers validate external data before rendering. Appearance never sets collision bounds.
-export function PowerUpModel({spec}: {spec: PowerUpSpec | CreationSpec}) {
+export function PowerUpModel({spec}: {spec: PowerUpSpec | CreationSpec | RaceEventCreation}) {
   if ('type' in spec.appearance && spec.appearance.type === 'mesh') {
     return <MeshModel key={spec.id} appearance={spec.appearance}/>;
   }

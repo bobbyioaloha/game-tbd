@@ -17,7 +17,7 @@
 
 - Live lab attempts run design then geometry with a shared 30-second deadline and no SDK retries. Geometry receives only the visual brief. Preserve one mesh / one effect and keep controls/gameplay isolated. See docs/prompt-to-mesh-pipeline.md.
 
-- Lab geometryMode selects bounded primitive recipes or raw meshes; omission preserves raw-mesh API behavior. Reuse CreationSpec v2 and keep exactly one effect.
+- Legacy lab geometryMode selects bounded primitive recipes or raw meshes; omission preserves raw-mesh API behavior. Reuse CreationSpec v2 and keep exactly one effect.
 - Procedural rendering compiles static parts into one mesh with fixed tessellation and a separate 10,000-triangle budget. Preserve raw mesh limits and keep model-written code, colliders, and arbitrary renderer settings rejected.
 - GamePage contains the merged movement/race test and CreationDemoPage; lab experiments must not replace or wire into these game views implicitly.
 
@@ -28,3 +28,8 @@
 - Voice uses shared contracts in packages/shared/src/voice.ts and replaceable capture/client/provider adapters in apps/web/src/voice and apps/server/src/voice. See docs/voice-input-plan.md.
 - Preserve 8-second capture, separate 10-second upload/transcription and 30-second generation budgets; one paid gate covers the full voice attempt. Never store audio in files, logs, or history exports.
 - RaceCreationHost owns voice pickup/spawn integration; it consumes the race's swept movement segment and never moves the player. Pause/reset/end/navigation abort voice work and discard stale results. Generated effects use their validated parameters and do not replace inventory.
+
+- Race-event v3 work is isolated in packages/shared/src/race-event*.ts and apps/web/src/race-events. See docs/race-events-handoff.md. Existing v1/v2 schemas and game flow remain compatible.
+- RaceEventRuntime never moves racers or reads input; gameplay applies its bounded acceleration (m/s²), one-shot velocityDelta (m/s) and per-tick obstacleProtection. Call RaceEventBridge.beforeStep/afterStep around the one existing fixed-step race update.
+- Any active racer can trigger an event once; creator/triggerer have no exemption. Keep shared objects alive after their creator passes/finishes. One live event at a time; seeded debris is bounded and cosmetic fragments never collide.
+- Event sandbox and v3 typed/voice endpoints are implemented; main-race v3 lifecycle/controller integration belongs in the next gameplay PR; its existing microphone/v2 flow already works. Do not cast v3 specs into the old CreationLoop or import sandbox movement into gameplay.

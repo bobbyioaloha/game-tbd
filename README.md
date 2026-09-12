@@ -135,3 +135,12 @@ Keep OPENAI_API_KEY in apps/server/.env; never put secrets in VITE_ variables. T
 2. Generation: deliberately test real English speech and evaluate recognition, latency, and mesh quality in the lab. Extend effects by changing the shared schema and typed race handlers together.
 
 The original v1 fixture playground and the simulated creation demo remain available.
+
+
+## Shared race-event sandbox
+
+Generation lab now opens **Race events**: choose Gravity well, Debris shower, Repulsion burst or Protective zone, then Run simulation. Any scripted racer can trigger the shared effect. Replay same seed, pause, step by 0.5 seconds, and inspect collision bounds/forces without API calls. **Asset generation** retains the earlier v2 lab.
+
+The new panel also supports mock or explicitly opted-in live text/voice generation through `/api/lab/events` and `/api/voice/events`. Ordinary `bun run dev` stays mock-only. Live mode uses the existing consent, allowance and deadlines, with no extra model call.
+
+The reusable v3 event runtime and adapter are ready for parallel gameplay integration; the main race retains its working microphone and v2 creation flow. Connecting the new shared events to actual gameplay is reserved for the next PR. See [the implementation and gameplay handoff](docs/race-events-handoff.md) for ownership, units, exact hooks, lifecycle rules, and verification.

@@ -61,3 +61,8 @@ Voice inputs call startRecording(), finishRecording(), and cancelRecording(). De
 Run `bun run build`, `bun run typecheck`, and `bun run test`. Lifecycle tests require no player at all; demo tests cover integration and an injected alternate controller.
 
 Demo manual check: Game → Voice / creation demo → Start new run → stay centered for the gold pickup → hold/release Space → keep falling → collect the creation → observe the fall-speed change. The generation lab remains independent.
+
+
+## Upcoming shared race-event integration
+
+See [race-events-handoff.md](race-events-handoff.md) for the additive v3 event contract and working sandbox. `RaceEventBridge` offers before/after hooks around the existing fixed tick and returns per-racer acceleration, velocity impulses and obstacle protection. The gameplay developer owns applying those inputs in the main controller; generation/event modules never write player positions. The current v2 race integration above remains the shipped path until that explicit integration is completed.
