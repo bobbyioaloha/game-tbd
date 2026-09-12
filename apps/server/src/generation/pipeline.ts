@@ -1,17 +1,21 @@
+import { legacyFormat, eventFormat, type GenerationFormat, type GenerationProgress, type VoiceProgress } from './generation-formats.js';
 import { randomUUID } from 'node:crypto';
 import { LiveAttempts, type LivePolicy } from './live-attempts.js';
 import {
-  PIPELINE_DEADLINE_MS, DESIGN_BUDGET_MS, CreationDesignSchema, GeneratedCreationSchema, PipelineRequestSchema, type GeneratedCreation, type PipelineEvent, type PipelineProfile,
+  PIPELINE_DEADLINE_MS, DESIGN_BUDGET_MS, PipelineRequestSchema, type GeneratedCreation, type PipelineEvent, type PipelineProfile,
   type PipelineRequest, type PipelineStage, type StageConfig, type StageMetric,
+  VoiceRequestSchema, type VoiceRequest, type VoiceEvent, type TranscriptResult,
+  type RaceEventCreation, type RaceEventPipelineEvent, type RaceEventVoiceEvent,
 } from '@sky/shared';
-import { DESIGN_INSTRUCTIONS, DESIGN_JSON_SCHEMA, GEOMETRY_INSTRUCTIONS, GEOMETRY_JSON_SCHEMA, PROCEDURAL_DESIGN_INSTRUCTIONS, RECIPE_INSTRUCTIONS, RECIPE_JSON_SCHEMA } from './model-schemas.js';
+import { GEOMETRY_INSTRUCTIONS, GEOMETRY_JSON_SCHEMA, RECIPE_INSTRUCTIONS, RECIPE_JSON_SCHEMA } from './model-schemas.js';
 import { validateVisualOutput } from './visual-output.js';
 import { PipelineFailure, safePipelineError } from './pipeline-errors.js';
 import { mockTranscriptionProvider, transcribeClip, validateAudio, type AudioClip, type TranscriptionProvider } from '../voice/transcription.js';
-import { VoiceRequestSchema, type VoiceRequest, type VoiceEvent, type TranscriptResult } from '@sky/shared';
 import type { StageTransport } from './stage-transport.js';
 
-export type PipelineOptions = {signal?:AbortSignal; emit?:(event:PipelineEvent)=>void};
+type GenerationOptions<Event> = {signal?:AbortSignal;emit?:(event:Event)=>void};
+type VoiceOptions<Event> = GenerationOptions<Event> & {transcriptionBudgetMs?:number};
+export type PipelineOptions = GenerationOptions<PipelineEvent>;
 export class CreationPipeline {
   private readonly liveAttempts:LiveAttempts;
   get liveUsage() {return this.liveAttempts.status;}
@@ -34,14 +38,21 @@ export class CreationPipeline {
     const release=profile.mode==='live' ? this.liveAttempts.acquire(request) : undefined;
     try {return await work();} finally {release?.();}
   }
-  async run(request:PipelineRequest,options:PipelineOptions={}):Promise<GeneratedCreation> {
+  run(request:PipelineRequest,options:PipelineOptions={}):Promise<GeneratedCreation> {
+    return this.runFormat(request,options,legacyFormat);
+  }
+  runEvent(request:PipelineRequest,options:GenerationOptions<RaceEventPipelineEvent>={}):Promise<RaceEventCreation> {
+    return this.runFormat(request,options,eventFormat);
+  }
+  private async runFormat<D extends {visualBrief:string},S>(request:PipelineRequest,
+    options:GenerationOptions<GenerationProgress<D,S>>,format:GenerationFormat<D,S>):Promise<S> {
     let started=false;
     try {
       const parsed=PipelineRequestSchema.safeParse(request);
       if (!parsed.success) throw new PipelineFailure('INVALID_REQUEST','Use one to ten words and select an available pipeline profile.');
       const profile=this.profileFor(parsed.data.profileId);
       return await this.withAttempt(parsed.data,profile,options.signal,()=>{
-        started=true;return this.generateStages(parsed.data,options);
+        started=true;return this.generateStages(parsed.data,options,format);
       });
     } catch (error) {
       const safe=safePipelineError(error);
@@ -49,7 +60,14 @@ export class CreationPipeline {
       throw new PipelineFailure(safe.code,safe.message,safe.provider);
     }
   }
-  async runVoice(audio:AudioClip,request:VoiceRequest,options:{signal?:AbortSignal;emit?:(event:VoiceEvent)=>void;transcribeOnly?:boolean;transcriptionBudgetMs?:number}={}):Promise<{result:TranscriptResult;spec?:GeneratedCreation}> {
+  runVoice(audio:AudioClip,request:VoiceRequest,options:VoiceOptions<VoiceEvent>&{transcribeOnly?:boolean}={}):Promise<{result:TranscriptResult;spec?:GeneratedCreation}> {
+    return this.runVoiceFormat(audio,request,options,legacyFormat);
+  }
+  runVoiceEvent(audio:AudioClip,request:VoiceRequest,options:VoiceOptions<RaceEventVoiceEvent>={}):Promise<{result:TranscriptResult;spec?:RaceEventCreation}> {
+    return this.runVoiceFormat(audio,request,options,eventFormat);
+  }
+  private async runVoiceFormat<D extends {visualBrief:string},S>(audio:AudioClip,request:VoiceRequest,
+    options:VoiceOptions<VoiceProgress<D,S>>&{transcribeOnly?:boolean},format:GenerationFormat<D,S>):Promise<{result:TranscriptResult;spec?:S}> {
     const started=performance.now();
     const signal=options.signal ?? new AbortController().signal;
     try {
@@ -66,7 +84,7 @@ export class CreationPipeline {
         options.emit?.({type:'transcript',result});
         if (options.transcribeOnly) return {result};
         const spec=await this.generateStages({text:result.text,profileId:profile.id,geometryMode:parsed.data.geometryMode},
-          {signal,emit:event=>options.emit?.({type:'generation',event})});
+          {signal,emit:event=>options.emit?.({type:'generation',event})},format);
         signal.throwIfAborted();
         options.emit?.({type:'complete',result,spec,elapsedMs:Math.round(performance.now()-started)});
         return {result,spec};
@@ -77,7 +95,8 @@ export class CreationPipeline {
       throw new PipelineFailure(safe.code,safe.message,safe.provider);
     }
   }
-  private async generateStages(request:PipelineRequest, options:PipelineOptions = {}):Promise<GeneratedCreation> {
+  private async generateStages<D extends {visualBrief:string},S>(request:PipelineRequest,
+    options:GenerationOptions<GenerationProgress<D,S>>,format:GenerationFormat<D,S>):Promise<S> {
     const started = performance.now();
     const elapsed = () => Math.max(0,Math.round(performance.now()-started));
     let stage:PipelineStage = 'design';
@@ -100,10 +119,7 @@ export class CreationPipeline {
       const parsedRequest = PipelineRequestSchema.safeParse(request);
       if (!parsedRequest.success) throw new PipelineFailure('INVALID_REQUEST','Use one to ten words and select an available pipeline profile.');
       const geometryMode = parsedRequest.data.geometryMode ?? 'mesh';
-      const profile = this.profiles.find(item => item.id === parsedRequest.data.profileId);
-      if (!profile) throw new PipelineFailure('INVALID_REQUEST','Unknown pipeline profile.');
-      if (profile.mode === 'live' && !this.liveUsage.enabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
-      if (!profile.available) throw new PipelineFailure('NOT_CONFIGURED',profile.unavailableReason ?? 'The live provider is not configured.');
+      const profile = this.profileFor(parsedRequest.data.profileId);
       const transport = this.transports[profile.mode];
       if (!transport) throw new PipelineFailure('NOT_CONFIGURED','The live provider is not configured.');
       const call = async (config:StageConfig,instructions:string,input:string,schema:Record<string,unknown>) => {
@@ -116,7 +132,9 @@ export class CreationPipeline {
         if (overall.signal.aborted) forward();
         const remaining = this.budgets.totalMs-(performance.now()-started);
         const budget = currentStage === 'design' ? Math.min(this.budgets.designMs,remaining) : remaining;
-        const timer = setTimeout(() => controller.abort((currentStage==='geometry'?deadlineFailure():new PipelineFailure('TIMEOUT','Design exceeded its '+(budget/1000).toFixed(2)+'s time budget. No automatic retry was made.'))),Math.max(0,budget));
+        const stageDeadlineFailure = () => currentStage==='geometry' ? deadlineFailure()
+          : new PipelineFailure('TIMEOUT','Design exceeded its '+(budget/1000).toFixed(2)+'s time budget. No automatic retry was made.');
+        const timer = setTimeout(() => controller.abort(stageDeadlineFailure()),Math.max(0,budget));
         let rejectAbort:(reason:unknown)=>void = () => {};
         const abortListener = () => rejectAbort(controller.signal.reason);
         const stageStarted = performance.now();
@@ -124,9 +142,9 @@ export class CreationPipeline {
           controller.signal.throwIfAborted();
           // Race enforces the deadline even when a test/provider ignores AbortSignal.
           const aborted = new Promise<never>((_,reject) => {rejectAbort=reject;controller.signal.addEventListener('abort',abortListener,{once:true});});
-          const response = await Promise.race([transport.run({stage:currentStage,geometryMode,config,instructions,input,schema,signal:controller.signal}),aborted]);
+          const response = await Promise.race([transport.run({product:format.kind,stage:currentStage,geometryMode,config,instructions,input,schema,signal:controller.signal}),aborted]);
           ensureActive();
-          if (performance.now()-stageStarted >= budget) throw (currentStage==='geometry'?deadlineFailure():new PipelineFailure('TIMEOUT','Design exceeded its '+(budget/1000).toFixed(2)+'s time budget. No automatic retry was made.'));
+          if (performance.now()-stageStarted >= budget) throw stageDeadlineFailure();
           const metric:StageMetric = {stage:currentStage,model:config.model,durationMs:Math.round(performance.now()-stageStarted),...(response.usage ? {usage:response.usage} : {})};
           metrics.push(metric);
           return {response,metric};
@@ -139,20 +157,18 @@ export class CreationPipeline {
         }
       };
       ensureActive();
-      const designed = await call(profile.design,geometryMode === 'primitives' ? PROCEDURAL_DESIGN_INSTRUCTIONS : DESIGN_INSTRUCTIONS,parsedRequest.data.text,DESIGN_JSON_SCHEMA);
-      const design = CreationDesignSchema.safeParse(designed.response.data);
-      if (!design.success) throw new PipelineFailure('INVALID_DESIGN','Design did not contain a valid visual brief and one supported effect.');
-      emit({type:'design',design:design.data,metric:designed.metric});
+      const designed = await call(profile.design,format.instructions(geometryMode),parsedRequest.data.text,format.schema);
+      const design = format.readDesign(designed.response.data);
+      if (!design) throw new PipelineFailure('INVALID_DESIGN','Design did not contain a valid visual brief and one supported effect.');
+      emit({type:'design',design,metric:designed.metric});
       stage = 'geometry';
       // Deliberately hand off only appearance data, never the effect or original prompt.
-      const geometry = await call(profile.geometry,geometryMode === 'primitives' ? RECIPE_INSTRUCTIONS : GEOMETRY_INSTRUCTIONS,design.data.visualBrief,geometryMode === 'primitives' ? RECIPE_JSON_SCHEMA : GEOMETRY_JSON_SCHEMA);
+      const geometry = await call(profile.geometry,geometryMode === 'primitives' ? RECIPE_INSTRUCTIONS : GEOMETRY_INSTRUCTIONS,design.visualBrief,geometryMode === 'primitives' ? RECIPE_JSON_SCHEMA : GEOMETRY_JSON_SCHEMA);
       emit({type:'geometry',metric:geometry.metric});
       stage = 'validation';
       emit({type:'stage',stage,elapsedMs:elapsed()});
       const appearance = validateVisualOutput(geometry.response.data,geometryMode);
-      const spec = GeneratedCreationSchema.parse({version:2,id:randomUUID(),
-        displayName:design.data.displayName,description:design.data.description,
-        appearance,effects:[design.data.effect]});
+      const spec = format.assemble(randomUUID(),design,appearance);
       ensureActive();
       emit({type:'complete',spec,elapsedMs:elapsed(),metrics});
       return spec;

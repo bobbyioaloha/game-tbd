@@ -6,3 +6,7 @@ export * from './pipeline.js';
 export * from './procedural.js';
 export * from './procedural-fixtures.js';
 export * from './voice.js';
+export * from './race-events.js';
+export * from './race-event-fixtures.js';
+export * from './race-event-protocol.js';
+export * from './race-event-pipeline.js';

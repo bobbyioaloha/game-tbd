@@ -1,11 +1,12 @@
 import OpenAI from 'openai';
 import { setTimeout as delay } from 'node:timers/promises';
-import { meshFixture, mockCreationForText, mockProceduralForText, appearanceToRecipe, type GeometryMode, type StageConfig, type StageMetric } from '@sky/shared';
+import { meshFixture, mockRaceEventForText, mockCreationForText, mockProceduralForText, appearanceToRecipe, type GeometryMode, type StageConfig, type StageMetric } from '@sky/shared';
 import { PipelineFailure } from './pipeline-errors.js';
 import { providerFailure, translateProviderError } from './provider-errors.js';
 
 export type ModelStageRequest = {
   geometryMode?:GeometryMode;
+  product?:'legacy'|'race-event';
   stage:'design'|'geometry'; config:StageConfig; instructions:string; input:string;
   schema:Record<string,unknown>; signal:AbortSignal;
 };
@@ -50,6 +51,14 @@ export function openAITransport(apiKey:string, fetchImpl?: typeof fetch):StageTr
 export const mockStageTransport:StageTransport = {
   async run(request) {
     await delay(request.stage === 'design' ? 450 : 900,undefined,{signal:request.signal});
+    if(request.product==='race-event') {
+      const fixture=mockRaceEventForText(request.input);
+      if(!fixture)throw new PipelineFailure('INVALID_REQUEST','Event mocks support the four listed event prompts. Use a live profile for other ideas.');
+      if(request.stage==='design')return {data:fixture.design};
+      if(request.geometryMode!=='primitives')throw new PipelineFailure('INVALID_REQUEST','Event mock fixtures use Procedural parts. Raw mesh requires a live profile.');
+      if(fixture.spec.appearance.type!=='primitives')throw new Error('Missing event fixture parts.');
+      return {data:appearanceToRecipe(fixture.spec.appearance)};
+    }
     if (request.geometryMode === 'primitives') {
       const fixture = mockProceduralForText(request.input);
       if (!fixture) throw new PipelineFailure('INVALID_REQUEST',

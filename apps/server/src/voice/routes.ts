@@ -1,6 +1,6 @@
 import multipart from '@fastify/multipart';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { AUDIO_UPLOAD_LIMIT_BYTES, TRANSCRIPTION_DEADLINE_MS, VoiceRequestSchema, type VoiceEvent } from '@sky/shared';
+import { AUDIO_UPLOAD_LIMIT_BYTES, TRANSCRIPTION_DEADLINE_MS, VoiceRequestSchema, type RaceEventVoiceEvent, type VoiceEvent } from '@sky/shared';
 import { PipelineFailure, safePipelineError } from '../generation/pipeline-errors.js';
 import { isLocalOrigin } from '../generation/local-origin.js';
 import type { CreationPipeline } from '../generation/pipeline.js';
@@ -32,8 +32,14 @@ async function readRecording(request:FastifyRequest) {
 export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipeline) {
   app.register(async scope=>{
     await scope.register(multipart,{limits:{files:1,fields:1,parts:2,fieldSize:4096,fileSize:AUDIO_UPLOAD_LIMIT_BYTES,fieldNameSize:32}});
-    for (const transcribeOnly of [true,false]) {
-      scope.post(transcribeOnly ? '/api/voice/transcriptions' : '/api/voice/creations',async(request,reply)=>{
+    const routes=[
+      {path:'/api/voice/transcriptions',mode:'transcribe'},
+      {path:'/api/voice/creations',mode:'legacy'},
+      {path:'/api/voice/events',mode:'event'},
+    ] as const;
+    for (const {path,mode} of routes) {
+      const transcribeOnly=mode==='transcribe';
+      scope.post(path,async(request,reply)=>{
         const started=performance.now(),controller=new AbortController();
         const disconnect=()=>{if (!reply.raw.writableEnded) controller.abort();};
         reply.raw.on('close',disconnect);
@@ -56,8 +62,11 @@ export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipelin
           }
           reply.hijack();
           reply.raw.writeHead(200,{'Content-Type':'application/x-ndjson; charset=utf-8','Cache-Control':'no-store','X-Accel-Buffering':'no'});
-          const emit=(event:VoiceEvent)=>{if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.write(JSON.stringify(event)+'\n');};
-          try {await pipeline.runVoice(audio,options,{signal:controller.signal,emit,transcriptionBudgetMs});}
+          const emit=(event:VoiceEvent|RaceEventVoiceEvent)=>{if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.write(JSON.stringify(event)+'\n');};
+          try {
+            if(mode==='event')await pipeline.runVoiceEvent(audio,options,{signal:controller.signal,emit,transcriptionBudgetMs});
+            else await pipeline.runVoice(audio,options,{signal:controller.signal,emit,transcriptionBudgetMs});
+          }
           catch {/* The coordinator emitted a terminal failure. */}
           finally {if (!reply.raw.destroyed) reply.raw.end();}
         } catch (error) {

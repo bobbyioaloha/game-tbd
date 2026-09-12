@@ -1,3 +1,4 @@
+import { EventLabPage } from '../race-events/EventLabPage';
 import { VoiceLabPanel } from '../voice/VoiceLabPanel';
 import { useEffect, useRef, useState } from 'react';
 import { PIPELINE_DEADLINE_MS, proceduralFixtures, generationEvaluationPrompts, PipelineRequestSchema, type GeometryMode, type CreationDesign, type CreationSpec, type PipelineEvent, type PipelineProfile, type StageMetric, type LiveUsage } from '@sky/shared';
@@ -6,7 +7,7 @@ import { LabHistory } from '../generation/LabHistory';
 import { attemptMetrics, geometryModeLabels, HISTORY_LIMIT, type LabAttempt } from '../generation/lab-history';
 import { loadPipelineProfiles, runLabPipeline } from '../generation/pipeline-client';
 
-export function GenerationLabPage() {
+function AssetGenerationLabPage() {
   const [inputSource,setInputSource]=useState<'text'|'voice'>('text');
   const [voiceBusy,setVoiceBusy]=useState(false);
   const [transcription,setTranscription]=useState<{model:string;available:boolean}>();
@@ -206,4 +207,12 @@ export function GenerationLabPage() {
     <LabHistory history={history} busy={formBusy} onInspect={inspectAttempt}
       onRate={(id,recognition) => setHistory(previous => previous.map(item => item.id === id ? {...item,recognition} : item))}/>
   </main>;
+}
+
+export function GenerationLabPage() {
+  const [view,setView]=useState<'events'|'assets'>('events');
+  return <><div className="generation-tabs" aria-label="Generation lab views">
+    <button aria-pressed={view==='events'} onClick={()=>setView('events')}>Race events</button>
+    <button aria-pressed={view==='assets'} onClick={()=>setView('assets')}>Asset generation</button>
+  </div>{view==='events'?<EventLabPage/>:<AssetGenerationLabPage/>}</>;
 }
