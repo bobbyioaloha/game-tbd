@@ -94,7 +94,10 @@ export class PracticeRace {
         }
       }
       const flailing=this.elapsed<racer.flailUntil;
-      const motion=racer.controller.step(dt,{x:steering.x*(flailing?0.3:1),z:steering.z*(flailing?0.3:1)},{
+      // Match controller input bounds before applying the flail penalty.
+      const x=Math.max(-1,Math.min(1,steering.x)),z=Math.max(-1,Math.min(1,steering.z));
+      const steeringScale=(flailing?0.3:1)/Math.max(1,Math.hypot(x,z));
+      const motion=racer.controller.step(dt,{x:x*steeringScale,z:z*steeringScale},{
         fallSpeedMultiplier:this.elapsed<racer.slowUntil?0.5:1,maxFallSpeed:this.elapsed<racer.boostUntil?45:30,
       });
       for(const box of this.boxes)if(box.active&&!racer.item&&segmentSphere(motion.previousPosition,motion.position,box.position,COLLECTIBLE_RADIUS_METERS)){

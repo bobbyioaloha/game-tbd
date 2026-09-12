@@ -86,3 +86,21 @@ test('full course remains finite and all racers finish',()=>{
   assert.ok(race.finished);
   assert.ok(race.racers.every(r=>Number.isFinite(r.finishTime)));
 });
+
+test('flailing reduces player and rival steering to thirty percent, then expires',()=>{
+  for(const id of [0,1]){
+    const race=new PracticeRace(false),racer=race.racers[id];
+    racer.decision=Infinity;racer.target=[18,18];
+    const dt=1/120,input={x:1,z:1};
+    const speed=()=>{
+      const before=race.snapshot(racer).position;
+      race.step(dt,input,false);
+      const after=race.snapshot(racer).position;
+      return Math.hypot(after[0]-before[0],after[2]-before[2])/dt;
+    };
+    assert.ok(Math.abs(speed()-12)<1e-8);
+    racer.flailUntil=race.elapsed+dt;
+    assert.ok(Math.abs(speed()-3.6)<1e-8);
+    assert.ok(Math.abs(speed()-12)<1e-8);
+  }
+});

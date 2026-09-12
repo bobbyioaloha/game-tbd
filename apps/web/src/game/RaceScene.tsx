@@ -79,7 +79,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       const flail=race.elapsed<racer.flailUntil;
       group.rotation.set(flail?race.elapsed*15:0,0,flail?race.elapsed*12:0);
       const protectedNow=race.elapsed<racer.immuneUntil||race.elapsed<racer.shieldUntil;
-      group.visible=!protectedNow||Math.floor(race.elapsed*12)%2===0;
+      group.visible=racer.finishTime!==undefined||!protectedNow||Math.floor(race.elapsed*12)%2===0;
       group.position.set(rx,ry-y+bounce+0.3,rz);
       group.scale.set(t>=0 ? 1.25 : 1,squash,t>=0 ? 1.25 : 1);
     });
