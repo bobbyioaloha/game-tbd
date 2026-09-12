@@ -1,15 +1,16 @@
+import { itemForPlace, RivalDodgeReaction } from './race-balance';
 // Race item boxes have a forgiving pickup volume independent of model size.
 import { planRival } from './rival-planner';
 import { TargetLock } from './target-lock';
 import type { PowerUpEffect } from '@sky/shared';
 import { FreefallController } from './freefall-controller';
 import type { PlayerSnapshot, SteeringInput, Position } from './player-controller';
-import { makeCourse, obstacleHit, obstaclePose, OBSTACLE_RULES, segmentSphere, type Item, type Obstacle } from './race-course';
+import { makeCourse, makeItemBoxes, obstacleHit, obstaclePose, OBSTACLE_RULES, segmentSphere, type Item, type Obstacle } from './race-course';
 
 export const FINISH_DEPTH = 3600;
 export const LANE_HALF_WIDTH = 36;
 export const ITEM_PICKUP_RADIUS = 3.5;
-export const DODGE_COOLDOWN = 2.5;
+export const DODGE_COOLDOWN = 15;
 export const SUN_DURATION = 2.5;
 export const BOOST_CAPACITY = 4;
 export const RACER_COLORS = ['#ff9875','#a7f179','#c7a0ff','#ffe175'];
@@ -18,39 +19,34 @@ export type Racer = {
   id:number;name:string;controller:FreefallController;landed?:PlayerSnapshot;finishTime?:number;
   target:[number,number];decision:number;brakeUntil:number;item:Item|null;
   creationSlowUntil:number;creationSlowMultiplier:number;creationShieldUntil:number;
-  slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;sunOrigin:Position|null;nextUse:number;aiLock:TargetLock;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;sunVictims:Set<number>;
+  slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;sunOrigin:Position|null;nextUse:number;aiLock:TargetLock;dodgeReaction:RivalDodgeReaction;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;sunVictims:Set<number>;
 };
 export type Projectile={id:number;owner:number;position:Position;velocity:Position;target?:number;expires:number};
-export type Pickup={id:number;position:Position;active:boolean};
-export type Ring={id:number;position:Position;used:Set<number>;radius?:number;duration?:number};
+export type Pickup={id:number;position:Position;rotation?:Position;active:boolean};
+export type Ring={id:number;position:Position;used:Set<number>;radius?:number;duration?:number;fuel?:number};
 const distance=(a:Position,b:Position)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
 export class PracticeRace {
   elapsed=0;racers:Racer[]=[];obstacles:Obstacle[]=[];boxes:Pickup[]=[];rings:Ring[]=[];projectiles:Projectile[]=[];
   feedback='';feedbackUntil=0;
   private announce(message:string){this.feedback=message;this.feedbackUntil=this.elapsed+2;}
   private seed=42;private shotId=0;
-  constructor(private courseEnabled=true) {this.reset();}
+  constructor(private courseEnabled=true,private seedSource:()=>number=Math.random) {this.reset();}
   private random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
   reset(){
-    this.feedback='';this.feedbackUntil=0;this.elapsed=0;this.seed=42;this.shotId=0;this.projectiles=[];
+    this.feedback='';this.feedbackUntil=0;this.elapsed=0;this.seed=Math.floor(this.seedSource()*4294967296)>>>0;this.shotId=0;this.projectiles=[];
     this.racers=['You','Lime','Lilac','Lemon'].map((name,id)=>({
       id,name,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
       target:[0,0],decision:0,brakeUntil:0,item:null,
       creationSlowUntil:0,creationSlowMultiplier:1,creationShieldUntil:0,
-      slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,sunOrigin:null,nextUse:0,aiLock:new TargetLock(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},sunVictims:new Set(),
+      slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,sunOrigin:null,nextUse:0,aiLock:new TargetLock(),dodgeReaction:new RivalDodgeReaction(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},sunVictims:new Set(),
     }));
     this.obstacles=this.courseEnabled?makeCourse():[];
-    this.boxes=this.courseEnabled?Array.from({length:14},(_,i)=>100+i*250).flatMap((depth,section)=>
-      Array.from({length:5},(_,index)=>{
-        const a=index*Math.PI/3+section*0.7;
-        const x=section%3===0?Math.cos(a)*24:section%3===1?-28+index*13:(this.random()*2-1)*30;
-        const z=section%3===0?Math.sin(a)*22:section%3===1?(index%2?14:-14):(this.random()*2-1)*28;
-        return {id:section*5+index,position:[x,-depth-index%3*6,z] as Position,active:true};
-      })):[];
+    this.boxes=this.courseEnabled?makeItemBoxes(this.obstacles,()=>this.random()):[];
     this.rings=this.courseEnabled?[
-      {id:0,position:[12,-300,0],used:new Set<number>()},
+      {id:0,position:[12,-300,0],used:new Set<number>(),fuel:2},
+      {id:1,position:[-12,-1200,8],used:new Set<number>(),fuel:2},
       ...this.obstacles.filter(o=>o.kind==='duct'&&(o.id===1004||o.id===1007)).map(o=>({
-        id:o.id,position:[o.position[0],o.position[1]-7,o.position[2]] as Position,used:new Set<number>(),radius:3,
+        id:o.id,position:[o.position[0],o.position[1]-7,o.position[2]] as Position,used:new Set<number>(),radius:3,fuel:4,
       })),
     ]:[];
   }
@@ -134,6 +130,7 @@ export class PracticeRace {
   step(dt:number,input:SteeringInput,brake:boolean,boost=false){
     if(this.finished||dt<=0||!Number.isFinite(dt))return;
     const old=this.racers.map(r=>this.snapshot(r).position);
+    const places=new Map(this.order().map((racer,index)=>[racer.id,index+1]));
     for(const racer of this.racers){
       if(racer.finishTime!==undefined)continue;
       let steering=input;
@@ -159,8 +156,8 @@ export class PracticeRace {
           if(use){this.useItem(racer.id,up,locked);racer.nextUse=this.elapsed+1;racer.aiLock.reset();}
         }
       }
-      const incoming=this.projectiles.find(s=>s.target===racer.id&&distance(s.position,this.snapshot(racer).position)<28);
-      if(racer.id!==0&&incoming)this.dodge(racer.id,{x:racer.id%2?1:-1,z:0});
+      if(racer.id!==0&&racer.dodgeReaction.update(racer.id,this.snapshot(racer).position,this.projectiles,this.elapsed,racer.dodgeReady,()=>this.random()))
+        this.dodge(racer.id,{x:racer.id%2?1:-1,z:0});
       const wantsBoost=racer.id===0?boost:!racer.danger&&this.elapsed>=racer.slowUntil;
       racer.boosting=wantsBoost&&!racer.controller.braking&&racer.boostFuel>0;
       const boostSeconds=racer.boosting?Math.min(dt,racer.boostFuel):0;
@@ -179,14 +176,14 @@ export class PracticeRace {
         if(racer.item){
           if(racer.id===0&&this.feedbackUntil<=this.elapsed)this.announce('ITEM SLOT FULL');
         }else{
-          box.active=false;racer.item=(['umbrella','cloak','sun'] as Item[])[Math.floor(this.random()*3)];
+          box.active=false;racer.item=itemForPlace(places.get(racer.id)!,this.random());
           if(racer.id===0)this.announce('PICKED UP — '+({umbrella:'Jellyfish umbrella',cloak:'Ghost cloak',sun:'Angry sun'})[racer.item]);
         }
       }
       for(const ring of this.rings)if(!ring.used.has(racer.id)&&motion.previousPosition[1]>ring.position[1]&&motion.position[1]<=ring.position[1]){
         const t=(ring.position[1]-motion.previousPosition[1])/(motion.position[1]-motion.previousPosition[1]);
         const x=motion.previousPosition[0]+(motion.position[0]-motion.previousPosition[0])*t,z=motion.previousPosition[2]+(motion.position[2]-motion.previousPosition[2])*t;
-        if(Math.hypot(x-ring.position[0],z-ring.position[2])<=(ring.radius??5)){ring.used.add(racer.id);racer.boostFuel=Math.min(BOOST_CAPACITY,racer.boostFuel+2);if(racer.id===0)this.announce('BOOST FUEL +50%');}
+        if(Math.hypot(x-ring.position[0],z-ring.position[2])<=(ring.radius??5)){ring.used.add(racer.id);racer.boostFuel=Math.min(BOOST_CAPACITY,racer.boostFuel+(ring.fuel??2));if(racer.id===0)this.announce((ring.fuel??2)>2?'PIPE BONUS · BOOST FUEL +100%':'BOOST FUEL +50%');}
       }
       if(!this.protected(racer))for(const obstacle of this.obstacles){
         if(!obstacle.active||Math.abs(obstacle.position[1]-motion.position[1])>20)continue;

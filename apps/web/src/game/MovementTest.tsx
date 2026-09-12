@@ -1,5 +1,6 @@
+import { RaceCreationHud } from './RaceCreationVisuals';
 import { RaceVoiceControls, useRaceVoice } from '../voice/RaceVoiceControls';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PracticeRace } from './practice-race';
 import { RaceScene, defaultBindings, initialRaceHud, type RaceRuntime } from './RaceScene';
@@ -19,6 +20,13 @@ const initialHud = initialRaceHud;
 export function MovementTest() {
   const [race]=useState(()=>new PracticeRace());
   const voice=useRaceVoice(race);
+  const microphone=useSyncExternalStore(voice.recorder.subscribe,voice.recorder.getSnapshot);
+  const voiceBlockedReason=!microphone.ready?'Enable the microphone before starting the race.'
+    :voice.error||(!voice.profiles?'Loading voice profiles…':!voice.profile?.available?(voice.profile?.unavailableReason||'Voice profile unavailable. Check the server and refresh profiles.')
+    :voice.live&&!voice.paidAvailable?'Live voice is unavailable. Check the voice panel before starting.'
+    :voice.live&&!voice.armed?'Allow this run’s paid attempt in the voice panel before starting.':'');
+  const voiceBlocked=useRef(voiceBlockedReason);voiceBlocked.current=voiceBlockedReason;
+  const [voiceInputNotice,setVoiceInputNotice]=useState({id:0,text:''});
   const voiceActions=useRef(voice);voiceActions.current=voice;
   const [runtime] = useState<Runtime>(() => ({race, voice:voice.host, keys: new Set(), paused: true, bindings: {...defaults}, clock: 0, generation: 0, fireRequested: false, dodgeRequested:false}));
   const [paused, setPaused] = useState(true);
@@ -37,7 +45,7 @@ export function MovementTest() {
   const reset = () => {
     pause(true);
     runtime.race.reset();voiceActions.current.reset(); runtime.clock = 0; runtime.generation++;
-    setHud(initialHud);
+    setHud(initialHud);setVoiceInputNotice(current=>({id:current.id+1,text:''}));
   };
 
   useEffect(() => {
@@ -63,7 +71,16 @@ export function MovementTest() {
       }
       if (typing(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
       if (event.code==='Space') {
-        event.preventDefault();if (!runtime.paused&&!event.repeat) voiceActions.current.start();return;
+        event.preventDefault();
+        if (!runtime.paused&&!event.repeat) {
+          const phase=voiceActions.current.host.loop.getSnapshot().phase;
+          const reason=phase==='available'?'Collect the yellow star first.'
+            :phase==='prompted'?voiceBlocked.current
+            :['failed','missed','ended','activated'].includes(phase)?'Voice attempt finished. Restart the race for another star.':'';
+          setVoiceInputNotice(current=>({id:current.id+1,text:reason}));
+          voiceActions.current.start();
+        }
+        return;
       }
       if (Object.values(runtime.bindings).includes(event.code)) {
         event.preventDefault();
@@ -94,49 +111,50 @@ export function MovementTest() {
   return <section className="movement-test">
     <div className="movement-heading"><div><span className="eyebrow">FOUR RACERS / CRASH-MAT SPRINT</span><h1>A little star. A lot of sky.</h1>
       <p>Race 3,600 m to the crash mat. {label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} steers within the lane; hold {label(bindings.look)} to check above you.</p></div>
-      <button onClick={reset}>Restart race</button></div>
+      <div className="race-page-actions"><button onClick={()=>pause(!runtime.paused)} disabled={binding!==null}>{paused?'Resume':'Pause'} · Esc</button><button onClick={reset}>Restart race</button></div></div>
     <div className="movement-layout">
       <div className="movement-stage">
         <Canvas camera={{position: [0,32,0], up: [0,0,-1], fov: 65, far: 5000}} fallback={<p>WebGL is unavailable. Enable hardware acceleration to run this test.</p>}>
           <RaceScene runtime={runtime} report={setHud}/>
         </Canvas>
-        <div className="movement-status">{paused ? 'PAUSED' : hud.look ? 'LOOKING UP' : hud.finish !== null ? 'LANDED' : hud.brake ? 'AIR BRAKE ACTIVE' : 'FREEFALL'}<span>{Math.ceil(hud.remaining)} m to finish</span></div>
+        <div className="movement-status">{paused ? 'PAUSED' : hud.look ? 'LOOKING UP' : hud.finish !== null ? 'LANDED' : hud.brake ? 'AIR BRAKE ACTIVE' : 'FREEFALL'}<span>{hud.speed.toFixed(0)} m/s · {Math.ceil(hud.remaining)} m to finish</span></div>
         <div className="race-place">{hud.place} / 4 <small>POSITION</small></div>
         <RaceOverlay hud={hud} paused={paused} useKey={label(bindings.use)} boostKey={label(bindings.boost)} dodgeKey={label(bindings.dodge)}/>
         {!paused && hud.finish === null && hud.remaining <= 100 && <div className="race-countdown">{Math.ceil(hud.remaining)} m<br/><small>BRACE FOR SQUISH</small></div>}
         {!paused && hud.finish !== null && <div className="race-result"><strong>SPLAT! {hud.place} / 4</strong><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={reset}>Race again</button></div>}
-        {!paused && hud.finish===null && voice.state.phase!=='available' && <div className="race-voice-status" role="status">
-          <strong>{voice.state.message}</strong>
-          {voice.state.phase==='prompted'&&<span>{voice.live?'Live speech':'Mock · uses “'+voice.mockText+'”'} · 10 words maximum · {Math.max(0,10-voice.state.phaseSeconds).toFixed(0)} s to begin</span>}
-          {voice.state.transcript&&<span>{voice.live?'Heard':'Simulated transcript'}: “{voice.state.transcript}”</span>}
-        </div>}
+        <RaceCreationHud key={voice.state.session} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && <div className="movement-pause"><h2>Paused</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
+          {runtime.race.elapsed===0&&<div className="race-mic-setup">
+            <strong>★ Yellow star · voice creation</strong>
+            <p role="status">{voiceBlockedReason||'Microphone ready. Collect the star, then hold Space until you finish speaking.'}</p>
+            {!microphone.ready&&<><button disabled={microphone.phase==='preparing'} onClick={()=>{void voice.recorder.prepare();}}>{microphone.phase==='preparing'?'Preparing microphone…':'Enable microphone'}</button><small>{microphone.message}</small></>}
+          </div>}
           <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); pause(false);}}>Resume / start fall</button>
           <small>Escape resumes · leaving this window pauses</small></div>}
       </div>
-      <aside className="movement-panel">
-        <span className="eyebrow">DOWNWARD SPEED</span>
-        <div className="movement-speed">{hud.speed.toFixed(1)} <small>m/s</small></div>
-        <div className="movement-meter">
-          <progress aria-label="Downward speed" value={hud.speed} max={60}/>
-          <span className="movement-brake-mark" style={{left: `${BRAKE_SPEED/60*100}%`}}/>
-        </div>
-        <div className="movement-scale"><span>0</span><span>60 m/s boost cap</span></div>
-        <p>Brake target: 8 m/s<br/>Gravity: 9.81 m/s²<br/>Steering: 20 m/s</p>
-        <p>{hud.time.toFixed(1)} s elapsed · 72 × 72 m lane<br/>X {hud.x.toFixed(1)} m · Z {hud.z.toFixed(1)} m</p>
-        <button onClick={() => pause(!runtime.paused)} disabled={binding !== null}>{paused ? 'Resume' : 'Pause'} · Esc</button>
-        <h2>Held item</h2><p className="race-inventory">{hud.item}</p>
-        <p>{label(bindings.use)}: use / fire · {hud.look?'shoot upward':'shoot downward'}<br/>{hud.effects || 'No active effects'}</p>
-        <p>Striped boxes: random item. Three rare rings refill boost fuel. Hold {label(bindings.boost)} to spend it; {label(bindings.brake)} brakes without draining fuel. Fridges, satellites, balloons and sofas: dodge!</p>
-        <RaceVoiceControls voice={voice} paused={paused}/>
-        <h2>Controls</h2><p>Click a key to rebind. Uses physical key positions; changes last for this session.</p>
-        <div className="movement-bindings">{(Object.keys(defaults) as Action[]).map(action =>
-          <button key={action} aria-label={`Rebind ${names[action]}`} onClick={() => {pause(true); setBinding(action); setNotice('Press a letter key. Escape cancels.');}}>
-            <span>{names[action]}</span><kbd>{binding === action ? '…' : label(bindings[action])}</kbd>
-          </button>)}</div>
-        <p role="status">{notice}</p>
-        <small>{label(bindings.dodge)} dodges · {label(bindings.boost)} boosts · Hold Space for voice.<br/>Rivals collect and use inventory items. Voice creations belong to you.</small>
-      </aside>
+      <div className="race-dashboard">
+        <details className="race-detail">
+          <summary>Voice setup <small>{microphone.ready?'Microphone ready':'Enable microphone before racing'}</small></summary>
+          <RaceVoiceControls voice={voice} paused={paused}/>
+        </details>
+        <details className="race-detail">
+          <summary>Controls <small>Steering, items &amp; key bindings</small></summary>
+          <p>Click a key to rebind. Changes last for this session.</p>
+          <div className="movement-bindings">{(Object.keys(defaults) as Action[]).map(action=>
+            <button key={action} aria-label={`Rebind ${names[action]}`} onClick={()=>{pause(true);setBinding(action);setNotice('Press a letter key. Escape cancels.');}}>
+              <span>{names[action]}</span><kbd>{binding===action?'…':label(bindings[action])}</kbd>
+            </button>)}</div>
+          <p role="status">{notice}</p>
+          <p>Hold Space after collecting the star. Release to submit.<br/>{label(bindings.dodge)} dodges · 15-second cooldown.</p>
+        </details>
+        <details className="race-detail">
+          <summary>Race details <small>Stats &amp; pickup tips</small></summary>
+          <p>{hud.time.toFixed(1)} s elapsed · 72 × 72 m lane<br/>X {hud.x.toFixed(1)} m · Z {hud.z.toFixed(1)} m</p>
+          <p>Brake target: {BRAKE_SPEED} m/s · Steering: 20 m/s</p>
+          <p>{hud.effects||'No active effects'}</p>
+          <p>Jellyfish are more common near the back, suns in the middle, and ghosts in first. Gold pipe rings give double boost fuel.</p>
+        </details>
+      </div>
     </div>
   </section>;
 }

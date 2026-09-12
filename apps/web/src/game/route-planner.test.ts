@@ -16,7 +16,7 @@ test('pipe passages contain rare fuel rings with room inside their walls',()=>{
   const race=new PracticeRace();
   const boosts=race.rings.filter(r=>r.id>=1000);
   assert.equal(boosts.length,2);
-  assert.ok(boosts.every(r=>r.radius===3));
+  assert.ok(boosts.every(r=>r.radius===3&&r.fuel===4));
   for(const boost of boosts){
     const duct=race.obstacles.find(o=>o.id===boost.id)!;
     assert.equal(obstacleHit([boost.position[0],boost.position[1]+1,boost.position[2]],boost.position,duct,0),null);

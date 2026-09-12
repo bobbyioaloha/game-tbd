@@ -20,7 +20,7 @@ test('race bounds steering, locks finishes, and resets every racer', () => {
   assert.ok(race.racers.every(racer => racer.finishTime === undefined));
 });
 test('simulated racers make repeatable course-aware decisions', () => {
-  const a = new PracticeRace(), b = new PracticeRace();
+  const a = new PracticeRace(true,()=>0.42), b = new PracticeRace(true,()=>0.42);
 
   for(let i=0;i<2400;i++) {
     a.step(1/120,{x:0,z:0},false); b.step(1/120,{x:0,z:0},false);
@@ -44,4 +44,30 @@ test('progress tracker reports order, relative gaps, finish state, and reset',()
   assert.equal(race.standings()[0].finished,true);
   race.reset();
   assert.ok(race.standings().every(r=>r.progress===0&&r.gap===0&&!r.finished));
+});
+test('restarts change opening box positions and orientations with fresh seeds',()=>{
+  let seed=0.1;
+  const race=new PracticeRace(true,()=>seed);
+  const before=race.boxes.slice(0,5).map(box=>({position:box.position,rotation:box.rotation}));
+  seed=0.7;race.reset();
+  assert.notDeepEqual(race.boxes.slice(0,5).map(box=>box.position),before.map(box=>box.position));
+  assert.notDeepEqual(race.boxes.slice(0,5).map(box=>box.rotation),before.map(box=>box.rotation));
+});
+
+test('randomized boxes stay inside the lane and clear of obstacles and neighboring boxes',()=>{
+  for(let seed=0;seed<20;seed++){
+    const race=new PracticeRace(true,()=>seed/20);
+    assert.equal(race.boxes.length,70);
+    for(const box of race.boxes){
+      assert.ok(Math.abs(box.position[0])<=28&&Math.abs(box.position[2])<=28);
+      for(const obstacle of race.obstacles){
+        if(Math.abs(box.position[1]-obstacle.position[1])<=(obstacle.kind==='duct'?30:12))
+          assert.ok(Math.hypot(box.position[0]-obstacle.position[0],box.position[2]-obstacle.position[2])>(obstacle.kind==='duct'?19:10));
+      }
+      for(const other of race.boxes){
+        if(other!==box&&Math.abs(other.position[1]-box.position[1])<20)
+          assert.ok(Math.hypot(other.position[0]-box.position[0],other.position[2]-box.position[2])>=9);
+      }
+    }
+  }
 });

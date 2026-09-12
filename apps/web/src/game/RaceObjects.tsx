@@ -107,7 +107,7 @@ export function RaceObjects({race}:{race:PracticeRace}){
     boxes.current?.children.forEach((group,i)=>{
       const box=race.boxes[i];group.visible=box.active&&Math.abs(box.position[1]-y)<230;
       group.position.set(box.position[0],box.position[1]-y,box.position[2]);
-      group.rotation.set(race.elapsed*0.4,race.elapsed,0.3);group.scale.setScalar(1.75);
+      group.rotation.set((box.rotation?.[0]??0)+race.elapsed*0.4,(box.rotation?.[1]??0)+race.elapsed,(box.rotation?.[2]??0.3));group.scale.setScalar(1.75);
     });
     rings.current?.children.forEach((group,i)=>{
       const ring=race.rings[i];group.visible=!ring.used.has(0)&&Math.abs(ring.position[1]-y)<230;
@@ -133,7 +133,7 @@ export function RaceObjects({race}:{race:PracticeRace}){
       <Block size={[1.6,0.25,1.6]} color="#a26aff"/><Block size={[0.25,1.6,1.6]} color="#a26aff"/>
     </group>)}</group>
     <group ref={rings}>{race.rings.map(ring=><group key={ring.id}>
-      <mesh rotation={[-Math.PI/2,0,0]}><torusGeometry args={[5,0.55,12,48]}/><meshStandardMaterial color="#6dffde" emissive="#19c69a" emissiveIntensity={2}/></mesh>
+      <mesh rotation={[-Math.PI/2,0,0]}><torusGeometry args={[5,0.55,12,48]}/><meshStandardMaterial color={(ring.fuel??2)>2?'#ffdf75':'#6dffde'} emissive={(ring.fuel??2)>2?'#de9b18':'#19c69a'} emissiveIntensity={2}/></mesh>
       <BoostSign/>
       {[-2,0,2].map(z=><mesh key={z} position={[0,0,z]} rotation={[Math.PI,0,0]}>
         <coneGeometry args={[0.65,1.2,3]}/><meshStandardMaterial color="#d3fff1" emissive="#5effc9" emissiveIntensity={1}/>

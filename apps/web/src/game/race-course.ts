@@ -81,3 +81,28 @@ export function obstacleHit(a:Position,b:Position,obstacle:Obstacle,time:number)
   }
   return null;
 }
+
+// Keep randomized boxes away from junk, pipe walls, and one another.
+export function makeItemBoxes(obstacles:Obstacle[],random:()=>number) {
+  return Array.from({length:14},(_,section)=>{
+    const positions:Position[]=[];
+    return Array.from({length:5},(_,index)=>{
+      const y=-100-section*250-index%3*6;
+      const clear=(x:number,z:number)=>positions.every(p=>Math.hypot(p[0]-x,p[2]-z)>=9)&&
+        obstacles.every(o=>Math.abs(o.position[1]-y)>(o.kind==='duct'?30:12)||
+          Math.hypot(o.position[0]-x,o.position[2]-z)>(o.kind==='duct'?19:10));
+      let position:Position|undefined;
+      for(let attempt=0;attempt<40;attempt++){
+        const x=random()*56-28,z=random()*56-28;
+        if(clear(x,z)){position=[x,y,z];break;}
+      }
+      // Bounded fallback also keeps seeded tests and unlucky rolls safe.
+      if(!position)for(let x=-28;x<=28&&!position;x+=7)for(let z=-28;z<=28;z+=7){
+        if(clear(x,z)){position=[x,y,z];break;}
+      }
+      if(!position)throw new Error('No clear item-box placement.');
+      positions.push(position);
+      return {id:section*5+index,position,rotation:[random()*Math.PI*2,random()*Math.PI*2,random()*Math.PI*2] as Position,active:true};
+    });
+  }).flat();
+}

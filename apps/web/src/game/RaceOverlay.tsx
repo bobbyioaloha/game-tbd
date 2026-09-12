@@ -60,7 +60,7 @@ export function RaceOverlay({hud,paused,useKey,boostKey,dodgeKey}:{hud:typeof in
     </div>}
     {!paused&&hud.threat&&<div role="status" className={'threat-warning '+(hud.threat==='MISSILE INCOMING'?'incoming':'')}>
       <span className="threat-arrow" style={{transform:'rotate('+hud.threatAngle+'deg)'}}>↑</span>
-      <div><strong>{hud.threat}</strong><small>{hud.threatDistance} · {dodgeKey} to evade</small></div>
+      <div><strong>{hud.threat}</strong><small>{hud.threatDistance} · {hud.dodgeCooldown>0?'Dodge ready in '+hud.dodgeCooldown.toFixed(1)+'s':dodgeKey+' · DODGE TO EVADE'}</small></div>
     </div>}
   </>;
 }

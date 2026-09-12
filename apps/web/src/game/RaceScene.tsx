@@ -1,6 +1,7 @@
-import { PowerUpModel } from '../components/PowerUpModel';
+import { followCameraAxis } from './camera-follow';
+import { RaceCreations } from './RaceCreationVisuals';
 import type { RaceCreationHost } from './race-creation-host';
-import { useRef, useSyncExternalStore } from 'react';
+import { useRef } from 'react';
 import { TargetLock } from './target-lock';
 import type { Item } from './race-course';
 import { RaceObjects } from './RaceObjects';
@@ -14,7 +15,7 @@ export const defaultBindings = {left:'KeyA',right:'KeyD',forward:'KeyW',backward
 export type Action = keyof typeof defaultBindings;
 export type RaceRuntime = {race:PracticeRace;voice?:RaceCreationHost;keys:Set<string>;paused:boolean;bindings:typeof defaultBindings;clock:number;generation:number;fireRequested:boolean;dodgeRequested:boolean;target?:number};
 export type Marker = {id:number;name:string;left:number;top:number;angle:number;edge:boolean;gap:string;locked:boolean;selected:boolean;progress:number};
-export const initialRaceHud = {speed:0,depth:0,x:-7.5,z:0,brake:false,look:false,time:0,place:1,finish:null as number|null,remaining:FINISH_DEPTH,markers:[] as Marker[],allFinished:false,item:'Empty',effects:'',targetName:'',itemKey:null as Item|null,feedback:'',boost:false,fuel:0,dodgeCooldown:0,threat:'',threatAngle:0,threatDistance:'',standings:new PracticeRace(false).standings()};
+export const initialRaceHud = {creationMarker:null as {left:number;top:number;angle:number;edge:boolean;name:string;gap:string}|null,speed:0,depth:0,x:-7.5,z:0,brake:false,look:false,time:0,place:1,finish:null as number|null,remaining:FINISH_DEPTH,markers:[] as Marker[],allFinished:false,item:'Empty',effects:'',targetName:'',itemKey:null as Item|null,feedback:'',boost:false,fuel:0,dodgeCooldown:0,threat:'',threatAngle:0,threatDistance:'',standings:new PracticeRace(false).standings()};
 
 function CrashMat() {
   return <group>
@@ -56,10 +57,8 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       follow.current={x,z,generation:runtime.generation}; accumulator.current=0;lock.current.reset();
     }
     if(!runtime.paused) {
-      const target = (current:number,value:number) => landed ? 0 : input.x===0&&input.z===0&&lock.current.target===undefined ? value : current+Math.sign(value-current)*Math.max(0,Math.abs(value-current)-9);
-      const blend=1-Math.exp(-dt*3);
-      follow.current.x+=(target(follow.current.x,x)-follow.current.x)*blend;
-      follow.current.z+=(target(follow.current.z,z)-follow.current.z)*blend;
+      follow.current.x=followCameraAxis(follow.current.x,landed?0:x,dt);
+      follow.current.z=followCameraAxis(follow.current.z,landed?0:z,dt);
     }
     // A/D reverses in look-up mode to keep horizontal steering screen-relative.
     camera.up.set(0,0,-1);
@@ -124,12 +123,24 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         return {id:racer.id,name:racer.name,left:50+px*50,top:50-py*50,angle:Math.atan2(px,py)*180/Math.PI,edge,locked:runtime.target===racer.id,selected:lock.current.target===racer.id,progress:lock.current.target===racer.id?lock.current.progress:0,
           gap:racer.finishTime!==undefined ? 'Landed' : Math.abs(difference)<1 ? 'Level' : Math.round(Math.abs(difference))+' m '+(difference>0?'above':'below')};
       });
+      const creation=runtime.voice?.creation;
+      let creationMarker:typeof initialRaceHud.creationMarker=null;
+      if(creation&&Math.hypot(creation.position[0]-x,creation.position[1]-y,creation.position[2]-z)<=400){
+        const point=new Vector3(creation.position[0],creation.position[1]-y,creation.position[2]);
+        const behind=point.clone().applyMatrix4(camera.matrixWorldInverse).z>=0;
+        const projected=point.project(camera);
+        let px=projected.x*(behind?-1:1),py=projected.y*(behind?-1:1);
+        const edge=behind||Math.abs(px)>0.65||Math.abs(py)>0.55||projected.z>1;
+        if(edge){if(Math.abs(px)+Math.abs(py)<0.01)py=1;const scale=Math.max(Math.abs(px)/0.65,Math.abs(py)/0.55,0.001);px/=scale;py/=scale;}
+        const gap=creation.position[1]-y;
+        creationMarker={left:50+px*50,top:50-py*50,angle:Math.atan2(px,py)*180/Math.PI,edge,name:creation.spec.displayName,gap:Math.round(Math.hypot(creation.position[0]-x,gap,creation.position[2]-z))+' m · '+(gap>0?'above':'below')};
+      }
       const threat=race.threat(0);
       const threatPoint=threat?new Vector3(threat.position[0],threat.position[1]-y,threat.position[2]):null;
       const behind=threatPoint?threatPoint.clone().applyMatrix4(camera.matrixWorldInverse).z>=0:false;
       const projection=threatPoint?.project(camera);
       const threatAngle=projection?Math.atan2(projection.x*(behind?-1:1),projection.y*(behind?-1:1))*180/Math.PI:0;
-      report({standings:race.standings(),speed:state.fallSpeed,depth:-y,x,z,brake:!runtime.paused&&!landed&&!!held('brake'),look,
+      report({creationMarker,standings:race.standings(),speed:state.fallSpeed,depth:-y,x,z,brake:!runtime.paused&&!landed&&!!held('brake'),look,
         time:race.elapsed,place:race.order().findIndex(r=>r.id===0)+1,finish:player.finishTime??null,
         remaining:Math.max(0,FINISH_DEPTH+y),markers,allFinished:race.finished,
         item:player.item?ITEM_NAMES[player.item]:'Empty',itemKey:player.item,feedback:race.feedbackUntil>race.elapsed?race.feedback:'',boost:player.boosting,fuel:player.boostFuel,dodgeCooldown:Math.max(0,player.dodgeReady-race.elapsed),threat:threat?.kind??'',threatAngle,threatDistance:threat?Math.round(Math.abs(threat.position[1]-y))+' m '+(threat.position[1]>y?'above':'below'):'',
@@ -155,16 +166,4 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       <cylinderGeometry args={[0.08,0.08,300,6]}/><meshBasicMaterial color="#d5eafb" transparent opacity={0.3}/>
     </mesh>))}</group>
   </>;
-}
-
-function RaceCreations({host}:{host:RaceCreationHost}) {
-  useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
-  const group=useRef<Group>(null);
-  useFrame(()=>{if(group.current)group.current.position.y=-host.race.snapshot(host.race.racers[0]).position[1];});
-  return <group ref={group}>
-    {host.voice&&<mesh position={host.voice.position} rotation={[0,0,Math.PI/4]}>
-      <boxGeometry args={[1.5,1.5,1.5]}/><meshStandardMaterial color="#ffcf65" emissive="#a86300" emissiveIntensity={0.6}/>
-    </mesh>}
-    {host.creation&&<group position={host.creation.position}><PowerUpModel spec={host.creation.spec}/></group>}
-  </group>;
 }

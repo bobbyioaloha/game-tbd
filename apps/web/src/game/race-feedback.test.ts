@@ -59,7 +59,7 @@ test('sun reports zero and exact destruction count, without counting earlier hit
 test('arena and course opportunities match the expanded prototype',()=>{
   const race=new PracticeRace();
   assert.equal(LANE_HALF_WIDTH,36);
-  assert.equal(race.boxes.length,70);assert.equal(race.rings.length,3);
+  assert.equal(race.boxes.length,70);assert.equal(race.rings.length,4);
   assert.equal(race.boxes[5].position[1]-race.boxes[0].position[1],-250);
 
 });
