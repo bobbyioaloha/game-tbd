@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { meshFixture, GeneratedCreationSchema, PipelineEventSchema, type PipelineEvent } from '@sky/shared';
+import { meshFixture, proceduralFixtures, appearanceToRecipe, GeneratedCreationSchema, PipelineEventSchema, type PipelineEvent } from '@sky/shared';
 import { CreationPipeline } from './generation/pipeline.js';
 import { pipelineProfiles, resolveAPIKey } from './generation/pipeline-config.js';
 import { PipelineFailure } from './generation/pipeline-errors.js';
-import type { ModelStageRequest, StageTransport } from './generation/stage-transport.js';
+import { mockStageTransport, type ModelStageRequest, type StageTransport } from './generation/stage-transport.js';
 import { buildApp } from './app.js';
 
 const design = {displayName:'Wind crystal',description:'Slow descent.',visualBrief:'A cyan crystal with pointed ends.',effect:{type:'reduceFallSpeed',multiplier:0.5,durationSeconds:8}};
@@ -147,4 +147,82 @@ test('blank primary API key falls back to the legacy key without exposing it', (
   assert.equal(JSON.stringify(profiles).includes('legacy-test-secret'), false);
   const unavailable = pipelineProfiles({OPENAI_API_KEY: ' ', AI_API_KEY: ' '});
   assert.ok(unavailable.filter(profile => profile.mode === 'live').every(profile => !profile.available));
+});
+
+test('procedural handoff sends only the brief and retains the design effect', async () => {
+  const fixture = proceduralFixtures[0], calls:ModelStageRequest[] = [], events:PipelineEvent[] = [];
+  const pipeline = harness(async request => {
+    calls.push(request);
+    return {data: request.stage === 'design' ? fixture.design : appearanceToRecipe(fixture.appearance)};
+  });
+  const spec = await pipeline.run({text: 'giant rubber duck', profileId: 'mock', geometryMode: 'primitives'}, {emit:event => events.push(event)});
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].input, fixture.design.visualBrief);
+  assert.equal(calls[1].input.includes('reduceFallSpeed'), false);
+  assert.equal(calls[1].geometryMode, 'primitives');
+  assert.ok('parts' in (calls[1].schema.properties as object));
+  assert.equal(spec.appearance.type, 'primitives');
+  assert.deepEqual(spec.effects, [fixture.design.effect]);
+  assert.deepEqual(spec.appearance, fixture.appearance);
+  events.forEach(event => assert.ok(PipelineEventSchema.safeParse(event).success));
+});
+test('procedural recipe cannot override effects or inject unsupported data; no repair calls', async () => {
+  const fixture = proceduralFixtures[0], recipe = appearanceToRecipe(fixture.appearance);
+  for (const bad of [{...recipe, effect:{type:'invulnerability',durationSeconds:5}},
+    {...recipe, parts:[{...recipe.parts[0], type:'script'}]},
+    {...recipe, parts:[{...recipe.parts[0], scale:{x:-1,y:1,z:1}}]}, geometry]) {
+    let calls = 0;
+    const pipeline = harness(async request => {calls++;return {data: request.stage === 'design' ? fixture.design : bad};});
+    await assert.rejects(pipeline.run({text:'duck',profileId:'mock',geometryMode:'primitives'}),
+      error => error instanceof PipelineFailure && error.code === 'INVALID_RECIPE');
+    assert.equal(calls, 2);
+  }
+});
+test('procedural cancellation and timeout prevent completion and retries', async () => {
+  for (const cancel of [false, true]) {
+    const controller = new AbortController();
+    const events:PipelineEvent[] = [];
+    let calls = 0;
+    const pipeline = harness(async request => {
+      calls++;
+      if (request.stage === 'design') return {data:proceduralFixtures[0].design};
+      if (cancel) controller.abort();
+      return new Promise(() => {});
+    }, {totalMs:150,designMs:100});
+    await assert.rejects(pipeline.run({text:'duck',profileId:'mock',geometryMode:'primitives'},
+      {signal:controller.signal,emit:event => events.push(event)}),
+      error => error instanceof PipelineFailure && error.code === (cancel ? 'CANCELLED' : 'TIMEOUT'));
+    assert.equal(calls, 2);
+    assert.equal(events.some(event => event.type === 'complete'), false);
+    assert.equal(events.filter(event => event.type === 'failed').length, 1);
+  }
+});
+test('lab accepts procedural streams and legacy omitted method remains raw mesh', async () => {
+  const app = buildApp({pipeline: harness(async request => ({data:request.stage === 'design'
+    ? proceduralFixtures[0].design
+    : request.geometryMode === 'primitives' ? appearanceToRecipe(proceduralFixtures[0].appearance) : geometry}))});
+  try {
+    for (const geometryMode of ['primitives', 'mesh', undefined]) {
+      const response = await app.inject({method:'POST',url:'/api/lab/creations',payload:{text:'duck',profileId:'mock',geometryMode}});
+      const events = response.body.trim().split('\n').map(line => PipelineEventSchema.parse(JSON.parse(line)));
+      const terminal = events.at(-1);
+      assert.equal(response.statusCode, 200);
+      assert.ok(terminal?.type === 'complete');
+      assert.equal(terminal.spec.appearance.type, geometryMode ?? 'mesh');
+    }
+    const invalid = await app.inject({method:'POST',url:'/api/lab/creations',payload:{text:'duck',profileId:'mock',geometryMode:'unknown'}});
+    assert.equal(invalid.statusCode, 400);
+  } finally {await app.close();}
+});
+
+test('real mock transport preserves every preset across both stages and rejects unknown ideas', async () => {
+  const pipeline = new CreationPipeline(pipelineProfiles({}), {mock:mockStageTransport});
+  await Promise.all(proceduralFixtures.map(async fixture => {
+    const spec = await pipeline.run({text:fixture.prompt,profileId:'mock',geometryMode:'primitives'});
+    assert.equal(spec.displayName, fixture.design.displayName);
+    assert.deepEqual(spec.appearance, fixture.appearance);
+    assert.deepEqual(spec.effects, [fixture.design.effect]);
+  }));
+  await assert.rejects(pipeline.run({text:'a bicycle made from spaghetti',profileId:'mock',geometryMode:'primitives'}),
+    error => error instanceof PipelineFailure && error.code === 'INVALID_REQUEST' && error.message.includes('live profile'));
 });

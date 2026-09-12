@@ -1,27 +1,50 @@
-# Two-stage prompt-to-mesh pipeline
+# Prompt-to-3D generation lab
 
-## Try the lab
-Run `bun install`, then `bun run dev`. Open http://localhost:5173 and use **Generation lab**.
+The lab compares two visual methods behind the same **design → visuals** pipeline. It is isolated from the game, with a shared 30-second deadline, one effect per creation, and no automatic retries or repair calls.
 
-The default **Mock two-stage pipeline** needs no key. It runs the same orchestration and semantic validation as live generation, with deterministic model responses. Mock design selects a fixture effect by text; mock geometry always returns the hand-authored wind crystal, regardless of the visual request. It measures mock delays, not real model latency. No live API call is made automatically.
+## Start and try the mock
 
-To enable live testing:
-1. Copy `.env.example` to `apps/server/.env` if that file does not already exist.
-2. Set `OPENAI_API_KEY` there using your editor. Do not put the key in chat, frontend variables, or committed files.
-3. Restart `bun run dev` so the server reloads environment configuration.
-4. Click **Refresh profiles**, choose **Sol design → Astra mesh**, and submit a short prompt.
-5. Inspect the intermediate design, final mesh, stage timings, token usage and terminal status.
+Run `bun install`, then `bun run dev`. Open http://localhost:5173 and select **Generation lab**.
 
-Live profiles are disabled when no key is configured. Availability means a key is configured; it does not verify model/account access. Invalid keys, account limits and inaccessible models produce a safe provider failure.
+1. Keep **Procedural parts** and **Mock two-stage pipeline** selected.
+2. Choose any of the twelve comparison presets, such as **giant rubber duck**, **red rocket with fins**, or **spiky pink shield**.
+3. Click **Load mock example** to see its design, completed visual, effect, and timing.
+4. Inspect it at 7, 15, or 30 meters; rotation and **Spin preview** are viewer controls.
+5. Switch to **Raw mesh · experimental** to exercise the original vertex/face path.
 
-## Profiles and configuration
-Profiles are defined server-side in `apps/server/src/generation/pipeline-config.ts`.
-- `mock`: deterministic design and geometry transports.
-- `sol-astra`: GPT-5.6 Sol design → GPT-6 Astra geometry, both low reasoning.
-- `sol-sol`: GPT-5.6 Sol for both stages.
-- `configured`: environment-selected stages.
+Every listed procedural prompt has its own authored model. Selection also accepts an exact display name and ignores letter case and repeated whitespace. Unsupported custom ideas return an explicit error; they never silently fall back to a duck. Use a live profile for arbitrary requests. Mock raw geometry always returns the original wind crystal. This validates the pipeline and rendering, not the models' interpretation or latency.
 
-The configured profile accepts:
+The final procedural visual is baked into one render mesh. Its short appearance animation and optional preview spin are authored lab presentation; they do not modify the spec or execute gameplay effects.
+
+## Enable live testing
+
+1. Copy `.env.example` to `apps/server/.env` only if the latter does not exist.
+2. Set `OPENAI_API_KEY` there using your editor. Credentials remain server-side.
+3. Restart `bun run dev` and click **Refresh profiles**.
+4. Select a live profile, choose the visual method, and submit a short prompt.
+
+Adding a key never triggers an automatic call. The button explicitly identifies live API submissions. A nonblank OPENAI_API_KEY takes precedence over legacy AI_API_KEY; blank or unset values fall back to AI_API_KEY. Profile availability indicates configuration only, not verified account/model access.
+
+## Run a comparison
+
+The lab supplies 12 varied prompts and supports custom text up to ten whitespace-separated words / 200 characters. Run the same prompt once per method with the same model profile. Each button submission is a separate attempt; there is no automatic paid batch.
+
+Rate recognizable silhouette and requested features as Clear, Partial, or Unclear. Check multiple angles and the distance selector. Its 45-degree camera is an inspection aid, not a reproduction of the race camera.
+
+**Compare attempts** retains the last 60 attempts, including failures and cancellations. Summaries separate model configurations, visual methods, and mock/live transport. Median successful time excludes unsuccessful attempts; the ready/attempt count includes all attempts. Missing token usage is displayed as unavailable, not zero.
+
+**Export comparison JSON** creates a visible, selectable JSON snapshot and a download link. Copy the text if the browser does not support downloads. It includes prompts, full profile settings, methods, events, specs, ratings, timing and outcomes. Export before navigating away, reloading, or editing code during development; history is component memory only.
+
+Keep 30 seconds as the failure ceiling. A 5–10 second typical result is an evaluation target, not a measured guarantee. Retain both methods until live samples establish recognizable-result rate, latency, and usage. Single-call generation, additional shapes, material presets, and generated animation are future experiments.
+
+## Models and budgets
+
+Server profiles in `apps/server/src/generation/pipeline-config.ts`:
+- `mock`: deterministic two-stage transport.
+- `sol-astra`: Sol design → Astra visuals.
+- `sol-sol`: Sol for both stages.
+- `configured`: environment-selected models and output budgets.
+
 | Variable | Default |
 | --- | --- |
 | DESIGN_MODEL | gpt-5.6-sol |
@@ -31,76 +54,89 @@ The configured profile accepts:
 | GEOMETRY_REASONING | low |
 | GEOMETRY_MAX_OUTPUT_TOKENS | 12000 |
 
-Supported model IDs: gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna. Reasoning choices are low, medium, high. Output budgets are integers from 256 to 16000. These are experimental settings, not a guarantee of completion within the deadline. API output budgets include reasoning tokens; incomplete responses fail instead of being repaired.
+Both visual methods use the selected geometry-stage settings. Supported IDs remain gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna. Reasoning is low, medium, or high; output budgets are integers 256–16000. Budgets include reasoning tokens. Incomplete responses fail.
 
-A nonblank OPENAI_API_KEY takes precedence over the legacy AI_API_KEY variable. Unset or blank values fall back to AI_API_KEY. The lab receives approved profile metadata only; no credential or arbitrary API endpoint can be supplied by the browser.
+Calls use the official Responses API with strict Structured Outputs, no tools, store:false and maxRetries:0. Stage one has at most 8 seconds; stage two receives the remaining overall time. Geometry receives only the validated visual brief, never the original prompt or gameplay effect. Failed validation consumes the attempt; no silent fallback is applied to live results.
 
-## One attempt, two calls
-1. Validate text: 1–10 whitespace-separated words, maximum 200 characters.
-2. Start an overall 30-second deadline.
-3. Call design once, with at most 8 seconds.
-4. Validate CreationDesign: name, description, visualBrief (1–700 characters), exactly one supported bounded effect.
-5. Send only visualBrief to geometry. It does not receive the original request or effect.
-6. Call geometry once, with the remaining overall time.
-7. Validate geometry, assemble the final spec using the original design effect, assign a UUID, and validate the final result.
-8. Return one mesh and one effect, or one structured terminal failure.
+## Visual contracts and rendering
 
-Both calls use the official OpenAI Responses API, strict Structured Outputs, no tools, store:false, and maxRetries:0. There are no automatic repair calls, retry attempts, or fallback models. A failure in design prevents the geometry call. Cancellation/disconnection aborts the active request and prevents later stages. Local cancellation cannot guarantee that already-started provider work incurs no usage.
+CreationSpec v2 already supports both representations, so no new game-spec version is introduced. The generated-result schema accepts either appearance with exactly one supported effect. Legacy v1 and broader v2 contracts remain compatible.
 
-The SDK returns complete data per stage. Progress streaming is between our server and the lab; partially generated mesh vertices are never rendered.
+**Procedural parts**
 
-## Contracts
-`packages/shared/src/pipeline.ts` defines the validated design, narrow final schema, profile metadata, model wire geometry, stream events, errors, and metrics. The broad CreationSpec v2 and legacy v1 contracts are preserved.
+The model wire recipe is `{parts: [...]}`. Each part contains:
+- type: box, sphere, cylinder, or cone.
+- position, rotation, scale: named `{x,y,z}` coordinates.
+- color: exactly #RRGGBB.
 
-The API-compatible geometry wire format uses objects:
+The server validates this recipe and converts coordinates into the existing v2 tuples:
+
 ```ts
 {
-  vertices: Array<{x:number; y:number; z:number}>;
-  faces: Array<{a:number; b:number; c:number; color:string}>;
+  version: 2,
+  appearance: {
+    type: 'primitives',
+    primitives: [
+      {type: 'sphere', position: [0,0,0], rotation: [0,0,0], scale: [2,1,2], color: '#ffcc32'}
+    ]
+  },
+  // id, displayName, description, and exactly one effect are assembled separately.
 }
 ```
-The adapter converts these to the game's coordinate/index tuples, without repairing geometry or changing semantics. Strict validation rejects extra fields, including attempted effect overrides.
 
-Limits remain 256 vertices, 512 faces, coordinates in [-3,3] meters, distinct existing integer indices, nondegenerate triangles and one #RRGGBB color per face. Prompts target approximately 16–48 vertices and 32–96 faces to keep results compact. Mesh topology can still be visually poor despite passing validation; holes/disconnected surfaces are allowed.
+Recipes contain 1–24 parts. Position axes are [-3,3] meters, rotation axes [-π,π] radians, and scale axes [0.05,4] meters. Numbers must be finite. Coordinates are right-handed: +X right, +Y up, +Z toward the object's front. Transforms apply scale, XYZ Euler rotation, then translation. Box size is 1×1×1; sphere diameter is 1; cylinder/cone diameter and height are 1 along Y, with the cone tip at +Y. All base shapes are centered.
 
-## Lab API
-- `GET /api/lab/profiles`: public profiles, availability and timing budgets.
-- `POST /api/lab/creations`: `{"text":"a wind crystal","profileId":"sol-astra"}`.
-- Invalid input/unknown profile: HTTP 400, structured error envelope.
-- Unconfigured live profile: HTTP 503, structured error envelope.
-- Accepted requests: HTTP 200 with newline-delimited JSON and Content-Type application/x-ndjson.
+These match existing primitive semantics. They bound part transforms rather than imposing the raw mesh's six-meter total cube. Prompts target a compact visual roughly three meters across.
 
-Event flow:
+The trusted browser compiler fixes sphere resolution to 16×12 segments and cylinder/cone radial resolution to 16. It bakes transformed positions, normals and per-part colors into one geometry with one material, capped at 10,000 triangles. Even 24 spheres fit this bound. Temporary geometries are disposed during compilation; R3F owns the final geometry and material. No model-provided tessellation, scripts, modifiers, colliders, material settings or animation fields are accepted.
+
+**Raw mesh**
+
+The existing model wire format is vertices `{x,y,z}` and faces `{a,b,c,color}`. Limits remain 256 vertices, 512 triangles, coordinates [-3,3], distinct existing integer indices, nondegenerate faces, and one #RRGGBB color per face. This budget is independent of trusted procedural compilation. Valid geometry can still have a poor silhouette, holes, or disconnected surfaces.
+
+## HTTP contract
+
+- GET /api/lab/profiles: public profiles, availability, and budgets.
+- POST /api/lab/creations:
+
+```json
+{"text":"giant rubber duck","profileId":"sol-astra","geometryMode":"primitives"}
+```
+
+`geometryMode` is `primitives` or `mesh`. Omission retains the existing raw-mesh behavior; the lab explicitly defaults to primitives. Unknown request fields and methods are rejected.
+
+Invalid input or profile returns HTTP 400 with `{error:{code,message}}`; an unconfigured profile returns 503. Accepted attempts stream application/x-ndjson:
+
 ```text
 stage(design)
 design(validated design + metric)
 stage(geometry)
 geometry(metric)
 stage(validation)
-complete(spec + metrics + total elapsed)
+complete(validated spec + metrics + total elapsed)
 ```
-A failure replaces the remaining events with `failed(stage, error, metrics, elapsedMs)`. After headers are sent, inspect the terminal event rather than relying on HTTP status. Codes include INVALID_DESIGN, INVALID_MESH, TIMEOUT, CANCELLED, REFUSED, INCOMPLETE and PROVIDER_ERROR. Raw provider errors are never returned.
 
-Per-stage metrics include elapsed wall time and token usage when the SDK supplies it. Failed/aborted calls may have no usage information. The lab keeps the last eight attempts in component memory; reloading or leaving the page clears history. It preserves the previous valid mesh when an attempt fails.
+The stage name `geometry` remains stable for both methods. A failure replaces remaining events with `failed(stage,error,metrics,elapsedMs)`. Inspect the terminal event after HTTP 200. Error codes include INVALID_RECIPE, INVALID_MESH, INVALID_DESIGN, TIMEOUT, CANCELLED, REFUSED, INCOMPLETE, and PROVIDER_ERROR. Provider internals are not exposed.
 
-The existing `POST /api/creations` remains a raw-spec interface and defaults to this pipeline's mock profile. It never silently enables live calls when a key is added.
+Disconnect/cancellation aborts active work and prevents later stages. It cannot guarantee that already-started provider work incurs no usage. The client validates every stream event. Partial recipes and mesh fragments are never rendered.
 
-## Isolation
-GamePage, controls, PlayerController, collision, effect execution, voice capture and the in-game CreationClient remain unchanged. The game still uses its browser mock. The lab has a separate streaming client. Integrate the live pipeline with the game only in a later explicit change.
+POST /api/creations still returns a raw spec and defaults to the pipeline's mock raw-mesh method. It never silently enables live calls.
 
-Useful files:
-- `pipeline.ts`: orchestration and deadlines.
-- `stage-transport.ts`: SDK call and response handling, plus mocked stages.
-- `model-schemas.ts`: model response schemas and version-controlled prompts.
-- `pipeline-config.ts`: approved profiles.
-- `lab-routes.ts`: HTTP progress streaming and disconnect handling.
-- `GenerationLabPage.tsx`: manual testing and session history.
+## Game integration boundary
 
-All server paths above are under apps/server/src/generation. The lab page is under apps/web/src/pages.
+The updated Game tab contains **Movement test** (the race mechanics) and **Voice / creation demo**. Neither is wired to the live lab pipeline. Their controls, movement, collisions and effect timing remain separate.
 
-## Verification and evaluation
-Run `bun run build`, `bun run typecheck`, and `bun run test`. Tests use fake model responses and intercepted SDK HTTP, never real credentials or paid calls. Coverage includes handoff isolation, validation, timeouts, cancellation, refusal, incomplete output, disabled retries, streaming and existing gameplay tests.
+The intended future flow stays: collect authored Voice Power Up → speak once while falling → generate while falling → validate → spawn ahead of the current player → collect the creation → activate its one effect. Collision is game-owned and independent of appearance. Loading or materialization visuals must not activate effects early.
 
-Before choosing defaults, manually compare the same varied prompts across live profiles. Record recognizable silhouette, valid-result rate, latency, and token usage. No live model quality or latency has been established by the mock tests.
+## Implementation and verification
 
-Official references: [Responses API](https://developers.openai.com/api/docs/guides/responses), [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra).
+- shared `creation.ts`, `pipeline.ts`, `procedural.ts`: versioned contracts, recipe adapter, and events.
+- shared `procedural-fixtures.ts`: twelve examples and evaluation prompts, derived from the same catalog.
+- server `generation/pipeline.ts`, `visual-output.ts`: orchestration and validation.
+- server `generation/model-schemas.ts`, `stage-transport.ts`: prompts, wire schemas, SDK/mock calls.
+- web `generation/compile-primitives.ts`: bounded single-mesh compilation.
+- web `pages/GenerationLabPage.tsx`, `generation/LabPreview.tsx`, `LabHistory.tsx`: testing UI.
+
+Run `bun run build`, `bun run typecheck`, and `bun run test`. Automated tests use fixtures and intercepted SDK responses, never paid calls. Coverage includes recipe bounds, one-effect output, handoff isolation, raw API compatibility, cancellation/deadlines, compiler transforms and budgets, comparison accounting, and existing game/race tests.
+
+References: [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [latency guidance](https://developers.openai.com/api/docs/guides/latency-optimization), [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra).

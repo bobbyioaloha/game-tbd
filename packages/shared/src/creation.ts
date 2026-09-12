@@ -26,10 +26,14 @@ export const MeshAppearanceSchema = z.object({
     }
   });
 });
+export const PrimitiveAppearanceSchema = z.object({
+  type: z.literal('primitives'), primitives: z.array(PrimitiveSchema).min(1).max(24),
+}).strict();
+export type PrimitiveAppearance = z.infer<typeof PrimitiveAppearanceSchema>;
 export const CreationSpecSchema = PowerUpSpecSchema.extend({
   version: z.literal(2),
   appearance: z.union([
-    z.object({type: z.literal('primitives'), primitives: z.array(PrimitiveSchema).min(1).max(24)}).strict(),
+    PrimitiveAppearanceSchema,
     MeshAppearanceSchema,
   ]),
 });

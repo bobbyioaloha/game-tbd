@@ -5,10 +5,10 @@ TAI x OpenAI Hackathon September 2026
 Controls and movement are isolated from voice/generation. Start with [the partner handoff guide](docs/controls-handoff.md).
 
 ## Prompt-to-mesh lab
-The Generation lab now runs a configurable **design → geometry** pipeline with a shared 30-second deadline. Mock mode works immediately; live OpenAI profiles need a server API key. See [setup and API details](docs/prompt-to-mesh-pipeline.md). The game still uses its independent mock.
+The Generation lab compares **procedural parts** with **raw mesh generation**, using a configurable design → visuals pipeline and a shared 30-second deadline. Try the duck, toaster, and shield in mock mode immediately; live OpenAI profiles need a server API key. Twelve comparison prompts, distance previews, ratings, timing, and JSON export help evaluate the two approaches. See [setup and API details](docs/prompt-to-mesh-pipeline.md). The game still uses its independent mock.
 
 ## Current skeleton
-The default **Generation lab** supports text prompts, pipeline profiles, intermediate design inspection, 3D preview, timing, cancellation, and JSON inspection. **Game** now demonstrates falling → Voice Power Up → simulated speech → creation → effect activation. Voice remains simulated; live generation is available only by explicit submission in the lab after configuring a key. See [the creation skeleton guide](docs/creation-skeleton.md) for controls, the v2 contract, lifecycle rules, and the live-provider implementation boundary.
+The default **Generation lab** supports text prompts, visual methods, pipeline profiles, intermediate design inspection, a 3D preview, cancellation, and exportable comparison history. **Game** contains the merged race/movement test and a separate voice/creation demo demonstrating falling → Voice Power Up → simulated speech → creation → effect activation. Voice remains simulated; live generation is available only by explicit submission in the lab after configuring a key. See [the creation skeleton guide](docs/creation-skeleton.md) for controls, the v2 contract, lifecycle rules, and the live-provider implementation boundary.
 
 The v1 contract and fixture API remain available for compatibility alongside the v2 creation pipeline.
 
