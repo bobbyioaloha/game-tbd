@@ -16,3 +16,7 @@
 - PlayerController and use-game-input.ts are the controls extension points. DemoGame owns world integration; CreationLoop receives semantic pickup events and calls CreationHost. Avoid duplicate frame integration.
 
 - Live lab attempts run design then geometry with a shared 30-second deadline and no SDK retries. Geometry receives only the visual brief. Preserve one mesh / one effect and keep controls/gameplay isolated. See docs/prompt-to-mesh-pipeline.md.
+
+- Lab geometryMode selects bounded primitive recipes or raw meshes; omission preserves raw-mesh API behavior. Reuse CreationSpec v2 and keep exactly one effect.
+- Procedural rendering compiles static parts into one mesh with fixed tessellation and a separate 10,000-triangle budget. Preserve raw mesh limits and keep model-written code, colliders, and arbitrary renderer settings rejected.
+- GamePage contains the merged movement/race test and CreationDemoPage; lab experiments must not replace or wire into these game views implicitly.

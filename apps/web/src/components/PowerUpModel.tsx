@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Color, DoubleSide } from 'three';
-import type { CreationSpec, MeshAppearance, PowerUpSpec } from '@sky/shared';
+import { compilePrimitiveAppearance } from '../generation/compile-primitives';
+import type { CreationSpec, MeshAppearance, PrimitiveAppearance, PowerUpSpec } from '@sky/shared';
 
 function MeshModel({appearance}: {appearance: MeshAppearance}) {
   const {positions, colors} = useMemo(() => {
@@ -24,10 +25,24 @@ function MeshModel({appearance}: {appearance: MeshAppearance}) {
     <meshStandardMaterial vertexColors flatShading side={DoubleSide} roughness={0.55}/>
   </mesh>;
 }
+function ProceduralModel({appearance}: {appearance: PrimitiveAppearance}) {
+  const {positions, normals, colors} = useMemo(() => compilePrimitiveAppearance(appearance), [appearance]);
+  return <mesh>
+    <bufferGeometry>
+      <bufferAttribute attach="attributes-position" args={[positions, 3]}/>
+      <bufferAttribute attach="attributes-normal" args={[normals, 3]}/>
+      <bufferAttribute attach="attributes-color" args={[colors, 3]}/>
+    </bufferGeometry>
+    <meshStandardMaterial vertexColors roughness={0.45}/>
+  </mesh>;
+}
 // Callers validate external data before rendering. Appearance never sets collision bounds.
 export function PowerUpModel({spec}: {spec: PowerUpSpec | CreationSpec}) {
   if ('type' in spec.appearance && spec.appearance.type === 'mesh') {
     return <MeshModel key={spec.id} appearance={spec.appearance}/>;
+  }
+  if ('type' in spec.appearance && spec.appearance.type === 'primitives') {
+    return <ProceduralModel key={spec.id} appearance={spec.appearance}/>;
   }
   const primitives = 'primitives' in spec.appearance ? spec.appearance.primitives : [];
   return <group>{primitives.map((part, index) =>

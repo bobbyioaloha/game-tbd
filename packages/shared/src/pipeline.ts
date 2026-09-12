@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { EffectSchema, GenerationRequestSchema, PowerUpSpecSchema } from './schema.js';
-import { MeshAppearanceSchema } from './creation.js';
+import { MeshAppearanceSchema, PrimitiveAppearanceSchema } from './creation.js';
 
 export const CreationDesignSchema = z.object({
   displayName: PowerUpSpecSchema.shape.displayName,
@@ -8,13 +8,19 @@ export const CreationDesignSchema = z.object({
   visualBrief: z.string().trim().min(1).max(700),
   effect: EffectSchema,
 }).strict();
-// Stricter production output; the broader v2 contract stays compatible with the game.
+// Both visual methods produce exactly one effect. Existing v1/v2 shapes are unchanged.
 export const GeneratedCreationSchema = PowerUpSpecSchema.extend({
-  version: z.literal(2), appearance: MeshAppearanceSchema, effects: z.array(EffectSchema).length(1),
+  version: z.literal(2), appearance: z.union([MeshAppearanceSchema, PrimitiveAppearanceSchema]), effects: z.array(EffectSchema).length(1),
 });
 export type CreationDesign = z.infer<typeof CreationDesignSchema>;
 export type GeneratedCreation = z.infer<typeof GeneratedCreationSchema>;
-export const PipelineRequestSchema = GenerationRequestSchema.extend({profileId: z.string().min(1).max(48)});
+export const GeometryModeSchema = z.enum(['mesh', 'primitives']);
+export type GeometryMode = z.infer<typeof GeometryModeSchema>;
+export const PipelineRequestSchema = GenerationRequestSchema.extend({
+  profileId: z.string().min(1).max(48),
+  // Omission preserves the existing raw-mesh API behavior; the lab selects primitives.
+  geometryMode: GeometryModeSchema.optional(),
+});
 export type PipelineRequest = z.infer<typeof PipelineRequestSchema>;
 export const StageConfigSchema = z.object({
   model: z.string().min(1).max(80),
@@ -39,7 +45,7 @@ export const StageMetricSchema = z.object({
 }).strict();
 export type StageMetric = z.infer<typeof StageMetricSchema>;
 export const PipelineErrorSchema = z.object({
-  code:z.enum(['INVALID_REQUEST','NOT_CONFIGURED','INVALID_DESIGN','INVALID_MESH','TIMEOUT','CANCELLED','REFUSED','INCOMPLETE','PROVIDER_ERROR']),
+  code:z.enum(['INVALID_REQUEST','NOT_CONFIGURED','INVALID_DESIGN','INVALID_MESH','INVALID_RECIPE','TIMEOUT','CANCELLED','REFUSED','INCOMPLETE','PROVIDER_ERROR']),
   message:z.string().min(1).max(240),
 }).strict();
 export type PipelineErrorData = z.infer<typeof PipelineErrorSchema>;

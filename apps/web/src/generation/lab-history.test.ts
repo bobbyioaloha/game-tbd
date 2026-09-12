@@ -1,0 +1,32 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { proceduralFixtures, type PipelineProfile } from '@sky/shared';
+import { summarizeAttempts, attemptMetrics, serializeLabHistory, type LabAttempt } from './lab-history';
+const profile: PipelineProfile = {id: 'test', label: 'Test', mode: 'live', available: true,
+  design: {model: 'design', reasoning: 'low', maxOutputTokens: 2048},
+  geometry: {model: 'geometry', reasoning: 'low', maxOutputTokens: 12000}};
+const attempt: LabAttempt = {id: 1, prompt: 'duck', geometryMode: 'primitives', profile,
+  outcome: 'ready', elapsedMs: 4000, message: 'Ready', events: [], recognition: 'unrated'};
+test('comparison counts failures and cancellations and separates methods, configs, and mocks', () => {
+  const attempts: LabAttempt[] = [
+    attempt, {...attempt, id: 2, outcome: 'failed'}, {...attempt, id: 3, outcome: 'cancelled'},
+    {...attempt, id: 4, elapsedMs: 8000},
+    {...attempt, id: 5, geometryMode: 'mesh'},
+    {...attempt, id: 6, profile: {...profile, mode: 'mock'}},
+    {...attempt, id: 7, profile: {...profile, geometry: {...profile.geometry, maxOutputTokens: 4096}}},
+  ];
+  const summary = summarizeAttempts(attempts);
+  assert.equal(summary.length, 4);
+  assert.deepEqual(summary[0], {label: 'Test / Procedural parts / live',
+    attempts: 4, ready: 2, failed: 1, cancelled: 1, medianMs: 6000});
+  const exported = JSON.parse(serializeLabHistory(attempts));
+  assert.equal(exported.attempts.length, 7);
+  assert.equal(exported.attempts[2].outcome, 'cancelled');
+  assert.equal(exported.attempts[6].profile.geometry.maxOutputTokens, 4096);
+  assert.equal(summarizeAttempts([{...attempt, outcome: 'failed'}])[0].medianMs, null);
+});
+test('partial usage survives a local cancellation without becoming zero usage', () => {
+  const metric = {stage: 'design' as const, model: 'design', durationMs: 100};
+  assert.deepEqual(attemptMetrics([{type: 'design', design: proceduralFixtures[0].design, metric}]), [metric]);
+  assert.equal(attemptMetrics([]).length, 0);
+});

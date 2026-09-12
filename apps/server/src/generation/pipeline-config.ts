@@ -19,8 +19,8 @@ export function pipelineProfiles(env:NodeJS.ProcessEnv = process.env):PipelinePr
   }
   return [
     {id:'mock',label:'Mock two-stage pipeline',mode:'mock',available:true,design:{...baseDesign,model:'mock-design'},geometry:{...baseGeometry,model:'mock-geometry'}},
-    {id:'sol-astra',label:'Sol design → Astra mesh',...live,design:baseDesign,geometry:baseGeometry},
-    {id:'sol-sol',label:'Sol design → Sol mesh',...live,design:baseDesign,geometry:{...baseGeometry,model:'gpt-5.6-sol'}},
+    {id:'sol-astra',label:'Sol design → Astra visuals',...live,design:baseDesign,geometry:baseGeometry},
+    {id:'sol-sol',label:'Sol design → Sol visuals',...live,design:baseDesign,geometry:{...baseGeometry,model:'gpt-5.6-sol'}},
     {id:'configured',label:'Server-configured models',...live,design:configured('DESIGN',baseDesign),geometry:configured('GEOMETRY',baseGeometry)},
   ];
 }

@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import {
-  CreationDesignSchema, GeneratedCreationSchema, MeshAppearanceSchema, PipelineRequestSchema,
-  GeometryWireSchema, type GeneratedCreation, type PipelineEvent, type PipelineProfile,
+  CreationDesignSchema, GeneratedCreationSchema, PipelineRequestSchema, type GeneratedCreation, type PipelineEvent, type PipelineProfile,
   type PipelineRequest, type PipelineStage, type StageConfig, type StageMetric,
 } from '@sky/shared';
-import { DESIGN_INSTRUCTIONS, DESIGN_JSON_SCHEMA, GEOMETRY_INSTRUCTIONS, GEOMETRY_JSON_SCHEMA } from './model-schemas.js';
+import { DESIGN_INSTRUCTIONS, DESIGN_JSON_SCHEMA, GEOMETRY_INSTRUCTIONS, GEOMETRY_JSON_SCHEMA, PROCEDURAL_DESIGN_INSTRUCTIONS, RECIPE_INSTRUCTIONS, RECIPE_JSON_SCHEMA } from './model-schemas.js';
+import { validateVisualOutput } from './visual-output.js';
 import { PipelineFailure, safePipelineError } from './pipeline-errors.js';
 import type { StageTransport } from './stage-transport.js';
 
@@ -30,6 +30,7 @@ export class CreationPipeline {
     try {
       const parsedRequest = PipelineRequestSchema.safeParse(request);
       if (!parsedRequest.success) throw new PipelineFailure('INVALID_REQUEST','Use one to ten words and select an available pipeline profile.');
+      const geometryMode = parsedRequest.data.geometryMode ?? 'mesh';
       const profile = this.profiles.find(item => item.id === parsedRequest.data.profileId);
       if (!profile) throw new PipelineFailure('INVALID_REQUEST','Unknown pipeline profile.');
       if (!profile.available) throw new PipelineFailure('NOT_CONFIGURED',profile.unavailableReason ?? 'The live provider is not configured.');
@@ -53,7 +54,7 @@ export class CreationPipeline {
           controller.signal.throwIfAborted();
           // Race enforces the deadline even when a test/provider ignores AbortSignal.
           const aborted = new Promise<never>((_,reject) => {rejectAbort=reject;controller.signal.addEventListener('abort',abortListener,{once:true});});
-          const response = await Promise.race([transport.run({stage:currentStage,config,instructions,input,schema,signal:controller.signal}),aborted]);
+          const response = await Promise.race([transport.run({stage:currentStage,geometryMode,config,instructions,input,schema,signal:controller.signal}),aborted]);
           ensureActive();
           if (performance.now()-stageStarted >= budget) throw new PipelineFailure('TIMEOUT',currentStage+' stage exceeded its time budget.');
           const metric:StageMetric = {stage:currentStage,model:config.model,durationMs:Math.round(performance.now()-stageStarted),...(response.usage ? {usage:response.usage} : {})};
@@ -67,26 +68,20 @@ export class CreationPipeline {
           controller.signal.removeEventListener('abort',abortListener);
         }
       };
-      const designed = await call(profile.design,DESIGN_INSTRUCTIONS,parsedRequest.data.text,DESIGN_JSON_SCHEMA);
+      const designed = await call(profile.design,geometryMode === 'primitives' ? PROCEDURAL_DESIGN_INSTRUCTIONS : DESIGN_INSTRUCTIONS,parsedRequest.data.text,DESIGN_JSON_SCHEMA);
       const design = CreationDesignSchema.safeParse(designed.response.data);
       if (!design.success) throw new PipelineFailure('INVALID_DESIGN','Design did not contain a valid visual brief and one supported effect.');
       emit({type:'design',design:design.data,metric:designed.metric});
       stage = 'geometry';
       // Deliberately hand off only appearance data, never the effect or original prompt.
-      const geometry = await call(profile.geometry,GEOMETRY_INSTRUCTIONS,design.data.visualBrief,GEOMETRY_JSON_SCHEMA);
+      const geometry = await call(profile.geometry,geometryMode === 'primitives' ? RECIPE_INSTRUCTIONS : GEOMETRY_INSTRUCTIONS,design.data.visualBrief,geometryMode === 'primitives' ? RECIPE_JSON_SCHEMA : GEOMETRY_JSON_SCHEMA);
       emit({type:'geometry',metric:geometry.metric});
       stage = 'validation';
       emit({type:'stage',stage,elapsedMs:elapsed()});
-      const wire = GeometryWireSchema.safeParse(geometry.response.data);
-      if (!wire.success) throw new PipelineFailure('INVALID_MESH','Geometry response did not match the mesh structure.');
-      const mesh = MeshAppearanceSchema.safeParse({
-        type:'mesh', vertices:wire.data.vertices.map(v => [v.x,v.y,v.z]),
-        triangles:wire.data.faces.map(f => [f.a,f.b,f.c]),faceColors:wire.data.faces.map(f => f.color),
-      });
-      if (!mesh.success) throw new PipelineFailure('INVALID_MESH','Mesh contains invalid coordinates, triangle indices, or degenerate faces.');
+      const appearance = validateVisualOutput(geometry.response.data,geometryMode);
       const spec = GeneratedCreationSchema.parse({version:2,id:randomUUID(),
         displayName:design.data.displayName,description:design.data.description,
-        appearance:mesh.data,effects:[design.data.effect]});
+        appearance,effects:[design.data.effect]});
       ensureActive();
       emit({type:'complete',spec,elapsedMs:elapsed(),metrics});
       return spec;

@@ -9,3 +9,13 @@ button:disabled{cursor:default;opacity:.5}.secondary{background:#293a49;color:#e
 @media(max-width:760px){header .brand{font-size:15px;letter-spacing:1px}nav{gap:0}nav button{font-size:11px;padding:8px}.game-view{height:430px}}
 
 .history-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #34414c;font-size:12px}.history-row button{background:#263642;color:#eaf0f8;padding:7px 12px;border:1px solid #4b5f70;border-radius:5px}
+
+.preview-controls{display:flex;flex-wrap:wrap;gap:16px;align-items:center}.preview-controls label{display:flex;align-items:center;gap:8px}
+.preview-controls select,.comparison-table select{background:#101923;color:#edf5ff;border:1px solid #4b5f70;border-radius:5px;padding:6px;font:inherit;font-size:12px}
+.comparison-scroll{overflow-x:auto}.comparison-table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}.comparison-table th,.comparison-table td{padding:12px 8px;border-bottom:1px solid #34414c;vertical-align:top}.comparison-table small{display:block;color:#a8b7c6;margin-top:6px}.comparison-table button{background:#263642;color:#eaf0f8;padding:7px 12px;border:1px solid #4b5f70;border-radius:5px}
+select:focus-visible{outline:2px solid #d1ff8a;outline-offset:3px}
+
+.generation-workspace{align-items:start}.generation-workspace .viewport{height:520px;position:sticky;top:24px}.generation-workspace .viewport canvas{min-height:0}
+@media(max-width:760px){.generation-workspace .viewport{position:relative;top:0;height:430px}}
+
+.comparison-export a{color:#c9e6a5}.comparison-export textarea{display:block;width:100%;margin:12px 0;background:#101923;color:#edf5ff;border:1px solid #4b5f70;padding:12px;font:12px monospace;resize:vertical}
