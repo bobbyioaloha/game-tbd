@@ -7,18 +7,20 @@
     "packages/*"
   ],
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.12.0",
+    "bun": ">=1.4.2"
   },
   "scripts": {
-    "dev": "npm run build -w @sky/shared && concurrently -k -n shared,server,web \"npm run dev -w @sky/shared\" \"npm run dev -w @sky/server\" \"npm run dev -w @sky/web\"",
-    "build": "npm run build -w @sky/shared && npm run build -w @sky/server && npm run build -w @sky/web",
-    "typecheck": "npm run build -w @sky/shared && npm run typecheck --workspaces",
-    "test": "npm run build -w @sky/shared && tsx --test packages/shared/src/*.test.ts apps/server/src/*.test.ts apps/web/src/game/*.test.ts"
+    "dev": "bun run --filter @sky/shared build && concurrently -k -n shared,server,web \"bun run --filter @sky/shared dev\" \"bun run --filter @sky/server dev\" \"bun run --filter @sky/web dev\"",
+    "build": "bun run --filter @sky/shared build && bun run --filter @sky/server build && bun run --filter @sky/web build",
+    "typecheck": "bun run --filter @sky/shared build && bun run --filter '@sky/*' typecheck",
+    "test": "bun run --filter @sky/shared build && tsx --test packages/shared/src/*.test.ts apps/server/src/*.test.ts apps/web/src/game/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "concurrently": "^9.0.0",
     "tsx": "^4.20.0",
     "typescript": "~5.9.2"
-  }
+  },
+  "packageManager": "bun@1.4.2"
 }
