@@ -13,10 +13,10 @@ export const ITEM_PICKUP_RADIUS = 3.5;
 export const DODGE_COOLDOWN = 15;
 export const SUN_DURATION = 2.5;
 export const BOOST_CAPACITY = 4;
-export const RACER_COLORS = ['#ff9875','#a7f179','#c7a0ff','#ffe175'];
+export const RACER_COLORS = ['#c47b48','#827491','#598d87','#bca454'];
 export type RaceStanding={id:number;name:string;place:number;progress:number;gap:number;finished:boolean};
 export type Racer = {
-  id:number;name:string;controller:FreefallController;landed?:PlayerSnapshot;finishTime?:number;
+  id:number;name:string;incidents:number;controller:FreefallController;landed?:PlayerSnapshot;finishTime?:number;
   target:[number,number];decision:number;brakeUntil:number;item:Item|null;
   creationSlowUntil:number;creationSlowMultiplier:number;creationShieldUntil:number;
   slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;sunOrigin:Position|null;nextUse:number;aiLock:TargetLock;dodgeReaction:RivalDodgeReaction;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;sunVictims:Set<number>;
@@ -34,8 +34,8 @@ export class PracticeRace {
   private random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
   reset(){
     this.feedback='';this.feedbackUntil=0;this.elapsed=0;this.seed=Math.floor(this.seedSource()*4294967296)>>>0;this.shotId=0;this.projectiles=[];
-    this.racers=['You','Lime','Lilac','Lemon'].map((name,id)=>({
-      id,name,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
+    this.racers=['Greg','Linda','Steve','Susan'].map((name,id)=>({
+      id,name,incidents:0,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
       target:[0,0],decision:0,brakeUntil:0,item:null,
       creationSlowUntil:0,creationSlowMultiplier:1,creationShieldUntil:0,
       slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,sunOrigin:null,nextUse:0,aiLock:new TargetLock(),dodgeReaction:new RivalDodgeReaction(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},sunVictims:new Set(),
@@ -191,7 +191,7 @@ export class PracticeRace {
         if(penalty!==null){
           const rules=OBSTACLE_RULES[obstacle.kind];
           racer.controller.impact(penalty,[(motion.position[0]>=obstacle.position[0]?1:-1)*rules.knockback,0,(motion.position[2]>=obstacle.position[2]?1:-1)*rules.knockback]);
-          racer.flailUntil=this.elapsed+rules.flail;racer.immuneUntil=this.elapsed+1.5;
+          racer.incidents++;racer.flailUntil=this.elapsed+rules.flail;racer.immuneUntil=this.elapsed+1.5;
           if(obstacle.kind!=='duct'){obstacle.active=false;obstacle.hitAt=this.elapsed;}break;
         }
       }
@@ -212,7 +212,7 @@ export class PracticeRace {
           attacker.sunVictims.add(victim.id);
           const dx=p[0]-attacker.sunOrigin[0],dz=p[2]-attacker.sunOrigin[2],length=Math.hypot(dx,dz)||1;
           victim.controller.impact(0.5,[dx/length*4,0,dz/length*4]);
-          victim.flailUntil=this.elapsed+0.6;victim.immuneUntil=this.elapsed+1.5;
+          victim.incidents++;victim.flailUntil=this.elapsed+0.6;victim.immuneUntil=this.elapsed+1.5;
           if(victim.id===0)this.announce('HIT BY ANGRY SUN');
           else if(attacker.id===0)this.announce('SUN HIT — '+victim.name);
         }

@@ -1,4 +1,6 @@
+import { GregModel } from './GregModel';
 import { followCameraAxis } from './camera-follow';
+import { projectRivalMarker } from './rival-marker';
 import { RaceCreations } from './RaceCreationVisuals';
 import type { RaceCreationHost } from './race-creation-host';
 import { useRef } from 'react';
@@ -7,7 +9,7 @@ import type { Item } from './race-course';
 import { RaceObjects } from './RaceObjects';
 import { ITEM_NAMES } from './race-course';
 import { useFrame } from '@react-three/fiber';
-import { Vector3, type Group } from 'three';
+import { PerspectiveCamera, Vector3, type Group } from 'three';
 import { CloudField, StarfishDiver } from './skydiving-scenery';
 import { PracticeRace, FINISH_DEPTH, RACER_COLORS, LANE_HALF_WIDTH } from './practice-race';
 
@@ -15,7 +17,7 @@ export const defaultBindings = {left:'KeyA',right:'KeyD',forward:'KeyW',backward
 export type Action = keyof typeof defaultBindings;
 export type RaceRuntime = {race:PracticeRace;voice?:RaceCreationHost;keys:Set<string>;paused:boolean;bindings:typeof defaultBindings;clock:number;generation:number;fireRequested:boolean;dodgeRequested:boolean;target?:number};
 export type Marker = {id:number;name:string;left:number;top:number;angle:number;edge:boolean;gap:string;locked:boolean;selected:boolean;progress:number};
-export const initialRaceHud = {creationMarker:null as {left:number;top:number;angle:number;edge:boolean;name:string;gap:string}|null,speed:0,depth:0,x:-7.5,z:0,brake:false,look:false,time:0,place:1,finish:null as number|null,remaining:FINISH_DEPTH,markers:[] as Marker[],allFinished:false,item:'Empty',effects:'',targetName:'',itemKey:null as Item|null,feedback:'',boost:false,fuel:0,dodgeCooldown:0,threat:'',threatAngle:0,threatDistance:'',standings:new PracticeRace(false).standings()};
+export const initialRaceHud = {incidents:0,creationMarker:null as {left:number;top:number;angle:number;edge:boolean;name:string;gap:string}|null,speed:0,depth:0,x:-7.5,z:0,brake:false,look:false,time:0,place:1,finish:null as number|null,remaining:FINISH_DEPTH,markers:[] as Marker[],allFinished:false,item:'Empty',effects:'',targetName:'',itemKey:null as Item|null,feedback:'',boost:false,fuel:0,dodgeCooldown:0,threat:'',threatAngle:0,threatDistance:'',standings:new PracticeRace(false).standings()};
 
 function CrashMat() {
   return <group>
@@ -34,6 +36,13 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
   const accumulator = useRef(0), hudTime = useRef(0);
   const follow = useRef({x:-7.5,z:0,generation:-1});
   useFrame(({camera},delta) => {
+    if(camera instanceof PerspectiveCamera&&camera.fov!==65){camera.fov=65;camera.updateProjectionMatrix();}
+    // Reset frame state before the new run consumes simulation time.
+    if(follow.current.generation!==runtime.generation) {
+      const [x,,z]=runtime.race.snapshot(runtime.race.racers[0]).position;
+      follow.current={x,z,generation:runtime.generation};
+      accumulator.current=0;hudTime.current=0;lock.current.reset();runtime.target=undefined;
+    }
     const dt = Math.min(delta,0.1);
     const held = (action:Action) => Number(runtime.keys.has(runtime.bindings[action]));
     const input = {x:(held('right')-held('left'))*(held('look') ? -1 : 1),z:held('backward')-held('forward')};
@@ -53,16 +62,13 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
     const [x,y,z]=state.position;
     const landed=player.finishTime!==undefined;
     const look=!!held('look')&&!landed;
-    if(follow.current.generation!==runtime.generation) {
-      follow.current={x,z,generation:runtime.generation}; accumulator.current=0;lock.current.reset();
-    }
     if(!runtime.paused) {
       follow.current.x=followCameraAxis(follow.current.x,landed?0:x,dt);
       follow.current.z=followCameraAxis(follow.current.z,landed?0:z,dt);
     }
     // A/D reverses in look-up mode to keep horizontal steering screen-relative.
     camera.up.set(0,0,-1);
-    camera.position.set(follow.current.x,look ? -38 : landed ? 80 : 38,follow.current.z);
+    camera.position.set(follow.current.x,look ? -16 : landed ? 80 : 16,follow.current.z);
     camera.lookAt(follow.current.x,0,follow.current.z);
     camera.updateMatrixWorld();
     let aimScore=Infinity;
@@ -109,18 +115,9 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       const markers=race.racers.slice(1).map(racer => {
         const [rx,ry,rz]=race.snapshot(racer).position;
         const world=new Vector3(rx,ry-y+0.3,rz);
-        const view=world.clone().applyMatrix4(camera.matrixWorldInverse);
-        const projected=world.project(camera);
-        const edge=view.z>=0 || Math.abs(projected.x)>0.85 || Math.abs(projected.y)>0.8 || projected.z>1;
-        let px=projected.x,py=projected.y;
-        if(view.z>=0) {px=-px;py=-py;}
-        if(edge) {
-          if(Math.abs(px)+Math.abs(py)<0.01) py=1;
-          const scale=Math.max(Math.abs(px)/0.8,Math.abs(py)/0.75,0.001);
-          px/=scale;py/=scale;
-        }
+        const marker=projectRivalMarker(world,camera);
         const difference=ry-y;
-        return {id:racer.id,name:racer.name,left:50+px*50,top:50-py*50,angle:Math.atan2(px,py)*180/Math.PI,edge,locked:runtime.target===racer.id,selected:lock.current.target===racer.id,progress:lock.current.target===racer.id?lock.current.progress:0,
+        return {id:racer.id,name:racer.name,...marker,locked:runtime.target===racer.id,selected:lock.current.target===racer.id,progress:lock.current.target===racer.id?lock.current.progress:0,
           gap:racer.finishTime!==undefined ? 'Landed' : Math.abs(difference)<1 ? 'Level' : Math.round(Math.abs(difference))+' m '+(difference>0?'above':'below')};
       });
       const creation=runtime.voice?.creation;
@@ -140,7 +137,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       const behind=threatPoint?threatPoint.clone().applyMatrix4(camera.matrixWorldInverse).z>=0:false;
       const projection=threatPoint?.project(camera);
       const threatAngle=projection?Math.atan2(projection.x*(behind?-1:1),projection.y*(behind?-1:1))*180/Math.PI:0;
-      report({creationMarker,standings:race.standings(),speed:state.fallSpeed,depth:-y,x,z,brake:!runtime.paused&&!landed&&!!held('brake'),look,
+      report({incidents:player.incidents,creationMarker,standings:race.standings(),speed:state.fallSpeed,depth:-y,x,z,brake:!runtime.paused&&!landed&&!!held('brake'),look,
         time:race.elapsed,place:race.order().findIndex(r=>r.id===0)+1,finish:player.finishTime??null,
         remaining:Math.max(0,FINISH_DEPTH+y),markers,allFinished:race.finished,
         item:player.item?ITEM_NAMES[player.item]:'Empty',itemKey:player.item,feedback:race.feedbackUntil>race.elapsed?race.feedback:'',boost:player.boosting,fuel:player.boostFuel,dodgeCooldown:Math.max(0,player.dodgeReady-race.elapsed),threat:threat?.kind??'',threatAngle,threatDistance:threat?Math.round(Math.abs(threat.position[1]-y))+' m '+(threat.position[1]>y?'above':'below'):'',
@@ -157,7 +154,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
   return <>
     <color attach="background" args={['#75b8df']}/><fog attach="fog" args={['#b8ddef',80,250]}/>
     <ambientLight intensity={2}/><directionalLight position={[15,30,-10]} intensity={2.5}/>
-    <group ref={racers}>{RACER_COLORS.map((color,index)=><group key={index}><StarfishDiver color={color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/></group>)}</group>
+    <group ref={racers}>{RACER_COLORS.map((color,index)=><group key={index}>{index===0?<group position={[0,-1.35,0]} rotation={[0,Math.PI,0]}><GregModel pose="Dive" time={()=>runtime.race.elapsed} wind={()=>({time:runtime.race.elapsed,speed:runtime.race.racers[0].finishTime===undefined?runtime.race.snapshot(runtime.race.racers[0]).fallSpeed:0})}/></group>:<StarfishDiver color={color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/>}</group>)}</group>
     <RaceObjects race={runtime.race}/>
     {runtime.voice&&<RaceCreations host={runtime.voice}/>}
     <CloudField snapshot={()=>runtime.race.snapshot(runtime.race.racers[0])}/>
