@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { proceduralFixtures, generationEvaluationPrompts, PipelineRequestSchema, type GeometryMode, type CreationDesign, type CreationSpec, type PipelineEvent, type PipelineProfile, type StageMetric } from '@sky/shared';
+import { PIPELINE_DEADLINE_MS, proceduralFixtures, generationEvaluationPrompts, PipelineRequestSchema, type GeometryMode, type CreationDesign, type CreationSpec, type PipelineEvent, type PipelineProfile, type StageMetric, type LiveUsage } from '@sky/shared';
 import { LabPreview } from '../generation/LabPreview';
 import { LabHistory } from '../generation/LabHistory';
 import { attemptMetrics, geometryModeLabels, HISTORY_LIMIT, type LabAttempt } from '../generation/lab-history';
@@ -12,6 +12,8 @@ export function GenerationLabPage() {
   const [spin,setSpin] = useState(false);
   const [profiles,setProfiles] = useState<PipelineProfile[]>([]);
   const [profileId,setProfileId] = useState('mock');
+  const [paidConsent,setPaidConsent] = useState(false);
+  const [liveUsage,setLiveUsage] = useState<LiveUsage>();
   const [profileError,setProfileError] = useState('');
   const [refresh,setRefresh] = useState(0);
   const [spec,setSpec] = useState<CreationSpec>(proceduralFixtures[0].spec);
@@ -26,29 +28,37 @@ export function GenerationLabPage() {
   const pending = useRef<AbortController | null>(null);
   const requestId = useRef(0), started = useRef(0);
   const profile = profiles.find(item => item.id === profileId);
+  const liveAttemptAvailable = Boolean(profile?.available && liveUsage?.enabled && !liveUsage.busy && liveUsage.attemptsRemaining > 0);
+  const canGenerate = !busy && Boolean(profile?.available) && (profile?.mode !== 'live' || (liveAttemptAvailable && paidConsent));
+  const terminal = events.at(-1);
+  const providerDiagnostic = terminal?.type === 'failed' ? terminal.error.provider : undefined;
   useEffect(() => {
     const controller = new AbortController();
     void loadPipelineProfiles(controller.signal).then(data => {
       if (controller.signal.aborted) return;
-      setProfiles(data.profiles);setProfileError('');
+      setProfiles(data.profiles);setLiveUsage(data.liveUsage);setProfileError('');
     }).catch(() => {
       if (!controller.signal.aborted) {
-        setProfiles([]);
+        setProfiles([]);setLiveUsage(undefined);
         setProfileError('Cannot load profiles. Start the server and refresh.');
       }
     });
     return () => controller.abort();
   },[refresh]);
   useEffect(() => () => {requestId.current++;pending.current?.abort();},[]);
+  useEffect(() => {setPaidConsent(false);},[text,profileId,geometryMode,refresh]);
   useEffect(() => {
     if (!busy) return;
     const timer = setInterval(() => setElapsed((performance.now()-started.current)/1000),100);
     return () => clearInterval(timer);
   },[busy]);
   async function generate() {
-    if (pending.current || !profile?.available) return;
-    const input = PipelineRequestSchema.safeParse({text,profileId,geometryMode});
+    if (pending.current || !profile || !canGenerate) return;
+    const input = PipelineRequestSchema.safeParse({text,profileId,geometryMode,
+      ...(profile.mode === 'live' ? {paidAttempt:{id:crypto.randomUUID(),confirmed:true}} : {}),
+    });
     if (!input.success) {setStatus('Use one to ten words, at most 200 characters.');return;}
+    setPaidConsent(false);
     const id = ++requestId.current;
     const controller = new AbortController();pending.current = controller;
     started.current = performance.now();setElapsed(0);setBusy(true);setEvents([]);setMetrics([]);setDesign(undefined);
@@ -81,6 +91,7 @@ export function GenerationLabPage() {
       if (id === requestId.current) {
         const duration = (performance.now()-started.current)/1000;
         pending.current = null;setBusy(false);setElapsed(duration);
+        setRefresh(value => value+1);
         setHistory(previous => [{id,prompt:input.data.text,profile,geometryMode,outcome,message,elapsedMs:duration*1000,spec:resultSpec,events:collected,recognition:'unrated' as const},...previous].slice(0,HISTORY_LIMIT));
       }
     }
@@ -97,7 +108,7 @@ export function GenerationLabPage() {
   return <main className="lab">
     <span className="eyebrow">TWO-STAGE GENERATION / ISOLATED TEST LAB</span>
     <h1>Design it. Build it.</h1>
-    <p>Compare procedural parts with raw mesh generation. One design call, one visual call, a 30-second deadline.</p>
+    <p>Compare procedural parts with raw mesh generation. One design call, one visual call, a {PIPELINE_DEADLINE_MS/1000}-second deadline.</p>
     <div className="workspace generation-workspace">
       <section className="viewport" aria-label="Creation preview">
         <div className="viewer-label"><span>{spec.displayName}</span><span>CREATION V2</span></div>
@@ -121,7 +132,7 @@ export function GenerationLabPage() {
           </select>
           <label htmlFor="pipeline-profile">Pipeline profile</label>
           <select id="pipeline-profile" className="lab-input" value={profileId} disabled={busy} onChange={event => setProfileId(event.target.value)}>
-            {profiles.map(item => <option key={item.id} value={item.id}>{item.label}{item.available ? '' : ' · key needed'}</option>)}
+            {profiles.map(item => <option key={item.id} value={item.id}>{item.label}{item.available ? '' : ' · unavailable'}</option>)}
           </select>
           {profile && <p>Design: {profile.design.model} / {profile.design.reasoning}<br/>Visuals: {profile.geometry.model} / {profile.geometry.reasoning}<br/>
             Token budgets: {profile.design.maxOutputTokens} + {profile.geometry.maxOutputTokens}</p>}
@@ -137,10 +148,28 @@ export function GenerationLabPage() {
           </select>
           <label htmlFor="creation-prompt">Describe your creation · 10 words maximum</label>
           <input id="creation-prompt" value={text} disabled={busy} maxLength={200} onChange={event => setText(event.target.value)}/>
-          <button className="generate" disabled={busy || !profile?.available}>{busy ? 'Generating…' : profile?.mode === 'live' ? 'Generate · live API' : 'Load mock example'}</button>
+          {profile?.mode === 'live' && <div className="paid-attempt">
+            <p role="note">Paid attempt: up to two API calls using the models and token limits above. Failed or cancelled calls may still incur charges.</p>
+            {liveUsage && <p role="status">{liveUsage.enabled ? 'Paid lab enabled' : 'Paid lab disabled'} · {liveUsage.attemptsRemaining} / {liveUsage.maxAttempts} attempts remaining this server start.{liveUsage.busy ? ' Another paid attempt is running.' : ''}</p>}
+            {liveUsage?.attemptsRemaining === 0 && <p role="note">Allowance exhausted. Restart bun run dev:live deliberately to reset it.</p>}
+            <label><input type="checkbox" checked={paidConsent}
+              disabled={busy || !liveAttemptAvailable}
+              onChange={event => setPaidConsent(event.target.checked)}/> Allow this paid attempt</label>
+          </div>}
+          <button className="generate" disabled={!canGenerate}>{busy ? 'Generating…' : profile?.mode === 'live' ? 'Generate · up to 2 API calls' : 'Load mock example'}</button>
           {busy && <button type="button" className="generate secondary" onClick={() => pending.current?.abort()}>Cancel attempt</button>}
         </form>
-        <p role="status">{status}</p><p>Elapsed: {elapsed.toFixed(1)} s / 30 s</p>
+        <p role="status">{status}</p>
+        {providerDiagnostic && <div className="provider-diagnostic" role="note" aria-label="API error details">
+          <p>Model: <code>{providerDiagnostic.model}</code>
+            {providerDiagnostic.httpStatus !== undefined && <> · HTTP {providerDiagnostic.httpStatus}</>}
+            {providerDiagnostic.code && <><br/>Provider code: <code>{providerDiagnostic.code}</code></>}
+            {providerDiagnostic.transportCode && <><br/>Connection code: <code>{providerDiagnostic.transportCode}</code></>}
+            {providerDiagnostic.parameter && <><br/>Parameter: <code>{providerDiagnostic.parameter}</code></>}
+            {providerDiagnostic.requestId && <><br/>Request ID: <code>{providerDiagnostic.requestId}</code></>}
+          </p>
+        </div>}
+        <p>Elapsed: {elapsed.toFixed(1)} s · Limit: {PIPELINE_DEADLINE_MS/1000} s total</p>
         {profile?.mode === 'mock' && <p>{geometryMode === 'primitives' ? 'Each listed prompt has its own authored model. Unsupported custom prompts are rejected.' : 'Mock raw geometry always returns the wind crystal.'} No API calls. Mock timings and shapes do not measure model quality.</p>}
         <div className="lab-actions"><button disabled={busy} onClick={() => setRefresh(value => value+1)}>Refresh profiles</button></div>
         {metrics.map(metric => <p key={metric.stage}>{metric.stage}: {(metric.durationMs/1000).toFixed(2)} s · {metric.model}<br/>

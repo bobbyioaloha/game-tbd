@@ -7,7 +7,8 @@
     "dev": "tsx watch --env-file-if-exists=.env src/index.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "start": "node --env-file-if-exists=.env dist/index.js"
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "dev:live": "tsx --env-file-if-exists=.env src/index.ts --live"
   },
   "dependencies": {
     "@sky/shared": "0.1.0",

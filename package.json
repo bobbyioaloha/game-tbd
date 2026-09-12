@@ -14,7 +14,8 @@
     "dev": "bun run --filter @sky/shared build && concurrently -k -n shared,server,web \"bun run --filter @sky/shared dev\" \"bun run --filter @sky/server dev\" \"bun run --filter @sky/web dev\"",
     "build": "bun run --filter @sky/shared build && bun run --filter @sky/server build && bun run --filter @sky/web build",
     "typecheck": "bun run --filter @sky/shared build && bun run --filter '@sky/*' typecheck",
-    "test": "bun run --filter @sky/shared build && tsx --test packages/shared/src/*.test.ts apps/server/src/*.test.ts apps/web/src/game/*.test.ts apps/web/src/generation/*.test.ts"
+    "test": "bun run --filter @sky/shared build && tsx --test packages/shared/src/*.test.ts apps/server/src/*.test.ts apps/web/src/game/*.test.ts apps/web/src/generation/*.test.ts",
+    "dev:live": "bun run --filter @sky/shared build && concurrently -k -n shared,server,web \"bun run --filter @sky/shared dev\" \"bun run --filter @sky/server dev:live\" \"bun run --filter @sky/web dev\""
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -18,12 +18,19 @@ The final procedural visual is baked into one render mesh. Its short appearance 
 
 ## Enable live testing
 
-1. Copy `.env.example` to `apps/server/.env` only if the latter does not exist.
-2. Set `OPENAI_API_KEY` there using your editor. Credentials remain server-side.
-3. Restart `bun run dev` and click **Refresh profiles**.
-4. Select a live profile, choose the visual method, and submit a short prompt.
+1. Copy `.env.example` to `apps/server/.env` only if the latter does not exist; in WSL run `chmod 600 apps/server/.env`.
+2. Set `OPENAI_API_KEY` there using your editor. Never use a `VITE_` variable or paste the value into chat or shell commands.
+3. Stop any default dev server and run **`bun run dev:live`**. Ordinary `bun run dev` and server `start` keep paid generation disabled regardless of key presence or inherited enable environment variables.
+4. Open the lab (it starts in mock mode), select a live profile and a visual method, and enter a short prompt.
+5. Check **Allow this paid attempt**, then click **Generate · up to 2 API calls**. Consent resets after submission and on edits to the prompt, method or profile.
 
-Adding a key never triggers an automatic call. The button explicitly identifies live API submissions. A nonblank OPENAI_API_KEY takes precedence over legacy AI_API_KEY; blank or unset values fall back to AI_API_KEY. Profile availability indicates configuration only, not verified account/model access.
+Adding a key, starting the server, refreshing profiles, loading previews, and editing prompts never trigger paid calls. A nonblank OPENAI_API_KEY takes precedence over legacy AI_API_KEY; blank or unset values fall back to AI_API_KEY. Availability indicates configuration only, not verified account/model access. The SDK endpoint is fixed to OpenAI, and SDK debug logging is disabled.
+
+The server enables live calls only with the explicit `--live` CLI argument used by `dev:live`. It enforces paid consent, unique attempt IDs, one live attempt in flight, and `LIVE_MAX_ATTEMPTS` (default 3, integer 1–10) across all profiles and tabs. Dispatched failures/cancellations consume the allowance; invalid or already-cancelled requests do not. Replaying a dispatched ID never generates again. Counts and IDs live in server memory and reset on restart. Live mode intentionally runs without a backend watcher so code edits cannot silently reset them. Restart deliberately to load backend changes or obtain another allowance.
+
+The unauthenticated paid lab is for localhost only. Live startup rejects a non-loopback HOST, paid browser requests reject non-local origins, and Vite blocks `.env` and server files. The server gate remains authoritative if the UI is bypassed. Game endpoints remain mocks.
+
+Set a project hard spend limit separately in the OpenAI dashboard; the per-start attempt allowance is not a dollar cap. Hard limits can slightly overshoot while enforcement propagates; alerts alone do not stop calls. See [spend limits](https://developers.openai.com/api/docs/guides/spend-limits).
 
 ## Run a comparison
 
@@ -47,6 +54,7 @@ Server profiles in `apps/server/src/generation/pipeline-config.ts`:
 
 | Variable | Default |
 | --- | --- |
+| LIVE_MAX_ATTEMPTS | 3 (integer 1–10) |
 | DESIGN_MODEL | gpt-5.6-sol |
 | DESIGN_REASONING | low |
 | DESIGN_MAX_OUTPUT_TOKENS | 2048 |
@@ -96,16 +104,23 @@ The existing model wire format is vertices `{x,y,z}` and faces `{a,b,c,color}`. 
 
 ## HTTP contract
 
-- GET /api/lab/profiles: public profiles, availability, and budgets.
+- GET /api/lab/profiles: public profiles, availability, budgets, and `liveUsage: {enabled,maxAttempts,attemptsUsed,attemptsRemaining,busy}`. No provider call or credential is included.
 - POST /api/lab/creations:
 
 ```json
-{"text":"giant rubber duck","profileId":"sol-astra","geometryMode":"primitives"}
+{
+  "text":"giant rubber duck",
+  "profileId":"sol-astra",
+  "geometryMode":"primitives",
+  "paidAttempt":{"id":"861f3264-c7cf-4e5e-8a95-8bf5e7388b79","confirmed":true}
+}
 ```
 
 `geometryMode` is `primitives` or `mesh`. Omission retains the existing raw-mesh behavior; the lab explicitly defaults to primitives. Unknown request fields and methods are rejected.
 
-Invalid input or profile returns HTTP 400 with `{error:{code,message}}`; an unconfigured profile returns 503. Accepted attempts stream application/x-ndjson:
+`paidAttempt` is required for live profiles only. Use a fresh UUID for each deliberate submission. A dispatched UUID cannot be reused, even after failure/cancellation. This is an accidental-spend control, not user authentication.
+
+Invalid input, profile or missing consent returns HTTP 400 with `{error:{code,message}}`; disabled paid mode or a foreign browser origin returns 403; a live-enabled but unconfigured profile returns 503. Accepted attempts stream application/x-ndjson:
 
 ```text
 stage(design)
@@ -116,11 +131,31 @@ stage(validation)
 complete(validated spec + metrics + total elapsed)
 ```
 
-The stage name `geometry` remains stable for both methods. A failure replaces remaining events with `failed(stage,error,metrics,elapsedMs)`. Inspect the terminal event after HTTP 200. Error codes include INVALID_RECIPE, INVALID_MESH, INVALID_DESIGN, TIMEOUT, CANCELLED, REFUSED, INCOMPLETE, and PROVIDER_ERROR. Provider internals are not exposed.
+The stage name `geometry` remains stable for both methods. A failure replaces remaining events with `failed(stage,error,metrics,elapsedMs)`. Inspect the terminal event after HTTP 200. Live gate failures in the stream use CONSENT_REQUIRED, DUPLICATE_ATTEMPT, LIVE_BUSY, or LIVE_LIMIT_REACHED and dispatch no model call. Error codes also include LIVE_DISABLED, INVALID_RECIPE, INVALID_MESH, INVALID_DESIGN, TIMEOUT, CANCELLED, REFUSED, INCOMPLETE, and PROVIDER_ERROR. Provider internals are not exposed.
 
 Disconnect/cancellation aborts active work and prevents later stages. It cannot guarantee that already-started provider work incurs no usage. The client validates every stream event. Partial recipes and mesh fragments are never rendered.
 
 POST /api/creations still returns a raw spec and defaults to the pipeline's mock raw-mesh method. It never silently enables live calls.
+
+## Diagnosing a live failure
+
+Restart `bun run dev:live` after backend changes; live mode has no server watcher. Refresh the page before another deliberate attempt.
+
+The lab now shows the failing stage plus a specific category: PROVIDER_AUTH, MODEL_UNAVAILABLE, PROVIDER_PERMISSION, PROVIDER_QUOTA, PROVIDER_RATE_LIMIT, PROVIDER_SCHEMA, PROVIDER_REQUEST, PROVIDER_UNAVAILABLE, PROVIDER_CONNECTION, or PROVIDER_TIMEOUT. TIMEOUT identifies our own design/attempt deadline. A geometry-stage failure means the design was already validated; do not assume every provider error means the key is invalid.
+
+**API error details** show the requested model, HTTP status, and recognized provider code, network timeout code, request parameter and request ID when available. These also survive in the event inspector and comparison export. Only allowlisted metadata is copied. API messages, arbitrary headers/fields, prompts echoed by a provider, and credentials are never forwarded or logged. A failed Responses object returned with HTTP 200 is distinguished from incomplete output.
+
+- TIMEOUT: the design stage exceeded its 8-second allowance or the whole attempt exhausted 30 seconds. Design time is included in the total; for example, 5.72 seconds of design leaves at most 24.28 seconds for geometry and validation.
+- PROVIDER_TIMEOUT: the SDK or underlying network timed out independently, or OpenAI returned HTTP 408, possibly before 30 seconds. `UND_ERR_CONNECT_TIMEOUT` identifies connection establishment; `UND_ERR_HEADERS_TIMEOUT` identifies waiting for headers; `UND_ERR_BODY_TIMEOUT` identifies reading the response body; `ETIMEDOUT` is a generic network timeout. When no recognized code is available, the precise source is unknown. No automatic retry is made.
+
+The pipeline measures elapsed time with `performance.now()` and aborts both the SDK fetch and response-body read at its deadline. The SDK retains its longer default timeout as a fallback, rather than another 30-second timer: the installed SDK computes response-body time remaining with `Date.now()`, which can jump when the host clock is synchronized. This change does not extend the game's 30-second budget. Real network/provider failures can still end an attempt earlier.
+
+- MODEL_UNAVAILABLE: confirm project access and the model ID. The existing Sol → Sol profile can be chosen explicitly if Astra is unavailable; there is no automatic model fallback.
+- PROVIDER_QUOTA: inspect the provider code for credit balance, project/organization spend, or usage limits. Avoid repeat attempts until the account issue is resolved.
+- PROVIDER_RATE_LIMIT: inspect that model's request/token limits and the configured output budget.
+- PROVIDER_SCHEMA / PROVIDER_REQUEST: fix the API request or named parameter before another attempt.
+
+Previous generic PROVIDER_ERROR events cannot be reconstructed: their provider reason was discarded by the older server. No diagnostic check calls OpenAI automatically. See [OpenAI error codes](https://developers.openai.com/api/docs/guides/error-codes).
 
 ## Game integration boundary
 
@@ -137,6 +172,6 @@ The intended future flow stays: collect authored Voice Power Up → speak once w
 - web `generation/compile-primitives.ts`: bounded single-mesh compilation.
 - web `pages/GenerationLabPage.tsx`, `generation/LabPreview.tsx`, `LabHistory.tsx`: testing UI.
 
-Run `bun run build`, `bun run typecheck`, and `bun run test`. Automated tests use fixtures and intercepted SDK responses, never paid calls. Coverage includes recipe bounds, one-effect output, handoff isolation, raw API compatibility, cancellation/deadlines, compiler transforms and budgets, comparison accounting, and existing game/race tests.
+Run `bun run build`, `bun run typecheck`, and `bun run test`. Automated tests use fixtures and intercepted SDK responses, never paid calls. Coverage includes recipe bounds, one-effect output, handoff isolation, raw API compatibility, cancellation/deadlines, compiler transforms and budgets, comparison accounting, existing game/race tests, paid-mode gates, consent, duplicate submissions, shared concurrency/allowance, and secret-free status/errors.
 
 References: [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [latency guidance](https://developers.openai.com/api/docs/guides/latency-optimization), [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra).

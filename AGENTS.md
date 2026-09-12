@@ -20,3 +20,7 @@
 - Lab geometryMode selects bounded primitive recipes or raw meshes; omission preserves raw-mesh API behavior. Reuse CreationSpec v2 and keep exactly one effect.
 - Procedural rendering compiles static parts into one mesh with fixed tessellation and a separate 10,000-triangle budget. Preserve raw mesh limits and keep model-written code, colliders, and arbitrary renderer settings rejected.
 - GamePage contains the merged movement/race test and CreationDemoPage; lab experiments must not replace or wire into these game views implicitly.
+
+- Paid calls are disabled by default, even when API keys exist. Only explicit server --live (root bun run dev:live) enables the local lab; never turn on live mode as part of builds, tests, previews, or health checks.
+- Preserve server-side per-attempt consent, unique attempt IDs, one live request at a time and the bounded per-start allowance. Live server runs without watch/restart; failures and cancellation after dispatch consume attempts.
+- Never read, print, commit, export, or place local API keys in client code/VITE_ variables. Tests use fake credentials and intercepted transports; do not run paid tests without explicit user authorization for that test.

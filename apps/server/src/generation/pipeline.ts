@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { LiveAttempts, type LivePolicy } from './live-attempts.js';
 import {
-  CreationDesignSchema, GeneratedCreationSchema, PipelineRequestSchema, type GeneratedCreation, type PipelineEvent, type PipelineProfile,
+  PIPELINE_DEADLINE_MS, DESIGN_BUDGET_MS, CreationDesignSchema, GeneratedCreationSchema, PipelineRequestSchema, type GeneratedCreation, type PipelineEvent, type PipelineProfile,
   type PipelineRequest, type PipelineStage, type StageConfig, type StageMetric,
 } from '@sky/shared';
 import { DESIGN_INSTRUCTIONS, DESIGN_JSON_SCHEMA, GEOMETRY_INSTRUCTIONS, GEOMETRY_JSON_SCHEMA, PROCEDURAL_DESIGN_INSTRUCTIONS, RECIPE_INSTRUCTIONS, RECIPE_JSON_SCHEMA } from './model-schemas.js';
@@ -10,19 +11,24 @@ import type { StageTransport } from './stage-transport.js';
 
 export type PipelineOptions = {signal?:AbortSignal; emit?:(event:PipelineEvent)=>void};
 export class CreationPipeline {
+  private readonly liveAttempts:LiveAttempts;
+  get liveUsage() {return this.liveAttempts.status;}
   constructor(readonly profiles:PipelineProfile[], private transports:{mock:StageTransport;live?:StageTransport},
-    private budgets = {totalMs:30000,designMs:8000}) {}
+    private budgets = {totalMs:PIPELINE_DEADLINE_MS,designMs:DESIGN_BUDGET_MS}, livePolicy?:LivePolicy) {
+    this.liveAttempts = new LiveAttempts(livePolicy);
+  }
   async run(request:PipelineRequest, options:PipelineOptions = {}):Promise<GeneratedCreation> {
     const started = performance.now();
     const elapsed = () => Math.max(0,Math.round(performance.now()-started));
     let stage:PipelineStage = 'design';
+    let releaseLive:(() => void) | undefined;
     const metrics:StageMetric[] = [];
     const emit = options.emit ?? (() => {});
     const overall = new AbortController();
     const cancel = () => overall.abort(new PipelineFailure('CANCELLED','Attempt cancelled.'));
     options.signal?.addEventListener('abort',cancel,{once:true});
     if (options.signal?.aborted) cancel();
-    const totalTimer = setTimeout(() => overall.abort(new PipelineFailure('TIMEOUT','The 30-second attempt deadline was reached.')),this.budgets.totalMs);
+    const totalTimer = setTimeout(() => overall.abort(new PipelineFailure('TIMEOUT','The attempt deadline was reached.')),this.budgets.totalMs);
     const ensureActive = () => {
       if (performance.now()-started >= this.budgets.totalMs && !overall.signal.aborted) overall.abort(new PipelineFailure('TIMEOUT','The attempt deadline was reached.'));
       overall.signal.throwIfAborted();
@@ -33,6 +39,7 @@ export class CreationPipeline {
       const geometryMode = parsedRequest.data.geometryMode ?? 'mesh';
       const profile = this.profiles.find(item => item.id === parsedRequest.data.profileId);
       if (!profile) throw new PipelineFailure('INVALID_REQUEST','Unknown pipeline profile.');
+      if (profile.mode === 'live' && !this.liveUsage.enabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
       if (!profile.available) throw new PipelineFailure('NOT_CONFIGURED',profile.unavailableReason ?? 'The live provider is not configured.');
       const transport = this.transports[profile.mode];
       if (!transport) throw new PipelineFailure('NOT_CONFIGURED','The live provider is not configured.');
@@ -68,6 +75,8 @@ export class CreationPipeline {
           controller.signal.removeEventListener('abort',abortListener);
         }
       };
+      ensureActive();
+      if (profile.mode === 'live') releaseLive = this.liveAttempts.acquire(parsedRequest.data);
       const designed = await call(profile.design,geometryMode === 'primitives' ? PROCEDURAL_DESIGN_INSTRUCTIONS : DESIGN_INSTRUCTIONS,parsedRequest.data.text,DESIGN_JSON_SCHEMA);
       const design = CreationDesignSchema.safeParse(designed.response.data);
       if (!design.success) throw new PipelineFailure('INVALID_DESIGN','Design did not contain a valid visual brief and one supported effect.');
@@ -88,8 +97,9 @@ export class CreationPipeline {
     } catch (error) {
       const safe = safePipelineError(error);
       emit({type:'failed',stage,error:safe,elapsedMs:elapsed(),metrics});
-      throw new PipelineFailure(safe.code,safe.message);
+      throw new PipelineFailure(safe.code,safe.message,safe.provider);
     } finally {
+      releaseLive?.();
       clearTimeout(totalTimer); options.signal?.removeEventListener('abort',cancel);
     }
   }

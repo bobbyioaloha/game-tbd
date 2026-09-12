@@ -1,14 +1,17 @@
-import { PipelineEventSchema, PipelineErrorSchema, PipelineProfilesSchema, type PipelineEvent, type PipelineRequest } from '@sky/shared';
+import { PIPELINE_DEADLINE_MS, PipelineEventSchema, PipelineErrorSchema, PipelineProfilesSchema, type PipelineEvent, type PipelineRequest } from '@sky/shared';
 export async function loadPipelineProfiles(signal:AbortSignal) {
   const response = await fetch('/api/lab/profiles',{signal:AbortSignal.any([signal,AbortSignal.timeout(5000)])});
   if (!response.ok) throw new Error('Could not load pipeline profiles.');
   return PipelineProfilesSchema.parse(await response.json());
 }
+// Allow five seconds for delivery of the final server event after its deadline.
+const CLIENT_DELIVERY_GRACE_MS = 5_000;
+
 // Separate lab transport: no changes to the game's CreationClient.
 export async function runLabPipeline(request:PipelineRequest,signal:AbortSignal,onEvent:(event:PipelineEvent)=>void) {
   const response = await fetch('/api/lab/creations',{
     method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),
-    signal:AbortSignal.any([signal,AbortSignal.timeout(35000)]),
+    signal:AbortSignal.any([signal,AbortSignal.timeout(PIPELINE_DEADLINE_MS + CLIENT_DELIVERY_GRACE_MS)]),
   });
   if (!response.ok) {
     const body:unknown = await response.json().catch(() => undefined);
