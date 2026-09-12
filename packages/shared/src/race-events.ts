@@ -7,10 +7,10 @@ export const RaceEventTypeSchema = z.enum(['gravityWell', 'debrisShower', 'repul
 export type RaceEventType = z.infer<typeof RaceEventTypeSchema>;
 // These are gameplay parameters, never derived from mesh dimensions or model-written code.
 export const RaceEventEffectSchema = z.discriminatedUnion('type', [
-  z.object({type:z.literal('gravityWell'), durationSeconds:finite(1,8), radiusMeters:finite(4,24), acceleration:finite(1,16)}).strict(),
-  z.object({type:z.literal('debrisShower'), durationSeconds:finite(1,8), collidableCount:z.number().int().min(1).max(20), visualCount:z.number().int().min(0).max(80), speed:finite(1,12), impulse:finite(1,8)}).strict(),
-  z.object({type:z.literal('repulsionBurst'), durationSeconds:finite(0.5,3), radiusMeters:finite(4,24), impulse:finite(1,16)}).strict(),
-  z.object({type:z.literal('protectiveZone'), durationSeconds:finite(1,8), radiusMeters:finite(4,24)}).strict(),
+  z.object({type:z.literal('gravityWell'), durationSeconds:finite(1,10), radiusMeters:finite(4,4000), acceleration:finite(1,36)}).strict(),
+  z.object({type:z.literal('debrisShower'), durationSeconds:finite(1,10), collidableCount:z.number().int().min(1).max(48), visualCount:z.number().int().min(0).max(80), speed:finite(1,36), impulse:finite(1,24)}).strict(),
+  z.object({type:z.literal('repulsionBurst'), durationSeconds:finite(0.5,3), radiusMeters:finite(4,4000), impulse:finite(1,36)}).strict(),
+  z.object({type:z.literal('protectiveZone'), durationSeconds:finite(1,10), radiusMeters:finite(4,4000), descentAcceleration:finite(0,24).default(0)}).strict(),
 ]);
 export type RaceEventEffect = z.infer<typeof RaceEventEffectSchema>;
 export const RaceEventCreationSchema = z.object({
@@ -27,20 +27,20 @@ export type RaceEventDesign = z.infer<typeof RaceEventDesignSchema>;
 
 // Balance lives here. The design model selects a type, never its strength or duration.
 const catalogue:Record<RaceEventType,{label:string;description:string;effect:RaceEventEffect}> = {
-  gravityWell:{label:'Gravity well',description:'A drifting gravity well pulls every nearby racer inward for 6 seconds.',
-    effect:{type:'gravityWell',durationSeconds:6,radiusMeters:18,acceleration:12}},
-  debrisShower:{label:'Debris shower',description:'A drifting shower scatters debris for 6 seconds. Solid fragments knock any racer they hit.',
-    effect:{type:'debrisShower',durationSeconds:6,collidableCount:16,visualCount:64,speed:7,impulse:5}},
-  repulsionBurst:{label:'Repulsion burst',description:'A 1.5-second shockwave pushes each racer it reaches outward once, up to 20 meters away.',
-    effect:{type:'repulsionBurst',durationSeconds:1.5,radiusMeters:20,impulse:12}},
-  protectiveZone:{label:'Protective zone',description:'A drifting shelter lasts 7 seconds. Every racer inside its 12-meter radius is protected from obstacles.',
-    effect:{type:'protectiveZone',durationSeconds:7,radiusMeters:12}},
+  gravityWell:{label:'Gravity vortex',description:'An 8-second vortex pulls the whole race into wide orbits around the creation.',
+    effect:{type:'gravityWell',durationSeconds:8,radiusMeters:4000,acceleration:32}},
+  debrisShower:{label:'Debris storm',description:'Three waves of large debris rain toward every racer for 8 seconds. Steer away from the incoming rocks!',
+    effect:{type:'debrisShower',durationSeconds:8,collidableCount:48,visualCount:80,speed:30,impulse:20}},
+  repulsionBurst:{label:'Shockwave',description:'A race-wide shockwave throws every racer outward once with a powerful impulse.',
+    effect:{type:'repulsionBurst',durationSeconds:2.5,radiusMeters:4000,impulse:32}},
+  protectiveZone:{label:'Safe slipstream',description:'Every racer gets 8 seconds of obstacle protection and faster descent. Weapons still work.',
+    effect:{type:'protectiveZone',durationSeconds:8,radiusMeters:4000,descentAcceleration:18}},
 };
 export function raceEventPreset(type:RaceEventType) {
   const entry=catalogue[type];
   return {...entry,effect:RaceEventEffectSchema.parse(entry.effect)};
 }
 export const RACE_EVENT_LIMITS = Object.freeze({
-  collectibleRadius:1, racerRadius:0.6, debrisRadius:0.45, collectibleLifetime:20,
-  maxStepSeconds:1/30, maxAcceleration:16, maxVelocityDelta:16, maxAnchorSpeed:60,
+  collectibleRadius:1, racerRadius:0.6, debrisRadius:1.15, collectibleLifetime:20,
+  maxStepSeconds:1/30, maxAcceleration:36, maxVelocityDelta:36, maxAnchorSpeed:100, maxDebris:128, debrisWaves:3, debrisLifetime:2.4,
 });

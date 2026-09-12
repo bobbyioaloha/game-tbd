@@ -21,6 +21,6 @@ export function EventLabPage() {
       <EventGenerationControls onCreation={load} onBusy={setBusy} fixturePrompt={fixturePrompt}/>
     </div>
     <details className="json-inspector"><summary>Inspect validated event creation</summary><pre>{JSON.stringify(spec,null,2)}</pre></details>
-    <p className="event-integration-note">This sandbox uses the reusable event runtime. The main race keeps its current gameplay until its movement adapter is connected.</p>
+    <p className="event-integration-note">This sandbox uses the reusable event runtime. The main race uses the same runtime with its own movement controller.</p>
   </main>;
 }

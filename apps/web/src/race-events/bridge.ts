@@ -1,4 +1,4 @@
-import type { EventRacer, EventStepInputs, RaceEventCreation, RaceEventPort } from '@sky/shared';
+import type { EventRacer, EventStepInputs, RacerSegment, RaceEventCreation, RaceEventPort } from '@sky/shared';
 /** The gameplay-owned integration needs one before/after pair around its existing step. */
 export class RaceEventBridge {
   private previous=new Map<string,EventRacer['position']>();
@@ -13,8 +13,10 @@ export class RaceEventBridge {
     this.previous=new Map(racers.map(racer=>[racer.id,[...racer.position] as EventRacer['position']]));
     return inputs;
   }
-  afterStep(racers:readonly EventRacer[]) {
-    this.events.resolveContacts(racers.filter(racer=>!racer.finished).flatMap(racer=>{
+  afterStep(racers:readonly EventRacer[],segments?:readonly RacerSegment[]) {
+    // Explicit segments exclude instantaneous combat/obstacle displacement and
+    // retain movement before racers finished during this tick.
+    this.events.resolveContacts(segments??racers.filter(racer=>!racer.finished).flatMap(racer=>{
       const from=this.previous.get(racer.id);return from?[{id:racer.id,from,to:racer.position}]:[];
     }));
     this.previous.clear();

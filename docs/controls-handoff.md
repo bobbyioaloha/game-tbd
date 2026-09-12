@@ -5,12 +5,12 @@
 The actual game uses `MovementTest`, `RaceScene`, `PracticeRace`, and `freefall-controller.ts`.
 
 - `MovementTest.tsx` owns keyboard input and rebinding. Space press/release invokes `useRaceVoice` actions; WASD/K/I/J remain in the existing handler. Do not add a second movement listener for voice.
-- `RaceScene.tsx` retains the sole 120 Hz fixed-step integration. After each `race.step`, it passes previous/current positions to `RaceCreationHost.step` for swept pickup checks and creation lifecycle timing.
-- `PracticeRace.applyCreationEffects` honors generated duration/multiplier/radius without occupying inventory. Keep bounded generated modifiers when changing movement.
-- `race-creation-host.ts` owns the authored voice pickup and generated collectible. It reads the latest player position at spawn time and never advances movement.
+- `RaceScene.tsx` retains the sole 120 Hz fixed-step integration. Inside `race.step`, the event bridge supplies optional forces/impulses/protection and resolves all-racer movement segments. Afterwards `RaceEventHost.step` receives the player segment for the authored voice star and attempt timing.
+- `PracticeRace` applies optional per-racer event inputs through the controller; keep inventory and combat timers separate. `applyCreationEffects` remains for legacy v2 regression coverage.
+- `race-event-host.ts` owns the authored voice pickup and v3 request lifecycle. It reads the latest player position when spawning; the race event runtime owns the shared collectible, contacts and effect lifetime. The old `race-creation-host.ts` is a v2 compatibility adapter.
 - `voice/RaceVoiceControls.tsx` owns microphone/profile setup and per-run paid consent. Pause, reset, finish, and unmount must cancel active voice work and invalidate late results.
 
-Manual check: Game → Movement test → Enable microphone before the run → keep the default mock profile → start falling without steering → collect the gold pickup at 180 m → hold/release Space → collect the creation ahead. The same input works through the hold button. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
+Manual check: Game → Movement test → Enable microphone before the run → keep the default mock profile → start falling without steering → collect the gold pickup at 180 m → hold/release Space → follow the radar to the creation later in the course; any racer can activate it. The same input works through the hold button. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
 
 ## Separate regression demo
 
@@ -63,6 +63,6 @@ Run `bun run build`, `bun run typecheck`, and `bun run test`. Lifecycle tests re
 Demo manual check: Game → Voice / creation demo → Start new run → stay centered for the gold pickup → hold/release Space → keep falling → collect the creation → observe the fall-speed change. The generation lab remains independent.
 
 
-## Upcoming shared race-event integration
+## Shared race-event integration
 
-See [race-events-handoff.md](race-events-handoff.md) for the additive v3 event contract and working sandbox. `RaceEventBridge` offers before/after hooks around the existing fixed tick and returns per-racer acceleration, velocity impulses and obstacle protection. The gameplay developer owns applying those inputs in the main controller; generation/event modules never write player positions. The current v2 race integration above remains the shipped path until that explicit integration is completed.
+See [race-events-handoff.md](race-events-handoff.md) for the implemented v3 path. The main race injects an event runtime into `PracticeRace`; the existing sole fixed tick applies its inputs through `FreefallController`. Controls, item odds, dodge reactions, camera follow, and course generation retain their own modules. Keep microphone and provider logic in `RaceEventHost`/voice adapters, and event forces in the controller's optional `eventInput` boundary. The v2 demo continues through `CreationLoop` and its existing host interface.

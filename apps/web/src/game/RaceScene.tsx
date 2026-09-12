@@ -2,20 +2,22 @@ import { GregModel } from './GregModel';
 import { followCameraAxis } from './camera-follow';
 import { projectRivalMarker } from './rival-marker';
 import { RaceCreations } from './RaceCreationVisuals';
-import type { RaceCreationHost } from './race-creation-host';
+import type { RaceEventHost } from './race-event-host';
 import { useRef } from 'react';
 import { TargetLock } from './target-lock';
 import type { Item } from './race-course';
 import { RaceObjects } from './RaceObjects';
 import { ITEM_NAMES } from './race-course';
 import { useFrame } from '@react-three/fiber';
-import { PerspectiveCamera, Vector3, type Group } from 'three';
+import { Vector3, PerspectiveCamera, type Group, type Mesh, type MeshBasicMaterial } from 'three';
 import { CloudField, StarfishDiver } from './skydiving-scenery';
 import { PracticeRace, FINISH_DEPTH, RACER_COLORS, LANE_HALF_WIDTH } from './practice-race';
 
+const eventAuraColors={gravityWell:'#bb8cff',debrisShower:'#ffb94b',repulsionBurst:'#ff8555',protectiveZone:'#6dffff'};
+
 export const defaultBindings = {left:'KeyA',right:'KeyD',forward:'KeyW',backward:'KeyS',brake:'KeyK',look:'KeyI',use:'KeyJ',boost:'KeyU',dodge:'KeyL'};
 export type Action = keyof typeof defaultBindings;
-export type RaceRuntime = {race:PracticeRace;voice?:RaceCreationHost;keys:Set<string>;paused:boolean;bindings:typeof defaultBindings;clock:number;generation:number;fireRequested:boolean;dodgeRequested:boolean;target?:number};
+export type RaceRuntime = {race:PracticeRace;voice?:RaceEventHost;keys:Set<string>;paused:boolean;bindings:typeof defaultBindings;clock:number;generation:number;fireRequested:boolean;dodgeRequested:boolean;target?:number};
 export type Marker = {id:number;name:string;left:number;top:number;angle:number;edge:boolean;gap:string;locked:boolean;selected:boolean;progress:number};
 export const initialRaceHud = {incidents:0,creationMarker:null as {left:number;top:number;angle:number;edge:boolean;name:string;gap:string}|null,speed:0,depth:0,x:-7.5,z:0,brake:false,look:false,time:0,place:1,finish:null as number|null,remaining:FINISH_DEPTH,markers:[] as Marker[],allFinished:false,item:'Empty',effects:'',targetName:'',itemKey:null as Item|null,feedback:'',boost:false,fuel:0,dodgeCooldown:0,threat:'',threatAngle:0,threatDistance:'',standings:new PracticeRace(false).standings()};
 
@@ -36,11 +38,11 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
   const accumulator = useRef(0), hudTime = useRef(0);
   const follow = useRef({x:-7.5,z:0,generation:-1});
   useFrame(({camera},delta) => {
-    if(camera instanceof PerspectiveCamera&&camera.fov!==65){camera.fov=65;camera.updateProjectionMatrix();}
     // Reset frame state before the new run consumes simulation time.
     if(follow.current.generation!==runtime.generation) {
       const [x,,z]=runtime.race.snapshot(runtime.race.racers[0]).position;
       follow.current={x,z,generation:runtime.generation};
+      if(camera instanceof PerspectiveCamera)camera.fov=65;
       accumulator.current=0;hudTime.current=0;lock.current.reset();runtime.target=undefined;
     }
     const dt = Math.min(delta,0.1);
@@ -54,7 +56,8 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         const before=runtime.race.snapshot(runtime.race.racers[0]).position;
         if(runtime.dodgeRequested){runtime.race.dodge(0,input);runtime.dodgeRequested=false;}
         runtime.race.step(1/120,input,!!held('brake'),!!held('boost'));
-        runtime.voice?.step(1/120,before,runtime.race.snapshot(runtime.race.racers[0]).position);
+        const segment=runtime.race.movementSegments.find(item=>item.id==='0');
+        runtime.voice?.step(1/120,segment?[...segment.from]:before,segment?[...segment.to]:runtime.race.snapshot(runtime.race.racers[0]).position);
         accumulator.current-=1/120;
       }
     }
@@ -65,6 +68,13 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
     if(!runtime.paused) {
       follow.current.x=followCameraAxis(follow.current.x,landed?0:x,dt);
       follow.current.z=followCameraAxis(follow.current.z,landed?0:z,dt);
+    }
+    const eventState=race.events?.getSnapshot();
+    const affected=eventState?.phase==='active'&&eventState.impact?.affectedRacerIds.includes('0');
+    if(camera instanceof PerspectiveCamera) {
+      const extra=affected?(eventState.instance?.spec.effect.type==='protectiveZone'?13:8):0;
+      if(!runtime.paused)camera.fov+=(65+extra-camera.fov)*(1-Math.exp(-dt*7));
+      camera.updateProjectionMatrix();
     }
     // A/D reverses in look-up mode to keep horizontal steering screen-relative.
     camera.up.set(0,0,-1);
@@ -104,6 +114,14 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       }
       const protectedNow=race.elapsed<racer.immuneUntil||race.elapsed<Math.max(racer.shieldUntil,racer.creationShieldUntil);
       group.visible=racer.finishTime!==undefined||!protectedNow||Math.floor(race.elapsed*12)%2===0;
+      const aura=group.getObjectByName('event-aura') as Mesh|undefined;
+      const eventOnRacer=eventState?.phase==='active'&&eventState.impact?.affectedRacerIds.includes(String(racer.id));
+      if(aura) {
+        aura.visible=Boolean(eventOnRacer)&&racer.finishTime===undefined;
+        aura.scale.setScalar(1+Math.sin(race.elapsed*7+racer.id)*0.12);
+        if(eventState?.instance)(aura.material as MeshBasicMaterial).color.set(eventAuraColors[eventState.instance.spec.effect.type]);
+      }
+      if(eventOnRacer&&eventState?.instance?.spec.effect.type==='gravityWell')group.rotation.z+=Math.sin(race.elapsed*8+racer.id)*0.28;
       group.position.set(rx,ry-y+bounce+0.3,rz);
       group.scale.set(t>=0 ? 1.25 : 1,squash,t>=0 ? 1.25 : 1);
     });
@@ -146,6 +164,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
           race.elapsed<Math.max(player.slowUntil,player.creationSlowUntil)?'SLOWED '+(Math.max(player.slowUntil,player.creationSlowUntil)-race.elapsed).toFixed(1)+'s':'',
           race.elapsed<Math.max(player.shieldUntil,player.creationShieldUntil)?'GHOST '+(Math.max(player.shieldUntil,player.creationShieldUntil)-race.elapsed).toFixed(1)+'s':'',
           player.boosting?'BOOST ACTIVE':'',
+          player.eventObstacleProtection?'IN PROTECTIVE ZONE':'',
           race.elapsed<player.flailUntil?'FLAILING':'',
           race.elapsed<player.sunUntil?'SUN BURST':'',
         ].filter(Boolean).join(' · ')});
@@ -154,7 +173,12 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
   return <>
     <color attach="background" args={['#75b8df']}/><fog attach="fog" args={['#b8ddef',80,250]}/>
     <ambientLight intensity={2}/><directionalLight position={[15,30,-10]} intensity={2.5}/>
-    <group ref={racers}>{RACER_COLORS.map((color,index)=><group key={index}>{index===0?<group position={[0,-1.35,0]} rotation={[0,Math.PI,0]}><GregModel pose="Dive" time={()=>runtime.race.elapsed} wind={()=>({time:runtime.race.elapsed,speed:runtime.race.racers[0].finishTime===undefined?runtime.race.snapshot(runtime.race.racers[0]).fallSpeed:0})}/></group>:<StarfishDiver color={color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/>}</group>)}</group>
+    <group ref={racers}>{RACER_COLORS.map((color,index)=><group key={index}>
+      {index===0
+        ?<group position={[0,-1.35,0]} rotation={[0,Math.PI,0]}><GregModel pose="Dive" time={()=>runtime.race.elapsed} wind={()=>({time:runtime.race.elapsed,speed:runtime.race.racers[0].finishTime===undefined?runtime.race.snapshot(runtime.race.racers[0]).fallSpeed:0})}/></group>
+        :<StarfishDiver color={color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/>}
+      <mesh name="event-aura" visible={false}><sphereGeometry args={[2.2,16,12]}/><meshBasicMaterial color="#7ee9f1" wireframe transparent opacity={0.5} depthWrite={false}/></mesh>
+    </group>)}</group>
     <RaceObjects race={runtime.race}/>
     {runtime.voice&&<RaceCreations host={runtime.voice}/>}
     <CloudField snapshot={()=>runtime.race.snapshot(runtime.race.racers[0])}/>

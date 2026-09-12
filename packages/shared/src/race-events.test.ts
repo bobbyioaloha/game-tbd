@@ -20,11 +20,11 @@ test('event schemas reject unknown behaviour, invalid numbers, extra effects and
     assert.equal(RaceEventCreationSchema.safeParse(bad).success,false);
   }
   const debris=raceEventFixtures[1].spec;
-  assert.equal(RaceEventCreationSchema.safeParse({...debris,effect:{...debris.effect,collidableCount:21}}).success,false);
+  assert.equal(RaceEventCreationSchema.safeParse({...debris,effect:{...debris.effect,collidableCount:49}}).success,false);
 });
 test('preset consumers cannot mutate shared balance and a noop adapter needs no game',()=>{
   const preset=raceEventPreset('gravityWell');preset.effect.durationSeconds=1;
-  assert.equal(raceEventPreset('gravityWell').effect.durationSeconds,6);
+  assert.equal(raceEventPreset('gravityWell').effect.durationSeconds,8);
   const port=createNoopRaceEvents();assert.deepEqual(port.prepareStep(1/120,[]),{});port.resolveContacts([]);port.reset();
   assert.equal(port.getSnapshot().phase,'empty');
 });

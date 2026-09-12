@@ -24,3 +24,19 @@ test('every sandbox fixture activates through real collision checks and expires'
     for(const racer of model.racers)assert.ok([...racer.position,...racer.velocity].every(Number.isFinite));
   }
 });
+
+test('explicit movement excludes teleport knockback and contacts after finish',()=>{
+  const events=new RaceEventRuntime(),bridge=new RaceEventBridge(events);
+  const racer:EventRacer={id:'a',position:[0,5,0],velocity:[0,-30,0],finished:false};
+  const spawn=()=>events.spawn({instanceId:'contact',creatorId:'a',position:[0,0,0],seed:1,spec:raceEventFixtures[0].spec});
+  spawn();bridge.beforeStep(1/120,[racer]);
+  // Final position is inside only because an obstacle displaced the racer.
+  bridge.afterStep([{...racer,position:[0,0,0]}],[{id:'a',from:[5,5,0],to:[5,-5,0]}]);
+  assert.equal(events.getSnapshot().phase,'collectible');
+  bridge.reset();spawn();bridge.beforeStep(1/120,[racer]);
+  bridge.afterStep([{...racer,finished:true}],[{id:'a',from:[0,5,0],to:[0,-5,0],endFraction:0.2}]);
+  assert.equal(events.getSnapshot().phase,'collectible');
+  bridge.reset();spawn();bridge.beforeStep(1/120,[racer]);
+  bridge.afterStep([{...racer,finished:true}],[{id:'a',from:[0,5,0],to:[0,-5,0],endFraction:0.7}]);
+  assert.equal(events.getSnapshot().triggererId,'a');
+});

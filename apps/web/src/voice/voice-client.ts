@@ -28,8 +28,8 @@ export async function requestVoice(recording:Recording,request:Omit<VoiceRequest
   if (!completed) throw new Error('Voice generation ended without a creation.');
   return completed;
 }
-export interface AudioCreationClient {
-  generateAudio(recording:Recording,options:{signal:AbortSignal;onProgress:(phase:'transcribing'|'generating',message:string,transcript?:string)=>void}):Promise<CreationSpec>;
+export interface AudioCreationClient<T=CreationSpec> {
+  generateAudio(recording:Recording,options:{signal:AbortSignal;onProgress:(phase:'transcribing'|'generating',message:string,transcript?:string)=>void}):Promise<T>;
 }
 export function createAudioCreationClient(configuration:()=>Omit<VoiceRequest,'captureMs'>):AudioCreationClient {
   return {async generateAudio(recording,options) {
