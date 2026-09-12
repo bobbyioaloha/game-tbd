@@ -5,9 +5,11 @@ const supported = new Set(['gpt-6-astra','gpt-5.6-sol','gpt-5.6-terra','gpt-5.6-
 export function resolveAPIKey(env:NodeJS.ProcessEnv = process.env):string | undefined {
   return env.OPENAI_API_KEY?.trim() || env.AI_API_KEY?.trim() || undefined;
 }
-export function pipelineProfiles(env:NodeJS.ProcessEnv = process.env):PipelineProfile[] {
-  const available = Boolean(resolveAPIKey(env));
-  const live = {mode:'live' as const, available, ...(available ? {} : {unavailableReason:'Set OPENAI_API_KEY in apps/server/.env and restart the server.'})};
+export function pipelineProfiles(env:NodeJS.ProcessEnv = process.env, liveEnabled = false):PipelineProfile[] {
+  const available = liveEnabled && Boolean(resolveAPIKey(env));
+  const unavailableReason = !liveEnabled ? 'Paid generation is disabled. Start bun run dev:live to opt in.'
+    : 'Set OPENAI_API_KEY in apps/server/.env and restart bun run dev:live.';
+  const live = {mode:'live' as const, available, ...(available ? {} : {unavailableReason})};
   function configured(prefix:'DESIGN'|'GEOMETRY', defaults:StageConfig):StageConfig {
     const config = StageConfigSchema.parse({
       model:env[prefix+'_MODEL'] ?? defaults.model,

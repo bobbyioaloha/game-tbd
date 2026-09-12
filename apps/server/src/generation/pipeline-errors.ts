@@ -1,9 +1,9 @@
-import type { PipelineErrorData } from '@sky/shared';
+import type { PipelineErrorData, ProviderDiagnostic } from '@sky/shared';
 export class PipelineFailure extends Error {
-  constructor(readonly code: PipelineErrorData['code'], message: string) {super(message);}
+  constructor(readonly code: PipelineErrorData['code'], message: string, readonly provider?:ProviderDiagnostic) {super(message);}
 }
 export function safePipelineError(error: unknown): PipelineErrorData {
   return error instanceof PipelineFailure
-    ? {code:error.code, message:error.message}
-    : {code:'PROVIDER_ERROR', message:'The model request failed. Check server configuration, model access, and account limits.'};
+    ? {code:error.code, message:error.message,...(error.provider ? {provider:error.provider} : {})}
+    : {code:'PROVIDER_ERROR', message:'The model request failed unexpectedly. No retry was made.'};
 }

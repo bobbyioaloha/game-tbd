@@ -5,10 +5,10 @@ TAI x OpenAI Hackathon September 2026
 Controls and movement are isolated from voice/generation. Start with [the partner handoff guide](docs/controls-handoff.md).
 
 ## Prompt-to-mesh lab
-The Generation lab compares **procedural parts** with **raw mesh generation**, using a configurable design → visuals pipeline and a shared 30-second deadline. Try the duck, toaster, and shield in mock mode immediately; live OpenAI profiles need a server API key. Twelve comparison prompts, distance previews, ratings, timing, and JSON export help evaluate the two approaches. See [setup and API details](docs/prompt-to-mesh-pipeline.md). The game still uses its independent mock.
+The Generation lab compares **procedural parts** with **raw mesh generation**, using a configurable design → visuals pipeline and a shared 30-second deadline. Try the duck, toaster, and shield in mock mode immediately; live OpenAI profiles need a server API key and explicit paid-mode startup. Twelve comparison prompts, distance previews, ratings, timing, and JSON export help evaluate the two approaches. See [setup and API details](docs/prompt-to-mesh-pipeline.md). The game still uses its independent mock.
 
 ## Current skeleton
-The default **Generation lab** supports text prompts, visual methods, pipeline profiles, intermediate design inspection, a 3D preview, cancellation, and exportable comparison history. **Game** contains the merged race/movement test and a separate voice/creation demo demonstrating falling → Voice Power Up → simulated speech → creation → effect activation. Voice remains simulated; live generation is available only by explicit submission in the lab after configuring a key. See [the creation skeleton guide](docs/creation-skeleton.md) for controls, the v2 contract, lifecycle rules, and the live-provider implementation boundary.
+The default **Generation lab** supports text prompts, visual methods, pipeline profiles, intermediate design inspection, a 3D preview, cancellation, and exportable comparison history. **Game** contains the merged race/movement test and a separate voice/creation demo demonstrating falling → Voice Power Up → simulated speech → creation → effect activation. Voice remains simulated; live generation is available only by explicit submission in the lab after configuring a key and starting `bun run dev:live`. See [the creation skeleton guide](docs/creation-skeleton.md) for controls, the v2 contract, lifecycle rules, and the live-provider implementation boundary.
 
 The v1 contract and fixture API remain available for compatibility alongside the v2 creation pipeline.
 
@@ -20,6 +20,7 @@ Copy the example environment file only if `apps/server/.env` does not already ex
 ```sh
 bun install
 cp -n .env.example apps/server/.env
+chmod 600 apps/server/.env
 bun run dev
 ```
 
@@ -34,6 +35,21 @@ bun run test
 ```
 
 Build output lives in each workspace's dist directory. After building, `bun run --filter @sky/server start` runs the server. Deploy the web dist separately with a same-origin /api reverse proxy. The development servers are not a production deployment.
+
+## Secure, opt-in API keys
+
+Save `OPENAI_API_KEY` only in `apps/server/.env`, using your editor. The file is ignored by Git; commit only the empty `.env.example`. Do not paste keys into chat, terminal commands/history, `VITE_` variables, or frontend files. One standard project API key serves both pipeline stages. Each developer uses their own local key.
+
+- `bun run dev` and the normal server `start` command keep paid calls disabled, even with a key or inherited enable environment variables.
+- Stop the default server, then run `bun run dev:live` to explicitly enable the local paid lab. Its server does **not** watch/restart on edits; restarting deliberately resets the allowance. Vite still supports frontend hot reload.
+- The lab always starts on **Mock two-stage pipeline**. For live work select a live profile, check **Allow this paid attempt**, then click **Generate · up to 2 API calls**. Changing the prompt, method, or profile clears consent; each attempt clears it too.
+- `LIVE_MAX_ATTEMPTS=3` allows three dispatched live attempts per server start, shared across all profiles and browser tabs. Configure an integer from 1 to 10. Failed and cancelled dispatched attempts count. Only one live attempt runs at a time; repeated attempt IDs never dispatch again. Restarting resets the allowance, so it is not a monthly dollar cap.
+- The browser sees availability, models, token budgets and remaining attempts, never credentials. Refreshing profiles is local-only and does not validate the key against OpenAI. Startup, builds, tests, previews, game mocks, and changing a prompt do not call OpenAI.
+- Keep this unauthenticated development lab on localhost. Both dev servers bind to loopback by default; live server startup rejects non-loopback HOST settings. Vite refuses to serve `.env` and server source files. Public deployment needs a separate access-control design.
+
+Set a small project **hard spend limit** in the OpenAI dashboard as an additional limit; spend alerts alone do not stop traffic, and hard-limit enforcement can slightly overshoot. See [OpenAI spend limits](https://developers.openai.com/api/docs/guides/spend-limits). Cancel/timeout does not guarantee already-dispatched work is free. No automatic retries or paid connectivity checks are made.
+
+For a deployed backend, inject the key through the host's secret manager, never into the web build. See [API key handling](https://developers.openai.com/api/reference/overview#authentication) and [the lab contract](docs/prompt-to-mesh-pipeline.md).
 
 ## Layout and parallel ownership
 - `packages/shared/src/schema.ts`: versioned Zod contract and inferred types; no React or server dependencies.

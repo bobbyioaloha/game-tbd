@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 import { setTimeout as delay } from 'node:timers/promises';
 import { meshFixture, mockCreationForText, mockProceduralForText, appearanceToRecipe, type GeometryMode, type StageConfig, type StageMetric } from '@sky/shared';
 import { PipelineFailure } from './pipeline-errors.js';
+import { providerFailure, translateProviderError } from './provider-errors.js';
 
 export type ModelStageRequest = {
   geometryMode?:GeometryMode;
@@ -12,7 +13,10 @@ export type ModelStageResponse = {data:unknown; usage?:StageMetric['usage']};
 export interface StageTransport {run(request:ModelStageRequest):Promise<ModelStageResponse>}
 
 export function openAITransport(apiKey:string, fetchImpl?: typeof fetch):StageTransport {
-  const client = new OpenAI({apiKey,maxRetries:0,timeout:30000,fetch:fetchImpl});
+  // The pipeline owns the total/design deadlines via performance.now() and signal.
+  // Keep the SDK's longer default fallback: its response-body timer uses Date.now(),
+  // so a second 30s deadline can fire early when the host clock is corrected.
+  const client = new OpenAI({apiKey,baseURL:'https://api.openai.com/v1',logLevel:'off',maxRetries:0,fetch:fetchImpl});
   return {
     async run(request) {
       const response = await client.responses.create({
@@ -20,7 +24,13 @@ export function openAITransport(apiKey:string, fetchImpl?: typeof fetch):StageTr
         reasoning:{effort:request.config.reasoning},
         max_output_tokens:request.config.maxOutputTokens, store:false,
         text:{format:{type:'json_schema',name:request.stage+'_'+(request.geometryMode ?? 'mesh')+'_output',strict:true,schema:request.schema}},
-      }, {signal:request.signal, maxRetries:0});
+      }, {signal:request.signal, maxRetries:0}).catch((error:unknown) => {
+        if (request.signal.aborted) throw request.signal.reason;
+        throw translateProviderError(error,request.config.model);
+      });
+      if (response.status === 'failed') {
+        throw providerFailure({status:200,code:response.error?.code,requestId:response._request_id},request.config.model);
+      }
       if (response.output.some(item => item.type === 'message' && item.content.some(content => content.type === 'refusal'))) {
         throw new PipelineFailure('REFUSED','The model declined this request.');
       }

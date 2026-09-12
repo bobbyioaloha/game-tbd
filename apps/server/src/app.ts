@@ -5,9 +5,9 @@ import { registerCreationRoutes } from './generation/routes.js';
 import type { CreationProvider } from './generation/provider.js';
 import Fastify from 'fastify';
 import { fixtures, GenerationRequestSchema, PowerUpSpecSchema } from '@sky/shared';
-export function buildApp(options: {creationProvider?: CreationProvider; creationTimeoutMs?: number; pipeline?: CreationPipeline} = {}) {
-  const app=Fastify({logger:true,bodyLimit:4096});
-  const pipeline = options.pipeline ?? buildPipeline();
+export function buildApp(options: {liveEnabled?:boolean; creationProvider?: CreationProvider; creationTimeoutMs?: number; pipeline?: CreationPipeline} = {}) {
+  const app=Fastify({logger:{redact:['req.headers.authorization','req.headers.cookie']},bodyLimit:4096});
+  const pipeline = options.pipeline ?? buildPipeline(process.env,options.liveEnabled ?? false);
   registerLabRoutes(app, pipeline);
   registerCreationRoutes(app, options.creationProvider ?? {
     mode:'mock', generate:(request, options) => pipeline.run({...request,profileId:'mock'},options),

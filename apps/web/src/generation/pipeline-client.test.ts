@@ -36,3 +36,18 @@ test('lab client handles structured, non-JSON, and null HTTP errors', async () =
     }
   } finally { globalThis.fetch = original; }
 });
+
+
+test('lab client retains sanitized provider diagnostics on terminal failures',async () => {
+  const original=globalThis.fetch;
+  try {
+    const event={type:'failed',stage:'geometry',elapsedMs:50,metrics:[],error:{code:'MODEL_UNAVAILABLE',message:'Check model access.',provider:{model:'gpt-6-astra',httpStatus:404,code:'model_not_found',parameter:'model',requestId:'req_0123456789abcdef0123456789abcdef'}}};
+    const timeout={...event,error:{code:'PROVIDER_TIMEOUT',message:'The network timed out.',provider:{model:'gpt-6-astra',transportCode:'UND_ERR_CONNECT_TIMEOUT'}}};
+    for (const failure of [event,timeout]) {
+      globalThis.fetch=async()=>new Response(JSON.stringify(failure)+'\n');
+      const events:PipelineEvent[]=[];
+      await runLabPipeline({text:'crystal',profileId:'mock'},new AbortController().signal,event=>events.push(event));
+      assert.deepEqual(events,[failure]);
+    }
+  } finally {globalThis.fetch=original;}
+});

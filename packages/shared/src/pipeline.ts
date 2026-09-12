@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { EffectSchema, GenerationRequestSchema, PowerUpSpecSchema } from './schema.js';
 import { MeshAppearanceSchema, PrimitiveAppearanceSchema } from './creation.js';
 
+export const PIPELINE_DEADLINE_MS = 30_000;
+export const DESIGN_BUDGET_MS = 8_000;
+
 export const CreationDesignSchema = z.object({
   displayName: PowerUpSpecSchema.shape.displayName,
   description: PowerUpSpecSchema.shape.description,
@@ -20,6 +23,7 @@ export const PipelineRequestSchema = GenerationRequestSchema.extend({
   profileId: z.string().min(1).max(48),
   // Omission preserves the existing raw-mesh API behavior; the lab selects primitives.
   geometryMode: GeometryModeSchema.optional(),
+  paidAttempt: z.object({id:z.string().uuid(),confirmed:z.literal(true)}).strict().optional(),
 });
 export type PipelineRequest = z.infer<typeof PipelineRequestSchema>;
 export const StageConfigSchema = z.object({
@@ -34,8 +38,13 @@ export const PipelineProfileSchema = z.object({
   design: StageConfigSchema, geometry: StageConfigSchema,
 }).strict();
 export type PipelineProfile = z.infer<typeof PipelineProfileSchema>;
+export const LiveUsageSchema = z.object({
+  enabled:z.boolean(), maxAttempts:z.number().int().min(1).max(10),
+  attemptsUsed:z.number().int().nonnegative(), attemptsRemaining:z.number().int().nonnegative(), busy:z.boolean(),
+}).strict();
+export type LiveUsage = z.infer<typeof LiveUsageSchema>;
 export const PipelineProfilesSchema = z.object({
-  profiles: z.array(PipelineProfileSchema), deadlineMs: z.literal(30000), designBudgetMs: z.literal(8000),
+  profiles: z.array(PipelineProfileSchema), liveUsage:LiveUsageSchema, deadlineMs: z.literal(PIPELINE_DEADLINE_MS), designBudgetMs: z.literal(DESIGN_BUDGET_MS),
 }).strict();
 export const PipelineStageSchema = z.enum(['design','geometry','validation']);
 export type PipelineStage = z.infer<typeof PipelineStageSchema>;
@@ -44,9 +53,24 @@ export const StageMetricSchema = z.object({
   stage: z.enum(['design','geometry']), model: z.string(), durationMs:z.number().nonnegative(), usage:usage.optional(),
 }).strict();
 export type StageMetric = z.infer<typeof StageMetricSchema>;
+// Only explicitly recognized provider metadata may cross the server boundary.
+export const ProviderDiagnosticSchema = z.object({
+  model:z.string().min(1).max(80),
+  httpStatus:z.number().int().min(100).max(599).optional(),
+  code:z.enum(['invalid_api_key','model_not_found','permission_denied','insufficient_permissions',
+    'insufficient_quota','credit_balance_exhausted','organization_spend_limit_exceeded',
+    'project_spend_limit_exceeded','organization_usage_limit_exceeded','rate_limit_exceeded','slow_down',
+    'invalid_json_schema','invalid_schema','invalid_value','unsupported_value','unsupported_parameter',
+    'invalid_request_error','server_error','server_is_overloaded','service_unavailable']).optional(),
+  transportCode:z.enum(['UND_ERR_CONNECT_TIMEOUT','UND_ERR_HEADERS_TIMEOUT','UND_ERR_BODY_TIMEOUT','ETIMEDOUT']).optional(),
+  parameter:z.enum(['model','reasoning','reasoning.effort','max_output_tokens','text.format','text.format.schema','input','instructions','store']).optional(),
+  requestId:z.string().regex(/^req_[a-f0-9]{16,64}$/).optional(),
+}).strict();
+export type ProviderDiagnostic = z.infer<typeof ProviderDiagnosticSchema>;
 export const PipelineErrorSchema = z.object({
-  code:z.enum(['INVALID_REQUEST','NOT_CONFIGURED','INVALID_DESIGN','INVALID_MESH','INVALID_RECIPE','TIMEOUT','CANCELLED','REFUSED','INCOMPLETE','PROVIDER_ERROR']),
+  code:z.enum(['INVALID_REQUEST','NOT_CONFIGURED','LIVE_DISABLED','CONSENT_REQUIRED','DUPLICATE_ATTEMPT','LIVE_BUSY','LIVE_LIMIT_REACHED','INVALID_DESIGN','INVALID_MESH','INVALID_RECIPE','TIMEOUT','CANCELLED','REFUSED','INCOMPLETE','PROVIDER_ERROR','PROVIDER_AUTH','MODEL_UNAVAILABLE','PROVIDER_PERMISSION','PROVIDER_QUOTA','PROVIDER_RATE_LIMIT','PROVIDER_SCHEMA','PROVIDER_REQUEST','PROVIDER_UNAVAILABLE','PROVIDER_CONNECTION','PROVIDER_TIMEOUT']),
   message:z.string().min(1).max(240),
+  provider:ProviderDiagnosticSchema.optional(),
 }).strict();
 export type PipelineErrorData = z.infer<typeof PipelineErrorSchema>;
 export const PipelineEventSchema = z.discriminatedUnion('type', [
