@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { generationEvaluationPrompts, type VoiceRequest } from '@sky/shared';
-import { RaceCreationHost } from '../game/race-creation-host';
+import { raceEventFixtures, type VoiceRequest } from '@sky/shared';
+import { RaceEventHost } from '../game/race-event-host';
 import type { PracticeRace } from '../game/practice-race';
 import { loadPipelineProfiles } from '../generation/pipeline-client';
 import { MicrophoneRecorder } from './recorder';
-import { createAudioCreationClient } from './voice-client';
+import { createAudioRaceEventClient } from './race-event-voice-client';
 import { RecorderControls } from './RecorderControls';
 
 type Configuration=Omit<VoiceRequest,'captureMs'>;
 export function useRaceVoice(race:PracticeRace) {
   const [recorder]=useState(()=>new MicrophoneRecorder());
-  const [profileId,setProfileId]=useState('mock'),[mockText,setMockText]=useState('giant rubber duck');
+  const [profileId,setProfileId]=useState('mock'),[mockText,setMockText]=useState(raceEventFixtures[0].prompt);
   const [armed,setArmed]=useState(false),[refresh,setRefresh]=useState(0);
   const [profiles,setProfiles]=useState<Awaited<ReturnType<typeof loadPipelineProfiles>>>();
   const [error,setError]=useState('');
   const attempt=useRef<Configuration>({profileId:'mock',geometryMode:'primitives',mockText});
-  const [host]=useState(()=>new RaceCreationHost(race,recorder,createAudioCreationClient(()=>attempt.current)));
+  const [host]=useState(()=>new RaceEventHost(race,recorder,createAudioRaceEventClient(()=>attempt.current)));
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
   const mic=useSyncExternalStore(recorder.subscribe,recorder.getSnapshot);
   const profile=profiles?.profiles.find(item=>item.id===profileId);
@@ -46,12 +46,12 @@ export function RaceVoiceControls({voice,paused}:{voice:ReturnType<typeof useRac
     (voice.state.phase==='prompted'&&Boolean(voice.profile?.available)&&(!voice.live||(voice.armed&&voice.paidAvailable))));
   return <section className="race-voice">
     <h2>Voice creation</h2>
-    <p>Gold diamond: one speaking attempt, 10 words maximum. Hold Space after collecting it. Release submits automatically.</p>
+    <p>Yellow star: one speaking attempt, 10 words maximum. Hold Space after collecting it. Release submits automatically. Any racer can activate your creation; its effect can reach everyone.</p>
     <label>Voice profile<select aria-label="Race voice profile" value={voice.profileId} disabled={!configuring} onChange={event=>voice.setProfileId(event.target.value)}>
       {voice.profiles?.profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.label}{profile.available?'':' · unavailable'}</option>)}
     </select></label>
     {!voice.live&&<label>Simulated transcript<select aria-label="Race simulated transcript" disabled={!configuring} value={voice.mockText} onChange={event=>voice.setMockText(event.target.value)}>
-      {generationEvaluationPrompts.map(text=><option key={text}>{text}</option>)}
+      {raceEventFixtures.map(({prompt})=><option key={prompt}>{prompt}</option>)}
     </select></label>}
     {voice.live?<p>Live: speech → design → geometry. Up to 3 paid API calls for this run’s one attempt.</p>:<div className="voice-mode-notice" role="note">
       <strong>Mock mode · speech recognition is off</strong>

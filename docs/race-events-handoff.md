@@ -2,7 +2,7 @@
 
 ## Status and ownership
 
-The v3 contract, four deterministic fixtures, simulation runtime, renderer, lab, and typed/voice API paths are implemented on `codex/race-event-foundation`. The main race remains on its existing v2 creation path. The existing in-game microphone flow is already connected and remains available. Connecting the new v3 events to that flow and to racer movement is a separate gameplay PR.
+The v3 event runtime, renderer, fixtures and typed/voice API paths are integrated into the main four-racer game. `RaceEventHost` uses the existing microphone controls through `createAudioRaceEventClient`. `CreationAttempt<T>` shares recording, cancellation and one-attempt logic with the legacy v2 `CreationLoop` adapter. The old creation demo and Asset generation lab remain compatible.
 
 | Owner | Files / responsibilities |
 | --- | --- |
@@ -26,51 +26,40 @@ The event panel accepts typed or recorded input, defaults to mock, and supports 
 
 The design model returns `{displayName,visualBrief,effectType}`. The server selects balanced parameters and an honest description using `raceEventPreset`. Geometry receives only the visual brief. Models cannot choose strength, lifetime, targets or extra behaviours.
 
-- Gravity well: 6 seconds, 18 m radius, up to 12 m/s² attraction, softened at the centre.
-- Debris shower: 6 seconds, 16 collidable + 64 cosmetic fragments, seeded velocities up to 7 m/s, 5 m/s hit impulse. Each fragment can hit each racer once; the total per-tick velocity change is capped.
-- Repulsion burst: 1.5 seconds, expanding to 20 m, one 12 m/s impulse per reached racer.
-- Protective zone: 7 seconds, 12 m radius, obstacle protection while inside.
+- Gravity vortex (`gravityWell`): 8 seconds, 4,000 m reach, up to 36 m/s² combined force. A radial spring and tangential force send racers into wide orbits around the creation; the centre is finite and deterministic.
+- Debris storm (`debrisShower`): 8 seconds, three waves sharing a total budget of 48 collidable + 80 cosmetic fragments. Rocks launch 24–32 m above each unfinished racer at their current velocity plus 30 m/s downward. Each wave aims some rocks at the current trajectory and scatters the rest; they never home after launch, so steering can dodge them. Collidable radius is 1.15 m, lifetime 2.4 seconds and hit impulse 20 m/s with a lateral component. Each fragment can hit each racer once; total per-tick velocity change is capped at 36 m/s.
+- Shockwave (`repulsionBurst`): 2.5 seconds, expanding to 4,000 m in 0.25 seconds, one 32 m/s impulse per reached racer. Flattened vertical offsets and deterministic lateral directions at the centre make the shove readable while falling.
+- Safe slipstream (`protectiveZone`): 8 seconds, 4,000 m reach, obstacle protection plus 18 m/s² extra descent acceleration. It has a noticeable speed benefit even without an obstacle contact. Custom/older specs that omit `descentAcceleration` keep protection only (default zero).
 
-All active racers participate, including creator and triggerer. Effects are spatial: being outside a radius is not an ownership exemption. Gravity, debris and protection drift down at the pack's average vertical velocity at activation (capped at 60 m/s); repulsion stays at activation depth. This foundation permits one collectible/active event at once. Reject overlapping spawns rather than silently replacing a live event.
+All active racers participate, including creator and triggerer. Effects are spatial: being outside a radius is not an ownership exemption. The 4,000 m preset radius covers this 3,600 m course, including racers well ahead or behind. Gravity and protection drift down at the pack's average vertical velocity at activation (capped at 100 m/s); repulsion stays at activation depth. Each debris wave launches around the unfinished racers' current positions. This foundation permits one collectible/active event at once. Reject overlapping spawns rather than silently replacing a live event.
 
-## Gameplay integration sequence
+## Gameplay integration
 
-1. Create one `RaceEventRuntime` and `RaceEventBridge` per race. Alternatively inject `createNoopRaceEvents()` while developing movement support.
-2. Supply current snapshots for **every racer** using `EventRacer`. IDs are stable strings (`String(racer.id)` is fine). Use world positions; `finished` comes from `finishTime !== undefined`. Existing immunity/obstacle protection feeds `protected`.
-3. Around the existing sole 120 Hz race step, call the before/after methods below. Do not add another `useFrame` integrator.
-4. Render `RaceEventRenderer` inside the same world-origin/camera-offset group as course objects. Remount it with `key={instanceId}` when a new creation is spawned; pass the runtime as `events`. Rendering only reads simulation state.
-5. Wire the existing semantic voice actions and one-attempt lifecycle to `raceEventClient.generateVoice` (or `.generate` for typed input), then call `bridge.spawnAhead` with the validated v3 result and the creator's **current** snapshot. Keep microphone/consent logic out of movement code. The legacy `CreationLoop` validates v2 and is not a drop-in v3 client; its lifecycle must be adapted explicitly, never by casting v3 to v2.
+`MovementTest` creates one `PracticeRace` with an injected `RaceEventRuntime({pickupContactRadius:RACE_CREATION_PICKUP_RADIUS})`. `RaceScene` remains the sole 120 Hz clock. Inside `PracticeRace.step`, the bridge prepares inputs for all unfinished racers, controllers advance once, and the bridge resolves actual movement segments. Segments exclude instantaneous obstacle/combat displacement and carry a finish fraction so contacts after landing cannot win. Existing race construction without an event runtime preserves the legacy path for regression tests.
 
-The following is the intended gameplay-owned hook; `readRacers` and applying `eventInputs` inside `race.step` are integration work, not methods already present in `PracticeRace`:
+`FreefallController` keeps steering/brake/boost integration intact and overlays an external velocity capped at 42 m/s with exponential drag of 0.65/s. Acceleration is in m/s² and impulses in m/s; an impulse is consumed once, not multiplied by dt. World +Y is up; `getWorldVelocity()` publishes signed velocity. The positive `fallSpeed` snapshot reflects downward motion. Outward external velocity stops at lane boundaries; reset/finish clears it.
 
-```ts
-const eventInputs = bridge.beforeStep(dt, readRacers());
-// Existing race.step advances all racers exactly once, applying eventInputs per racer.
-race.step(/* existing inputs, plus the agreed event inputs */);
-bridge.afterStep(readRacers());
-```
+Protection is a per-tick `eventObstacleProtection` flag used only by normal obstacle collision. It does not overwrite inventory timers or grant projectile/sun immunity. Existing inventory/immunity protection is supplied to debris collision. Shared events do not change rival tactics or consume the race's item/reaction RNG.
 
-`beforeStep` returns `Record<racerId, {acceleration,velocityDelta,obstacleProtection}>`:
-- positions: world meters; +Y up, falling toward -Y.
-- velocity/velocityDelta: signed world m/s, not the positive `fallSpeed` magnitude. A vertical velocity is `[vx,-fallSpeed,vz]`.
-- acceleration: m/s²; integrate `acceleration * dt` into velocity once per tick.
-- velocityDelta: a one-time m/s impulse; **do not multiply it by dt** or apply it twice.
-- obstacleProtection: OR into current obstacle protection for this tick; never overwrite inventory timers. Do not leave a persistent shield after exiting the zone.
+`RaceCreations` retains the yellow star and mounts `RaceEventRenderer` with a world-height offset and instance key. Generated creations use a 10 m pickup contact radius and a matching visible halo. Meshes are recentered and fitted inside a 12 m presentation sphere, independent of the input geometry dimensions. The game settings live in `race-event-config.ts`; ordinary items and the yellow voice star retain their existing 3.5 m bounds. The existing radar and trophy show the shared object and actual triggerer; active event status can remain visible after the creator lands. The banner distinguishes waiting for pickup from activation and names the effect and affected racers. Colored racer auras, a screen-edge tint, impulse callouts and a widened camera FOV mark actual application. Non-debug field visuals use a maximum 34 m presentation radius; they are not the effect boundary. Debug shows the actual bounds.
 
-The current controller stores fall speed and steers directly by position. Gameplay must add bounded external lateral/vertical motion support; do not translate an acceleration directly into a position offset or abuse the existing `impact()` displacement method. Publish actual velocity, or derive signed velocity from successive fixed-step positions for the snapshot.
+## Placement and lifecycle
 
-The bridge copies pre-step positions, then resolves actual movement segments after the game step. Earliest sphere contact wins; equal contact fractions use stable racer IDs. Newly activated effects start on the next tick. Debris hits also deliver impulses on the next tick. Supply exactly one before/after pair, with `dt` in `(0,1/30]`. There is no internal timer.
+- `raceCreationSpawnPosition` preserves the later-course rule: last 40% of the course, normally 300 m ahead, at most 60 m above the finish; reject less than 30 m lead.
+- `eventPlacement` tries bounded nearby clear positions without deleting obstacles. Pickup lifetime is the greatest remaining racer-to-object distance / 8 m/s plus 30 seconds, clamped to 30–600 seconds. These are game-authored spawn options; the model cannot supply them. The lab keeps its default 20-second pickup lifetime and 1.6 m contact distance.
+- A missed creation expires only after all unfinished racers pass below the full pickup sphere plus a 5 m margin; crossing its centre alone is not a miss.
+- One collectible/active event at a time. Any unfinished racer can activate once; creator and triggerer have no exemption. Passing/finishing as creator does not remove a shared event. All racers passing, the pickup budget, or the whole race ending cleans it up.
+- Persistent gravity/protection centers drift at activation-time pack velocity. Debris waves follow current racer positions only at launch. The repulsion center stays fixed and expands to full radius in 0.25 seconds so falling racers cannot outrun the front; its configured lifetime and one impulse per racer remain unchanged.
+- Pause stops race/event ticks. Pending voice work is cancelled under the existing rules. Reset/navigation aborts requests, invalidates late results, and clears the event bridge and motion. Creator finish cancels pending requests while already spawned objects remain shared.
+- The one speaking attempt, explicit paid consent, server allowance, and separate 8/10/30-second capture/transcription/generation budgets remain unchanged.
 
-## Lifecycle and race rules
+## Free gameplay check
 
-- Only the player collecting the authored Voice Power Up gets the speaking attempt. Once created, the event object is shared and any racer can trigger it.
-- `spawnAhead` uses the current creator position and a lead of `max(18 m, 3 seconds of vertical speed)`. The race must reject a spawn too near the finish or other unreachable space before calling it.
-- Do not clear the object when only its creator passes/finishes. It expires when all active racers pass it, its 20-second pickup lifetime ends, or the whole race ends.
-- The runtime ignores finished racers. End-of-race reset clears pending impulses, fragments, contact records and protection.
-- Pause stops both race and event ticks. Continue the existing cancellation rules for pending voice/generation. Resume must not catch up paused wall-clock time.
-- Reset/navigation abort pending requests and invalidate their completions before resetting the bridge. A late generation must not spawn into another run.
-- Keep the existing one-attempt rule and paid consent. Finishing the creator can cancel their pending request, but must not remove an already-spawned event that other racers can still reach.
-- The world owns finish checks and normal obstacle collision. Generation does not alter rivals' steering or inventory.
+Run `bun run dev`, open Game → Setup, expand Event fixtures, select a fixture before starting, then resume. **Quick encounter** defaults to spawning 30 m ahead so a check takes seconds; uncheck it to test normal later-course placement. Follow the object radar and fly through the glowing pickup halo; braking gives more time to line up. Restart to select another. This development-only panel never records or calls a provider. For voice mocks, use Voice setup and choose one of the four event transcripts before collecting the yellow star. The lab remains available for quick replay and inspection.
+
+The **Event result** panel in Setup retains the last creation, selected effect, triggerer, cumulative affected racers, impulse counts, actual debris hits, blocked debris and unique obstacle blocks after the effect expires. Pause (or finish), then choose **Restart & replay this creation nearby · free** to reuse its exact mesh/effect in a new race. Only the last result is held in memory; it survives a race restart, not page navigation, and contains no audio. Replay never calls transcription or generation. Normal voice placement is unchanged.
+
+Restart your existing development server after updating presets so new server-generated creations use them. Do not restart a live server automatically: its paid-attempt allowance is per server start.
 
 ## API paths
 
@@ -92,4 +81,10 @@ All event requests reuse the existing pipeline instance: same admission gate, co
 
 Run `bun run typecheck`, `bun run test`, `bun run build`. Tests use fixtures, fake credentials and intercepted transports. Browser checks use mock mode; paid quality/latency evaluation is a deliberate user action.
 
-Before enabling v3 in the main race, verify: a rival triggers first; the creator is affected; both left/right racers respond; mesh scale does not change pickup bounds; finished racers do not trigger; pausing freezes event time; resetting during generation prevents stale spawn; protected racers ignore ordinary obstacle hits while inside the zone; and all effects/debris disappear at expiration.
+Gameplay acceptance checks: a rival triggers first; the creator is affected; both left/right racers respond; mesh scale does not change pickup bounds; finished racers do not trigger; pausing freezes event time; resetting during generation prevents stale spawn; protected racers ignore ordinary obstacle hits while inside the zone; all effects/debris disappear at expiration; widely separated racers are reached; the vortex and shockwave produce more than 10 m of lateral movement; the slipstream measurably accelerates descent; and seeded debris can hit all racers while remaining dodgeable.
+
+### Verification on this integration
+
+Automated coverage includes unchanged no-event movement/inventory RNG, all four effects through real racer controllers, rival-first activation, finish-fraction contacts, exclusion of teleport knockback, protection versus weapons, bounded seeded debris, cancellation/late results, safe spawn placement, and completed full-course runs. The game UI accepted a local fixture in the in-app browser. That browser reports WebGL unavailable, so visual effect readability and feel still need a Chrome/Edge gameplay pass. No paid provider calls were made.
+
+The stronger presets passed 205 automated tests, typecheck and build. A deterministic full-course comparison (seed 0.42, idle player, normal rival AI) reached all four racers: vortex maximum player lateral displacement about 21 m, debris about 26 m with 15 total hits, shockwave about 39 m, and slipstream peak speed increase about 28 m/s. These are simulation measurements, not a visual playtest. The in-app browser verified quick-fixture selection and free replay; its WebGL limitation still requires a Chrome/Edge check of the 3D presentation.

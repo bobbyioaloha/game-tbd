@@ -9,7 +9,7 @@
 - Keep collectible collision independent of appearance. Do not add physics, database, authentication, or multiplayer to this foundation.
 - Inspect existing work and avoid unrelated changes. Run relevant checks before handoff.
 
-- Voice Power Ups are authored one-attempt grants, separate from generated CreationSpec v2 objects. Keep v1 fixtures/API compatible.
+- Voice Power Ups are authored one-attempt grants, separate from generated objects (v3 shared events in the main race, v2 in the legacy demo). Keep v1 fixtures/API compatible.
 - Preserve the one-attempt rule: no automatic retries, refunds, or stale results spawning into another run. Main race and Generation lab default to mocks and support explicitly opted-in paid speech/generation. The separate creation demo remains simulated.
 - CreationPipeline owns shared paid admission, optional transcription, and two-stage generation; CreationProvider is the adapter boundary for the existing raw-spec API. Generation lab is the text/voice-to-3D test interface.
 
@@ -27,9 +27,13 @@
 
 - Voice uses shared contracts in packages/shared/src/voice.ts and replaceable capture/client/provider adapters in apps/web/src/voice and apps/server/src/voice. See docs/voice-input-plan.md.
 - Preserve 8-second capture, separate 10-second upload/transcription and 30-second generation budgets; one paid gate covers the full voice attempt. Never store audio in files, logs, or history exports.
-- RaceCreationHost owns voice pickup/spawn integration; it consumes the race's swept movement segment and never moves the player. Pause/reset/end/navigation abort voice work and discard stale results. Generated effects use their validated parameters and do not replace inventory.
+- RaceEventHost owns main-race voice pickup/spawn integration; the legacy RaceCreationHost remains available for v2 regression coverage; it consumes the race's swept movement segment and never moves the player. Pause/reset/end/navigation abort voice work and discard stale results. Generated effects use their validated parameters and do not replace inventory.
 
 - Race-event v3 work is isolated in packages/shared/src/race-event*.ts and apps/web/src/race-events. See docs/race-events-handoff.md. Existing v1/v2 schemas and game flow remain compatible.
-- RaceEventRuntime never moves racers or reads input; gameplay applies its bounded acceleration (m/s²), one-shot velocityDelta (m/s) and per-tick obstacleProtection. Call RaceEventBridge.beforeStep/afterStep around the one existing fixed-step race update.
+- RaceEventRuntime never moves racers or reads input; gameplay applies its bounded acceleration (m/s²), one-shot velocityDelta (m/s) and per-tick obstacleProtection. PracticeRace calls RaceEventBridge.beforeStep/afterStep inside the update driven by RaceScene’s sole fixed-step clock. Never add a second event integrator.
 - Any active racer can trigger an event once; creator/triggerer have no exemption. Keep shared objects alive after their creator passes/finishes. One live event at a time; seeded debris is bounded and cosmetic fragments never collide.
-- Event sandbox and v3 typed/voice endpoints are implemented; main-race v3 lifecycle/controller integration belongs in the next gameplay PR; its existing microphone/v2 flow already works. Do not cast v3 specs into the old CreationLoop or import sandbox movement into gameplay.
+- Event sandbox, v3 endpoints, and main-race lifecycle/controller integration are implemented. The microphone uses createAudioRaceEventClient; CreationAttempt shares lifecycle logic with the legacy v2 adapter. Do not cast v3 specs into the old CreationLoop or import sandbox movement into gameplay.
+
+- Preserve later-course placement for generated objects (the manual fixture/replay panel has an explicit 30 m quick mode) and the game-authored travel budget (30–600 s) for pickups; active effects keep their short validated durations. Main-race generated-creation contact radius is 10 m, with a fitted 12 m model diameter and visible pickup halo; ordinary item/voice pickups stay at 3.5 m. Keep these presentation/contact settings in race-event-config.ts, independent of generated mesh dimensions. Keep event RNG independent of item/rival randomness.
+
+- Strong event presets cover the course while remaining bounded. Debris uses three dodgeable waves sharing a maximum 128 particles, never homing after launch. Keep impact counters cumulative and the last result/replay in memory only; never retain audio or make provider calls from fixture/replay controls.

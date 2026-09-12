@@ -1,6 +1,10 @@
 import { Preview } from '../pages/CharacterPage';
 import { CHARACTERS } from './characters';
 import type { GregPose } from './GregModel';
+import { raceEventFixtures } from '@sky/shared';
+import { RaceEventRuntime } from '../race-events/runtime';
+import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
+import { RaceEventReport } from './RaceEventReport';
 import { RaceCreationHud } from './RaceCreationVisuals';
 import { RaceVoiceControls, useRaceVoice } from '../voice/RaceVoiceControls';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
@@ -28,7 +32,7 @@ export function MovementTest() {
   const settingsRef=useRef(settings);settingsRef.current=settings;
   const [angle,setAngle]=useState(35),[zoom,setZoom]=useState(8);
   const [pose,setPose]=useState<GregPose>('Stand'),[previewPaused,setPreviewPaused]=useState(false),[take,setTake]=useState(0);
-  const [race]=useState(()=>new PracticeRace());
+  const [race]=useState(()=>new PracticeRace(true,Math.random,new RaceEventRuntime({pickupContactRadius:RACE_CREATION_PICKUP_RADIUS})));
   const voice=useRaceVoice(race);
   const microphone=useSyncExternalStore(voice.recorder.subscribe,voice.recorder.getSnapshot);
   const voiceBlockedReason=!microphone.ready?'Enable the microphone before starting the race.'
@@ -40,6 +44,8 @@ export function MovementTest() {
   const voiceActions=useRef(voice);voiceActions.current=voice;
   const [runtime] = useState<Runtime>(() => ({race, voice:voice.host, keys: new Set(), paused: true, bindings: {...defaults}, clock: 0, generation: 0, fireRequested: false, dodgeRequested:false}));
   const [paused, setPaused] = useState(true);
+  const [fixtureNotice,setFixtureNotice]=useState('');
+  const [quickFixture,setQuickFixture]=useState(true);
   const [hud, setHud] = useState(initialHud);
   const [bindings, setBindings] = useState<Bindings>({...defaults});
   const steeringHelp=`${label(bindings.forward)} / ${label(bindings.left)} / ${label(bindings.backward)} / ${label(bindings.right)} to steer · hold ${label(bindings.brake)} to brake`;
@@ -57,12 +63,14 @@ export function MovementTest() {
   const reset = () => {
     pause(true);
     runtime.race.reset();voiceActions.current.reset(); runtime.clock = 0; runtime.generation++;
-    setHud(initialHud);setVoiceInputNotice(current=>({id:current.id+1,text:''}));
+    setHud(initialHud);setFixtureNotice('');setVoiceInputNotice(current=>({id:current.id+1,text:''}));
   };
 
-  const beginExercise=()=>{
-    reset();setSettings(false);setBinding(null);setCountdown(3);setScreen('countdown');
+  const startCountdown=()=>{
+    // Starting a prepared run must keep its loaded fixture and voice setup.
+    setSettings(false);setBinding(null);setCountdown(3);setScreen('countdown');
   };
+  const beginExercise=()=>{reset();startCountdown();};
   useEffect(()=>{
     if(screen!=='countdown')return;
     const timer=window.setTimeout(()=>{
@@ -139,7 +147,7 @@ export function MovementTest() {
         <div className="in-game-toolbar">
           <span>⚠ MANDATORY SAFETY EXERCISE</span>
           <div>
-            {screen==='race'?<><button onClick={()=>{if(runtime.paused&&runtime.race.elapsed===0)beginExercise();else pause(!runtime.paused);}} disabled={binding!==null||settings}>{paused?'Resume':'Pause'}</button><button onClick={beginExercise}>Restart</button></>:null}
+            {screen==='race'?<><button onClick={()=>{if(runtime.paused&&runtime.race.elapsed===0)startCountdown();else pause(!runtime.paused);}} disabled={binding!==null||settings}>{paused?'Resume':'Pause'}</button><button onClick={beginExercise}>Restart</button></>:null}
             <button aria-pressed={screen==='selection'} onClick={()=>{pause(true);setScreen('selection');setSettings(false);setBinding(null);setPose('Stand');setPreviewPaused(false);setTake(value=>value+1);}}>Personnel</button>
             <button aria-pressed={screen==='viewer'} onClick={()=>{pause(true);setScreen('viewer');setSettings(false);setBinding(null);}}>Inspect Greg</button>
             <button aria-pressed={settings} onClick={()=>{pause(true);if(screen==='countdown')setScreen('race');setSettings(value=>!value);setBinding(null);}}>Setup</button>
@@ -166,7 +174,7 @@ export function MovementTest() {
             {screen==='viewer'&&<div><button aria-pressed={previewPaused} onClick={()=>setPreviewPaused(value=>!value)}>{previewPaused?'Play':'Pause preview'}</button><button onClick={()=>{setPreviewPaused(false);setTake(value=>value+1);}}>Replay</button></div>}
           </div>}
           <p>{steeringHelp}<br/>{actionHelp}</p>
-          <button className="begin-exercise" onClick={beginExercise}>Begin exercise →</button>
+          <button className="begin-exercise" onClick={()=>{if(runtime.race.elapsed===0)startCountdown();else beginExercise();}}>Begin exercise →</button>
           <small>Attendance is not optional.</small>
         </div>}
         {screen==='countdown'&&<div className="exercise-start-screen" role="status" aria-live="polite" aria-atomic="true">
@@ -184,20 +192,36 @@ export function MovementTest() {
         {!paused && hud.finish !== null && <div className="race-result"><strong>EXERCISE COMPLETE · {hud.place} / 4</strong><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={beginExercise}>Race again</button></div>}
         <RaceCreationHud key={voice.state.session} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && !settings && <div className="movement-pause"><span className="safety-caution">⚠ CAUTION</span><h2>Mandatory fall protection training</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
-          {runtime.race.elapsed===0&&<div className="race-mic-setup">
+          {runtime.race.elapsed===0&&!voice.host.creation&&<div className="race-mic-setup">
             <strong>★ Yellow star · voice creation</strong>
             <p role="status">{voiceBlockedReason||'Microphone ready. Collect the star, then hold Space until you finish speaking.'}</p>
             {!microphone.ready&&<><button disabled={microphone.phase==='preparing'} onClick={()=>{void voice.recorder.prepare();}}>{microphone.phase==='preparing'?'Preparing microphone…':'Enable microphone'}</button><small>{microphone.message}</small></>}
           </div>}
-          <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); if(runtime.race.elapsed===0)beginExercise();else pause(false);}}>Begin / resume exercise</button>
+          <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); if(runtime.race.elapsed===0)startCountdown();else pause(false);}}>Begin / resume exercise</button>
           <small>Escape resumes · leaving this window pauses</small></div>}
         </>}
       {settings&&<div className="race-dashboard in-game-settings" role="dialog" aria-label="Exercise setup">
         <div className="settings-heading"><h2>Exercise setup</h2><button onClick={()=>{setSettings(false);setBinding(null);}}>Close setup</button></div>
+        <RaceEventReport host={voice.host} canReplay={paused||race.finished} onReplay={()=>{
+          const spec=voice.host.report?.instance?.spec;if(!spec)return;
+          reset();voice.host.loadFixture(spec,true);setScreen('race');setFixtureNotice(spec.displayName+' is 30 m ahead. Resume to replay without API calls.');
+        }}/>
         <details className="race-detail">
           <summary>Voice setup <small>{microphone.ready?'Microphone ready':'Enable microphone before racing'}</small></summary>
           <RaceVoiceControls voice={voice} paused={paused}/>
         </details>
+        {import.meta.env.DEV&&<details className="race-detail">
+          <summary>Event fixtures <small>Local gameplay test · no API calls</small></summary>
+          <p>Restart and choose an event while paused. Any racer can activate it.</p>
+          <label><input type="checkbox" checked={quickFixture} disabled={!paused||race.elapsed!==0||!!voice.host.creation} onChange={event=>setQuickFixture(event.target.checked)}/>Quick encounter · spawn 30 m ahead</label>
+          <div className="event-fixture-buttons">{raceEventFixtures.map(fixture=><button key={fixture.prompt}
+            disabled={!paused||race.elapsed!==0||!!voice.host.creation}
+            onClick={()=>{try{voice.host.loadFixture(fixture.spec,quickFixture);setFixtureNotice(fixture.spec.displayName+(quickFixture?' is 30 m ahead.':' is waiting later in the course.')+' Resume to race.');}
+              catch(error){setFixtureNotice(error instanceof Error?error.message:'Could not place fixture.');}}}>
+            {fixture.spec.displayName}
+          </button>)}</div>
+          <p role="status">{fixtureNotice}</p>
+        </details>}
         <details className="race-detail">
           <summary>Controls <small>Steering, items &amp; key bindings</small></summary>
           <p>Click a key to rebind. Changes last for this session.</p>

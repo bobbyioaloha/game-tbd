@@ -2,15 +2,18 @@ import type { RecorderSnapshot } from '../voice/recorder';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Box3, DoubleSide, Shape, Vector3, type Group } from 'three';
-import type { CreationSpec } from '@sky/shared';
+import { raceEventPreset, type RaceEventCreation } from '@sky/shared';
+import { RaceEventRenderer } from '../race-events/RaceEventRenderer';
+import { RACE_CREATION_MODEL_DIAMETER, RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
 import { PowerUpModel } from '../components/PowerUpModel';
-import type { RaceCreationHost } from './race-creation-host';
+import type { RaceEventHost } from './race-event-host';
 import type { initialRaceHud } from './RaceScene';
 
 // Presentation only: model transforms never change the host's pickup/collision bounds.
-export function RaceCreations({host}:{host:RaceCreationHost}) {
+export function RaceCreations({host}:{host:RaceEventHost}) {
   useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
-  const world=useRef<Group>(null), star=useRef<Group>(null), model=useRef<Group>(null);
+  const creation=host.creation;
+  const world=useRef<Group>(null), star=useRef<Group>(null);
   const shape=useMemo(()=>{
     const outline=new Shape();
     for(let i=0;i<10;i++) {
@@ -24,7 +27,6 @@ export function RaceCreations({host}:{host:RaceCreationHost}) {
     if(world.current)world.current.position.y=-host.race.snapshot(host.race.racers[0]).position[1];
     const time=host.race.elapsed;
     if(star.current){star.current.quaternion.copy(camera.quaternion);star.current.rotateZ(time*0.35);star.current.scale.setScalar(1+Math.sin(time*3)*0.08);}
-    if(model.current)model.current.rotation.set(0.55,time*0.45,0.15);
   });
   return <group ref={world}>
     {host.voice&&<group position={host.voice.position} ref={star}>
@@ -33,14 +35,11 @@ export function RaceCreations({host}:{host:RaceCreationHost}) {
         <ringGeometry args={[radius-0.24,radius,48]}/><meshBasicMaterial color="#ffe66b" transparent opacity={0.4-i*0.1} side={DoubleSide} depthWrite={false}/>
       </mesh>)}
     </group>}
-    {host.creation&&<group position={host.creation.position}>
-      <group ref={model} scale={1.65}><PowerUpModel spec={host.creation.spec}/></group>
-      <mesh rotation={[-Math.PI/2,0,0]}><ringGeometry args={[3.1,3.3,64]}/><meshBasicMaterial color="#b5fff0" side={DoubleSide} transparent opacity={0.8} depthWrite={false}/></mesh>
-    </group>}
+    {creation&&<RaceEventRenderer key={creation.instanceId} events={host.race.events!} modelDiameter={RACE_CREATION_MODEL_DIAMETER} modelTilt={[0.55,0.15]} pickupContactRadius={RACE_CREATION_PICKUP_RADIUS}/>}
   </group>;
 }
 
-function TrophyModel({spec}:{spec:CreationSpec}) {
+function TrophyModel({spec}:{spec:RaceEventCreation}) {
   const frame=useRef<Group>(null),content=useRef<Group>(null);
   useLayoutEffect(()=>{
     if(!content.current)return;
@@ -53,40 +52,62 @@ function TrophyModel({spec}:{spec:CreationSpec}) {
   return <group ref={frame}><group ref={content}><PowerUpModel spec={spec}/></group></group>;
 }
 
-export function RaceCreationHud({host,paused,finished,marker,live,mockText,blockedReason,inputNotice,microphone}:{host:RaceCreationHost;paused:boolean;finished:boolean;marker:typeof initialRaceHud.creationMarker;live:boolean;mockText:string;blockedReason:string;inputNotice:{id:number;text:string};microphone:RecorderSnapshot}) {
+export function RaceCreationHud({host,paused,finished,marker,live,mockText,blockedReason,inputNotice,microphone}:{host:RaceEventHost;paused:boolean;finished:boolean;marker:typeof initialRaceHud.creationMarker;live:boolean;mockText:string;blockedReason:string;inputNotice:{id:number;text:string};microphone:RecorderSnapshot}) {
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
-  const [spec,setSpec]=useState<CreationSpec>();
+  const event=host.race.events!.getSnapshot();
+  const effectLabel=event.instance?raceEventPreset(event.instance.spec.effect.type).label:'';
+  const playerHit=Boolean(event.impact?.affectedRacerIds.includes('0'));
+  const playerImpulses=event.impact?.impulseCounts['0']??0;
+  const triggerer=host.race.racers.find(racer=>String(racer.id)===event.triggererId)?.name;
+  const [spec,setSpec]=useState<RaceEventCreation>();
   const [announcement,setAnnouncement]=useState<{name:string;distance:number}>();
   const [notice,setNotice]=useState(true);
   const [collectedAt,setCollectedAt]=useState<number|null>(null);
   useEffect(()=>{
-    if(state.phase==='activated')setCollectedAt(host.race.elapsed);
-  },[host,state.phase]);
+    if(event.phase==='active'){setCollectedAt(host.race.elapsed);if(event.instance)setSpec(event.instance.spec);}
+  },[host,event.phase,event.instance?.instanceId]);
   const trophyAge=collectedAt===null?Infinity:host.race.elapsed-collectedAt;
   useEffect(()=>{
-    if(state.phase==='spawned'&&host.creation){
-      setSpec(host.creation.spec);
+    const creation=host.creation;
+    if(event.phase==='collectible'&&creation){
+      setSpec(creation.spec);
       const player=host.race.snapshot(host.race.racers[0]).position;
-      setAnnouncement({name:host.creation.spec.displayName,distance:Math.round(Math.hypot(...host.creation.position.map((value,axis)=>value-player[axis])))});
+      setAnnouncement({name:creation.spec.displayName,distance:Math.round(Math.hypot(...creation.position.map((value,axis)=>value-player[axis])))});
     }
-  },[host,state.phase]);
+  },[host,event.phase,event.instance?.instanceId]);
   useEffect(()=>{
     setNotice(true);
     if(paused)return;
     const timer=window.setTimeout(()=>setNotice(false),4500);
     return()=>window.clearTimeout(timer);
   },[state.phase,paused,inputNotice.id]);
-  if(paused||finished)return null;
+  if(paused)return null;
   const busy=['preparing','recording','transcribing','generating'].includes(state.phase);
   const recording=microphone.phase==='recording';
   const inputHint=notice&&!busy?inputNotice.text:'';
-  const showNotice=Boolean(inputHint)||(notice||busy)&&!['available','activated','spawned','ended'].includes(state.phase);
+  const showNotice=!finished&&(Boolean(inputHint)||(notice||busy)&&!['available','activated','spawned','ended'].includes(state.phase));
   return <>
+    {event.phase==='active'&&event.instance&&<>
+      {playerHit&&<div className={'event-screen-cue '+event.instance.spec.effect.type} aria-hidden="true"/>}
+      <div className={'race-event-status active '+event.instance.spec.effect.type} role="status">
+        <strong>{effectLabel.toUpperCase()} · {event.remainingSeconds.toFixed(1)} s</strong>
+        <span>{event.instance.spec.displayName} · {triggerer==='You'?'You activated it':triggerer+' activated it'}</span>
+        <span>{event.impact?.affectedRacerIds.length??0}/{event.impact?.participants.length??0} racers affected · {playerHit?'YOU ARE AFFECTED':'Dodge the incoming effect'}</span>
+        <small>{event.instance.spec.description}</small>
+      </div>
+      {playerImpulses>0&&<div key={event.instance.instanceId+'-'+playerImpulses} className="event-hit-callout" aria-hidden="true">
+        {event.instance.spec.effect.type==='debrisShower'?'DEBRIS HIT!':'SHOCKWAVE!'}
+      </div>}
+    </>}
+    {event.phase==='collectible'&&event.instance&&<div className="race-event-status waiting" role="status">
+      <strong>{event.instance.spec.displayName} → {effectLabel}</strong>
+      <span>CREATED · Fly through the glowing halo to activate. Brake to line up. Any racer can trigger it.</span>
+    </div>}
     {marker&&<div className={'creation-radar '+(marker.edge?'at-edge ':'')+(marker.left>50?'label-left':'')} style={{left:marker.left+'%',top:marker.top+'%'}}>
       <span className="creation-radar-symbol" style={marker.edge?{transform:'rotate('+marker.angle+'deg)'}:undefined}>{marker.edge?'↑':''}</span>
       <div className="creation-radar-label"><strong>{marker.name}</strong><small>{marker.gap}</small></div>
     </div>}
-    {state.phase==='spawned'&&state.phaseSeconds<3&&announcement&&<div className="creation-announcement" role="status">
+    {event.phase==='collectible'&&event.elapsedSeconds<3&&announcement&&<div className="creation-announcement" role="status">
       <strong>{announcement.name} created!</strong><span>AHEAD IN {announcement.distance} METERS!</span>
     </div>}
     {showNotice&&<div className={'creation-notice '+(recording?'is-recording':'')}>
@@ -99,11 +120,11 @@ export function RaceCreationHud({host,paused,finished,marker,live,mockText,block
       </div>}
       {state.phase==='prompted'&&<span>{blockedReason?'Restart, then finish voice setup before falling.':'Release to create · 10 words max'}<br/>{blockedReason|| (live?'Live speech':'Mock: '+mockText)}</span>}
     </div>}
-    {state.phase==='activated'&&spec&&trophyAge<10&&<div className="creation-trophy" role="status" style={{opacity:Math.min(1,(10-trophyAge)/0.5)}}>
+    {event.triggererId&&spec&&trophyAge<10&&<div className="creation-trophy" role="status" style={{opacity:Math.min(1,(10-trophyAge)/0.5)}}>
       <div className="creation-trophy-model" aria-hidden="true"><Canvas camera={{position:[0,1,4.5],fov:42}} dpr={[1,1.5]} fallback={<span>★</span>}>
         <ambientLight intensity={2}/><directionalLight position={[3,4,5]} intensity={3}/><TrophyModel spec={spec}/>
       </Canvas></div>
-      <div><small>★ YOU MADE THIS!</small><strong>{spec.displayName}</strong><span>Collected!</span></div>
+      <div><small>★ YOU MADE THIS!</small><strong>{spec.displayName}</strong><span>{triggerer==='You'?'You activated it':triggerer+' activated it'}</span></div>
     </div>}
   </>;
 }

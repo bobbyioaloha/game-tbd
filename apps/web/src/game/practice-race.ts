@@ -2,7 +2,8 @@ import { itemForPlace, RivalDodgeReaction } from './race-balance';
 // Race item boxes have a forgiving pickup volume independent of model size.
 import { planRival } from './rival-planner';
 import { TargetLock } from './target-lock';
-import type { PowerUpEffect } from '@sky/shared';
+import { RACE_EVENT_LIMITS, type EventRacer, type RaceEventPort, type RacerSegment, type PowerUpEffect } from '@sky/shared';
+import { RaceEventBridge } from '../race-events/bridge';
 import { FreefallController } from './freefall-controller';
 import type { PlayerSnapshot, SteeringInput, Position } from './player-controller';
 import { makeCourse, makeItemBoxes, obstacleHit, obstaclePose, OBSTACLE_RULES, segmentSphere, type Item, type Obstacle } from './race-course';
@@ -18,7 +19,7 @@ export type RaceStanding={id:number;name:string;place:number;progress:number;gap
 export type Racer = {
   id:number;name:string;incidents:number;controller:FreefallController;landed?:PlayerSnapshot;finishTime?:number;
   target:[number,number];decision:number;brakeUntil:number;item:Item|null;
-  creationSlowUntil:number;creationSlowMultiplier:number;creationShieldUntil:number;
+  creationSlowUntil:number;creationSlowMultiplier:number;creationShieldUntil:number;eventObstacleProtection:boolean;
   slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;sunOrigin:Position|null;nextUse:number;aiLock:TargetLock;dodgeReaction:RivalDodgeReaction;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;sunVictims:Set<number>;
 };
 export type Projectile={id:number;owner:number;position:Position;velocity:Position;target?:number;expires:number};
@@ -30,14 +31,24 @@ export class PracticeRace {
   feedback='';feedbackUntil=0;
   private announce(message:string){this.feedback=message;this.feedbackUntil=this.elapsed+2;}
   private seed=42;private shotId=0;
-  constructor(private courseEnabled=true,private seedSource:()=>number=Math.random) {this.reset();}
+  readonly eventBridge?:RaceEventBridge;
+  movementSegments:readonly RacerSegment[]=[];
+  constructor(private courseEnabled=true,private seedSource:()=>number=Math.random,readonly events?:RaceEventPort) {
+    this.eventBridge=events?new RaceEventBridge(events):undefined;this.reset();
+  }
+  eventRacers():EventRacer[] {
+    return this.racers.map(racer=>({id:String(racer.id),position:this.snapshot(racer).position,
+      velocity:racer.finishTime===undefined?racer.controller.getWorldVelocity():[0,0,0],
+      finished:racer.finishTime!==undefined,protected:this.protected(racer)}));
+  }
   private random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
   reset(){
+    this.eventBridge?.reset();this.movementSegments=[];
     this.feedback='';this.feedbackUntil=0;this.elapsed=0;this.seed=Math.floor(this.seedSource()*4294967296)>>>0;this.shotId=0;this.projectiles=[];
     this.racers=['Greg','Linda','Steve','Susan'].map((name,id)=>({
       id,name,incidents:0,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
       target:[0,0],decision:0,brakeUntil:0,item:null,
-      creationSlowUntil:0,creationSlowMultiplier:1,creationShieldUntil:0,
+      creationSlowUntil:0,creationSlowMultiplier:1,creationShieldUntil:0,eventObstacleProtection:false,
       slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,sunOrigin:null,nextUse:0,aiLock:new TargetLock(),dodgeReaction:new RivalDodgeReaction(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},sunVictims:new Set(),
     }));
     this.obstacles=this.courseEnabled?makeCourse():[];
@@ -129,10 +140,15 @@ export class PracticeRace {
   }
   step(dt:number,input:SteeringInput,brake:boolean,boost=false){
     if(this.finished||dt<=0||!Number.isFinite(dt))return;
+    // The real scene already supplies 1/120 s. Reject unsupported event ticks before mutation.
+    if(this.eventBridge&&dt>RACE_EVENT_LIMITS.maxStepSeconds)throw new Error('Race events require a fixed step of at most 1/30 s.');
+    const eventInputs=this.eventBridge?.beforeStep(dt,this.eventRacers())??{};
+    const segments:RacerSegment[]=[];
     const old=this.racers.map(r=>this.snapshot(r).position);
     const places=new Map(this.order().map((racer,index)=>[racer.id,index+1]));
     for(const racer of this.racers){
       if(racer.finishTime!==undefined)continue;
+      racer.eventObstacleProtection=eventInputs[String(racer.id)]?.obstacleProtection??false;
       let steering=input;
       if(racer.id===0)racer.controller.braking=brake;
       else {
@@ -170,8 +186,11 @@ export class PracticeRace {
       const x=Math.max(-1,Math.min(1,steering.x)),z=Math.max(-1,Math.min(1,steering.z));
       const steeringScale=(flailing?0.3:1)/Math.max(1,Math.hypot(x,z));
       const motion=racer.controller.step(dt,{x:x*steeringScale,z:z*steeringScale},{
-        fallSpeedMultiplier:Math.min(this.elapsed<racer.slowUntil?0.5:1,this.elapsed<racer.creationSlowUntil?racer.creationSlowMultiplier:1),boostSeconds,steerSpeed:dodging?36:undefined,
+        fallSpeedMultiplier:Math.min(this.elapsed<racer.slowUntil?0.5:1,this.elapsed<racer.creationSlowUntil?racer.creationSlowMultiplier:1),boostSeconds,steerSpeed:dodging?36:undefined,eventInput:eventInputs[String(racer.id)],
       });
+      const endFraction=motion.position[1]<=-FINISH_DEPTH
+        ?Math.max(0,Math.min(1,(-FINISH_DEPTH-motion.previousPosition[1])/(motion.position[1]-motion.previousPosition[1]))):1;
+      segments.push({id:String(racer.id),from:motion.previousPosition,to:motion.position,endFraction});
       for(const box of this.boxes)if(box.active&&segmentSphere(motion.previousPosition,motion.position,box.position,ITEM_PICKUP_RADIUS)){
         if(racer.item){
           if(racer.id===0&&this.feedbackUntil<=this.elapsed)this.announce('ITEM SLOT FULL');
@@ -189,6 +208,7 @@ export class PracticeRace {
         if(!obstacle.active||Math.abs(obstacle.position[1]-motion.position[1])>20)continue;
         const penalty=obstacleHit(motion.previousPosition,motion.position,obstacle,this.elapsed);
         if(penalty!==null){
+          if(racer.eventObstacleProtection){this.events?.recordObstacleBlock?.(String(racer.id),obstacle.id);continue;}
           const rules=OBSTACLE_RULES[obstacle.kind];
           racer.controller.impact(penalty,[(motion.position[0]>=obstacle.position[0]?1:-1)*rules.knockback,0,(motion.position[2]>=obstacle.position[2]?1:-1)*rules.knockback]);
           racer.incidents++;racer.flailUntil=this.elapsed+rules.flail;racer.immuneUntil=this.elapsed+1.5;
@@ -197,6 +217,7 @@ export class PracticeRace {
       }
       if(motion.position[1]<=-FINISH_DEPTH){
         const t=(-FINISH_DEPTH-motion.previousPosition[1])/(motion.position[1]-motion.previousPosition[1]);
+        racer.controller.clearExternalMotion();racer.eventObstacleProtection=false;
         racer.finishTime=this.elapsed+dt*t;racer.landed={fallSpeed:0,position:[
           motion.previousPosition[0]+(motion.position[0]-motion.previousPosition[0])*t,-FINISH_DEPTH,
           motion.previousPosition[2]+(motion.position[2]-motion.previousPosition[2])*t]};
@@ -243,6 +264,10 @@ export class PracticeRace {
         }
       }
     }
+    this.movementSegments=segments;
+    this.eventBridge?.afterStep(this.eventRacers(),segments);
+    if(this.events?.getSnapshot().phase!=='active')for(const racer of this.racers)racer.eventObstacleProtection=false;
+    if(this.finished)this.eventBridge?.reset();
     this.elapsed+=dt;
     this.projectiles=this.projectiles.filter(shot=>shot.expires>this.elapsed);
   }
