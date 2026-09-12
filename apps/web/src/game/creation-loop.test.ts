@@ -60,3 +60,30 @@ test('expired prompt and missed creation cannot be reused', async () => {
   other.missCreation(id); other.collectCreation(id);
   assert.equal(other.getSnapshot().phase, 'missed');
 });
+
+for (const action of ['cancel', 'reset', 'end', 'dispose'] as const) {
+  test(`recording does not start after immediate ${action}`, async () => {
+    let starts = 0, requests = 0;
+    const loop = new CreationLoop({generate: async () => {
+      requests++;
+      return {ok: true, spec: meshFixture};
+    }}, {
+      async start() { starts++; },
+      async stop() { return 'wind crystal'; },
+      cancel() {},
+    }, host());
+    loop.start(); loop.collectVoice(); loop.startRecording();
+    const pending = loop.finishRecording();
+    if (action === 'cancel') loop.cancelRecording();
+    else loop[action]();
+    if (action === 'reset') { loop.start(); loop.collectVoice(); }
+    await pending;
+    assert.equal(starts, 0);
+    assert.equal(requests, 0);
+    if (action === 'cancel') {
+      loop.collectVoice(); loop.startRecording(); await loop.finishRecording();
+      assert.equal(loop.getSnapshot().phase, 'failed');
+      assert.equal(starts, 0);
+    }
+  });
+}

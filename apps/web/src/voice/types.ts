@@ -3,6 +3,7 @@
 export interface VoiceTranscriber {
   start():Promise<void>;
   stop():Promise<string>;
+  // Invalidate pending start/stop work and release recording resources.
   cancel():void;
 }
 // Validate the completed transcript with GenerationRequestSchema before generation.

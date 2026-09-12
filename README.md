@@ -4,17 +4,22 @@ TAI x OpenAI Hackathon September 2026
 ## Controls handoff
 Controls and movement are isolated from voice/generation. Start with [the partner handoff guide](docs/controls-handoff.md).
 
-## Current skeleton
-The default **Generation lab** tests the server's mock creation provider with a text prompt, 3D preview, timing, cancellation, and JSON inspection. **Game** now demonstrates falling → Voice Power Up → simulated speech → creation → effect activation. No microphone or live AI calls yet. See [the creation skeleton guide](docs/creation-skeleton.md) for controls, the v2 contract, lifecycle rules, and the live-provider implementation boundary.
+## Prompt-to-mesh lab
+The Generation lab now runs a configurable **design → geometry** pipeline with a shared 30-second deadline. Mock mode works immediately; live OpenAI profiles need a server API key. See [setup and API details](docs/prompt-to-mesh-pipeline.md). The game still uses its independent mock.
 
-The sections below document the original v1 foundation, preserved for compatibility.
+## Current skeleton
+The default **Generation lab** supports text prompts, pipeline profiles, intermediate design inspection, 3D preview, timing, cancellation, and JSON inspection. **Game** now demonstrates falling → Voice Power Up → simulated speech → creation → effect activation. Voice remains simulated; live generation is available only by explicit submission in the lab after configuring a key. See [the creation skeleton guide](docs/creation-skeleton.md) for controls, the v2 contract, lifecycle rules, and the live-provider implementation boundary.
+
+The v1 contract and fixture API remain available for compatibility alongside the v2 creation pipeline.
 
 ## Start
 Use Node 22.12+ and Bun 1.4.2+ (the package manager is pinned to bun@1.4.2). Install Bun using [its official instructions](https://bun.sh/docs/installation). On Windows with this repository in WSL, run these commands in a WSL terminal.
 
+Copy the example environment file only if `apps/server/.env` does not already exist.
+
 ```sh
 bun install
-cp .env.example apps/server/.env
+cp -n .env.example apps/server/.env
 bun run dev
 ```
 
@@ -35,10 +40,12 @@ Build output lives in each workspace's dist directory. After building, `bun run 
 - `packages/shared/src/fixtures.ts`: three validated models.
 - `apps/web/src/components/PowerUpModel.tsx`: appearance-only renderer.
 - `apps/web/src/pages/PlaygroundPage.tsx`: fixture selection, rotation, and mock text requests.
-- `apps/web/src/pages/GamePage.tsx`: gameplay placeholder.
+- `apps/web/src/pages/GamePage.tsx` and `apps/web/src/game`: falling demo, injectable controls, world integration, and the separate creation lifecycle.
+- `apps/web/src/pages/GenerationLabPage.tsx`: isolated prompt-to-mesh testing.
+- `apps/server/src/generation`: two-stage pipeline, model transport, configuration, and HTTP routes.
 - `apps/web/src/generation/client.ts`: mock and HTTP implementations of shared GenerationClient.
 - `apps/web/src/voice/types.ts`: separate transcription interface.
-- `apps/server/src/app.ts`: injectable Fastify API with deterministic mock behavior.
+- `apps/server/src/app.ts`: injectable Fastify API; legacy endpoints default to mocks and the lab exposes explicit live profiles.
 
 Developer A can implement gameplay within the web game modules while Developer B implements generation, server provider integration, and voice. Both consume the shared contract. Coordinate shared schema and root configuration changes.
 
@@ -93,10 +100,10 @@ Errors return `{"error":{"code":"INVALID_REQUEST","message":"..."}}`.
 
 Messages must be safe, 1–200 characters; never expose credentials or provider internals. The typed GenerationClient converts HTTP success/error responses into an ok-discriminated result and validates the response again. The default playground uses mockGenerationClient; swap to httpGenerationClient to exercise the server. Both choose ghost for text containing “ghost”, sun for “sun”, “angry”, or “clear”, otherwise jellyfish; they do not interpret arbitrary ideas. Fixture ids are reusable templates, not unique world-instance ids. Gameplay must allocate separate instance ids.
 
-Keep AI_API_KEY in apps/server/.env; never put secrets in VITE_ variables. Future AI output must be parsed and validated as declarative JSON, never evaluated as JavaScript.
+Keep OPENAI_API_KEY in apps/server/.env; never put secrets in VITE_ variables. The legacy AI_API_KEY is a fallback when OPENAI_API_KEY is unset or blank. Parse and validate AI output as declarative JSON; never evaluate it as JavaScript.
 
 ## Voice and next tasks
-1. Gameplay developer: add delta-time falling/steering, obstacles, collision checks, spawn completed power-ups ahead along -Y, and implement the three effect handlers and timers. Use the mock client until the backend is ready.
-2. Generation developer: implement the server-side AI adapter and bounded output validation, then push-to-talk transcription in src/voice. On keydown start recording, on keyup return text, validate ten-word input, and call GenerationClient. Handle permissions, focus loss, errors, and late results separately from gameplay.
+1. Gameplay developer: refine controls and movement through PlayerController and use-game-input.ts. The demo already supplies falling, collisions, forward spawning, and effect timers; see the controls handoff guide before extending them.
+2. Generation developer: evaluate live model results in the isolated lab, then implement VoiceTranscriber in apps/web/src/voice and integrate the validated pipeline through CreationClient. Preserve the one-attempt rule, cancellation, and rejection of stale results.
 
 The original v1 fixture playground remains available. The current Game skeleton implements movement, collision, and effects with simulated speech and generation; see the current skeleton guide above.
