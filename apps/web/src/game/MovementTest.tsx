@@ -42,6 +42,8 @@ export function MovementTest() {
   const [paused, setPaused] = useState(true);
   const [hud, setHud] = useState(initialHud);
   const [bindings, setBindings] = useState<Bindings>({...defaults});
+  const steeringHelp=`${label(bindings.forward)} / ${label(bindings.left)} / ${label(bindings.backward)} / ${label(bindings.right)} to steer · hold ${label(bindings.brake)} to brake`;
+  const actionHelp=`${label(bindings.boost)} boost (needs fuel) · ${label(bindings.dodge)} dodge · ${label(bindings.use)} use item · hold ${label(bindings.look)} to look up · Esc pause`;
   const [binding, setBinding] = useState<Action | null>(null);
   const [notice, setNotice] = useState('');
   const pause = useCallback((value: boolean) => {
@@ -163,6 +165,7 @@ export function MovementTest() {
             </select></label>
             {screen==='viewer'&&<div><button aria-pressed={previewPaused} onClick={()=>setPreviewPaused(value=>!value)}>{previewPaused?'Play':'Pause preview'}</button><button onClick={()=>{setPreviewPaused(false);setTake(value=>value+1);}}>Replay</button></div>}
           </div>}
+          <p>{steeringHelp}<br/>{actionHelp}</p>
           <button className="begin-exercise" onClick={beginExercise}>Begin exercise →</button>
           <small>Attendance is not optional.</small>
         </div>}
@@ -170,7 +173,7 @@ export function MovementTest() {
           <span className="safety-caution">⚠ STAND BY</span>
           <h1>EXERCISE COMMENCING IN...</h1>
           <strong key={countdown} className="exercise-start-number">{countdown}</strong>
-          <p>Remain calm. Follow the procedure.</p>
+          <p>{steeringHelp}<br/>{actionHelp}</p>
           <button onClick={()=>{pause(true);setScreen('selection');}}>Return to personnel</button>
         </div>}
         {screen==='race'&&<>

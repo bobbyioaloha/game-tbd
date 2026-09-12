@@ -1,5 +1,6 @@
 import { GregModel } from './GregModel';
 import { followCameraAxis } from './camera-follow';
+import { projectRivalMarker } from './rival-marker';
 import { RaceCreations } from './RaceCreationVisuals';
 import type { RaceCreationHost } from './race-creation-host';
 import { useRef } from 'react';
@@ -36,6 +37,12 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
   const follow = useRef({x:-7.5,z:0,generation:-1});
   useFrame(({camera},delta) => {
     if(camera instanceof PerspectiveCamera&&camera.fov!==65){camera.fov=65;camera.updateProjectionMatrix();}
+    // Reset frame state before the new run consumes simulation time.
+    if(follow.current.generation!==runtime.generation) {
+      const [x,,z]=runtime.race.snapshot(runtime.race.racers[0]).position;
+      follow.current={x,z,generation:runtime.generation};
+      accumulator.current=0;hudTime.current=0;lock.current.reset();runtime.target=undefined;
+    }
     const dt = Math.min(delta,0.1);
     const held = (action:Action) => Number(runtime.keys.has(runtime.bindings[action]));
     const input = {x:(held('right')-held('left'))*(held('look') ? -1 : 1),z:held('backward')-held('forward')};
@@ -55,9 +62,6 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
     const [x,y,z]=state.position;
     const landed=player.finishTime!==undefined;
     const look=!!held('look')&&!landed;
-    if(follow.current.generation!==runtime.generation) {
-      follow.current={x,z,generation:runtime.generation}; accumulator.current=0;lock.current.reset();
-    }
     if(!runtime.paused) {
       follow.current.x=followCameraAxis(follow.current.x,landed?0:x,dt);
       follow.current.z=followCameraAxis(follow.current.z,landed?0:z,dt);
@@ -111,18 +115,9 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       const markers=race.racers.slice(1).map(racer => {
         const [rx,ry,rz]=race.snapshot(racer).position;
         const world=new Vector3(rx,ry-y+0.3,rz);
-        const view=world.clone().applyMatrix4(camera.matrixWorldInverse);
-        const projected=world.project(camera);
-        const edge=view.z>=0 || Math.abs(projected.x)>0.85 || Math.abs(projected.y)>0.8 || projected.z>1;
-        let px=projected.x,py=projected.y;
-        if(view.z>=0) {px=-px;py=-py;}
-        if(edge) {
-          if(Math.abs(px)+Math.abs(py)<0.01) py=1;
-          const scale=Math.max(Math.abs(px)/0.8,Math.abs(py)/0.75,0.001);
-          px/=scale;py/=scale;
-        }
+        const marker=projectRivalMarker(world,camera);
         const difference=ry-y;
-        return {id:racer.id,name:racer.name,left:50+px*50,top:50-py*50,angle:Math.atan2(px,py)*180/Math.PI,edge,locked:runtime.target===racer.id,selected:lock.current.target===racer.id,progress:lock.current.target===racer.id?lock.current.progress:0,
+        return {id:racer.id,name:racer.name,...marker,locked:runtime.target===racer.id,selected:lock.current.target===racer.id,progress:lock.current.target===racer.id?lock.current.progress:0,
           gap:racer.finishTime!==undefined ? 'Landed' : Math.abs(difference)<1 ? 'Level' : Math.round(Math.abs(difference))+' m '+(difference>0?'above':'below')};
       });
       const creation=runtime.voice?.creation;
