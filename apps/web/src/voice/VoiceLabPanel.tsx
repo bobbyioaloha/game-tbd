@@ -29,7 +29,7 @@ export function VoiceLabPanel({profile,geometryMode,mockText,liveUsage,transcrip
   useEffect(()=>()=>{
     serial.current++;
     const attempt=active.current;active.current=undefined;
-    attempt?.controller.abort();recorder.cancel();
+    attempt?.controller.abort(new Error('Voice page closed.'));recorder.cancel();
   },[recorder]);
   useEffect(()=>{
     if(!busy)return;
@@ -46,13 +46,21 @@ export function VoiceLabPanel({profile,geometryMode,mockText,liveUsage,transcrip
       voice:{mode:attempt.mode,captureMs:attempt.captureMs,transcriptionModel:attempt.transcriptionModel,transcription:attempt.result,error:attempt.error,events:attempt.voiceEvents}});
     onRefresh();
   };
-  const cancel=()=>{
+  const cancel=(reason='cancelled by you')=>{
     const attempt=active.current;
-    if(attempt){attempt.controller.abort();commit(attempt,'cancelled','Voice attempt cancelled. No retry will run.');}
+    if(attempt){
+      const message='Voice attempt cancelled: '+reason+'. No retry will run.';
+      attempt.controller.abort(new Error(message));commit(attempt,'cancelled',message);
+    }
     else recorder.cancel();
   };
+  const cancelCapture=(reason:string)=>{
+    // Once release starts submission, focus changes must not abort paid work.
+    if(active.current&&!active.current.uploading)cancel(reason);
+  };
   useEffect(()=>{
-    const blur=()=>cancel();const hidden=()=>{if(document.hidden)cancel();};
+    const blur=()=>cancelCapture('browser window lost focus during recording');
+    const hidden=()=>{if(document.hidden)cancelCapture('tab hidden during recording');};
     window.addEventListener('blur',blur);document.addEventListener('visibilitychange',hidden);
     return()=>{window.removeEventListener('blur',blur);document.removeEventListener('visibilitychange',hidden);};
   });
@@ -110,8 +118,8 @@ export function VoiceLabPanel({profile,geometryMode,mockText,liveUsage,transcrip
       <label className="voice-consent"><input type="checkbox" checked={consent} disabled={busy||!paidAvailable||!profile?.available} onChange={event=>setConsent(event.target.checked)}/>Allow this paid voice attempt</label>
     </>}
     <RecorderControls recorder={recorder} mode={live?'live':'mock'} disabled={busy?!['recording','preparing'].includes(mic.phase):!canStart} setupDisabled={busy}
-      onStart={()=>{void start();}} onFinish={()=>{void finish();}} onCancel={cancel}/>
-    {busy&&<button type="button" onClick={cancel}>Cancel voice attempt</button>}
+      onStart={()=>{void start();}} onFinish={()=>{void finish();}} onCancel={()=>cancelCapture('recording gesture interrupted')}/>
+    {busy&&<button type="button" onClick={()=>cancel()}>Cancel voice attempt</button>}
     <p role="status">{status}</p>
     {failure?.provider&&<p role="note">Model: {failure.provider.model}
       {failure.provider.httpStatus!==undefined&&<> · HTTP {failure.provider.httpStatus}</>}

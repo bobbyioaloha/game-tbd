@@ -10,7 +10,8 @@ Implemented in the main race and the Generation lab. The separate Voice / creati
 - Recording stops and submits at 8 seconds. Upload plus transcription has a separate 10-second server budget. Accepted transcripts start the existing 30-second design/geometry budget, with an 8-second design cap.
 - Falling continues during recording and requests. One pickup grants one attempt. Failure, cancellation, missed pickup, or an expired speaking window consumes it; no automatic retry or refund.
 - The finished creation spawns at the player's latest X/Z, approximately three seconds ahead, with a minimum 18 m lead. Collecting it activates its one effect. The fixed 1 m pickup radius is independent of appearance.
-- Pausing, focus loss, restart, finish, and navigation cancel active work, release the microphone, and reject late results. A spawn below the finish margin is rejected.
+- In the race, pausing, focus loss, restart, finish, and navigation cancel active work, release the microphone, and reject late results. A spawn below the finish margin is rejected.
+- In the Generation lab, focus loss or hiding the tab cancels only microphone capture. After release or automatic submission, transcription and generation continue in the background, including while taking screenshots. Explicit cancellation and leaving the voice page still abort pending requests and discard late results. Capture interruptions and explicit cancellations record their reason in the attempt message and history export.
 
 ## Try it without credits
 
