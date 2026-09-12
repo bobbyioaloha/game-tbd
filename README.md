@@ -1,6 +1,14 @@
 # game-tbd
 TAI x OpenAI Hackathon September 2026
 
+## Controls handoff
+Controls and movement are isolated from voice/generation. Start with [the partner handoff guide](docs/controls-handoff.md).
+
+## Current skeleton
+The default **Generation lab** tests the server's mock creation provider with a text prompt, 3D preview, timing, cancellation, and JSON inspection. **Game** now demonstrates falling → Voice Power Up → simulated speech → creation → effect activation. No microphone or live AI calls yet. See [the creation skeleton guide](docs/creation-skeleton.md) for controls, the v2 contract, lifecycle rules, and the live-provider implementation boundary.
+
+The sections below document the original v1 foundation, preserved for compatibility.
+
 ## Start
 Use Node 22.12+ and npm 10+. On Windows with this repository in WSL, run these commands in a WSL terminal.
 
@@ -48,7 +56,7 @@ Supported effect payloads:
 | invulnerability | durationSeconds 1–10 | Ignore obstacle damage for the duration. |
 | clearNearbyObstacles | radiusMeters 1–20 | Once on pickup, remove obstacles whose centers lie within this distance of the player. |
 
-Timers begin on pickup, using elapsed gameplay seconds (paused time excluded). On repeated pickups, refresh the same effect's duration; do not multiply slow effects together. Use the most recently collected slow multiplier. Invulnerability does not prevent collection. Effects are data only; the game developer will implement these semantics.
+Timers begin on pickup, using elapsed gameplay seconds (paused time excluded). On repeated pickups, refresh the same effect's duration; do not multiply slow effects together. Use the most recently collected slow multiplier. Invulnerability does not prevent collection. Effects are data only; the current skeleton's typed handlers implement these semantics.
 
 ## Generation API contract
 The foundation implements the future endpoint with a deterministic mock. Replace fixture selection with a provider adapter without changing the wire contract.
@@ -89,4 +97,4 @@ Keep AI_API_KEY in apps/server/.env; never put secrets in VITE_ variables. Futur
 1. Gameplay developer: add delta-time falling/steering, obstacles, collision checks, spawn completed power-ups ahead along -Y, and implement the three effect handlers and timers. Use the mock client until the backend is ready.
 2. Generation developer: implement the server-side AI adapter and bounded output validation, then push-to-talk transcription in src/voice. On keydown start recording, on keyup return text, validate ten-word input, and call GenerationClient. Handle permissions, focus loss, errors, and late results separately from gameplay.
 
-The foundation contains no microphone recording, AI provider calls, movement, collision, or effect execution yet. The playground's controls are functional; the Game tab is intentionally a placeholder.
+The original v1 fixture playground remains available. The current Game skeleton implements movement, collision, and effects with simulated speech and generation; see the current skeleton guide above.
