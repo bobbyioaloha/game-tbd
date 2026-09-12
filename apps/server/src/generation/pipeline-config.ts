@@ -21,6 +21,7 @@ export function pipelineProfiles(env:NodeJS.ProcessEnv = process.env, liveEnable
   }
   return [
     {id:'mock',label:'Mock two-stage pipeline',mode:'mock',available:true,design:{...baseDesign,model:'mock-design'},geometry:{...baseGeometry,model:'mock-geometry'}},
+    {id:'sol-direct',label:'Sol direct · no reasoning',...live,design:{...baseDesign,reasoning:'none'},geometry:{...baseGeometry,model:'gpt-5.6-sol',reasoning:'none'}},
     {id:'sol-astra',label:'Sol design → Astra visuals',...live,design:baseDesign,geometry:baseGeometry},
     {id:'sol-sol',label:'Sol design → Sol visuals',...live,design:baseDesign,geometry:{...baseGeometry,model:'gpt-5.6-sol'}},
     {id:'configured',label:'Server-configured models',...live,design:configured('DESIGN',baseDesign),geometry:configured('GEOMETRY',baseGeometry)},

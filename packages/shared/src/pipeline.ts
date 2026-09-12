@@ -28,9 +28,11 @@ export const PipelineRequestSchema = GenerationRequestSchema.extend({
 export type PipelineRequest = z.infer<typeof PipelineRequestSchema>;
 export const StageConfigSchema = z.object({
   model: z.string().min(1).max(80),
-  reasoning: z.enum(['low','medium','high']),
+  reasoning: z.enum(['none','low','medium','high']),
   maxOutputTokens: z.number().int().min(256).max(16000),
-}).strict();
+}).strict().refine(config=>config.model!=='gpt-6-astra'||config.reasoning!=='none', {
+  path:['reasoning'],message:'GPT-6 Astra requires low, medium, or high reasoning in this app.',
+});
 export type StageConfig = z.infer<typeof StageConfigSchema>;
 export const PipelineProfileSchema = z.object({
   id: z.string(), label: z.string(), mode: z.enum(['mock','live']),
@@ -44,6 +46,7 @@ export const LiveUsageSchema = z.object({
 }).strict();
 export type LiveUsage = z.infer<typeof LiveUsageSchema>;
 export const PipelineProfilesSchema = z.object({
+  transcription:z.object({model:z.string().min(1).max(80),available:z.boolean()}).strict().optional(),
   profiles: z.array(PipelineProfileSchema), liveUsage:LiveUsageSchema, deadlineMs: z.literal(PIPELINE_DEADLINE_MS), designBudgetMs: z.literal(DESIGN_BUDGET_MS),
 }).strict();
 export const PipelineStageSchema = z.enum(['design','geometry','validation']);
@@ -68,7 +71,7 @@ export const ProviderDiagnosticSchema = z.object({
 }).strict();
 export type ProviderDiagnostic = z.infer<typeof ProviderDiagnosticSchema>;
 export const PipelineErrorSchema = z.object({
-  code:z.enum(['INVALID_REQUEST','NOT_CONFIGURED','LIVE_DISABLED','CONSENT_REQUIRED','DUPLICATE_ATTEMPT','LIVE_BUSY','LIVE_LIMIT_REACHED','INVALID_DESIGN','INVALID_MESH','INVALID_RECIPE','TIMEOUT','CANCELLED','REFUSED','INCOMPLETE','PROVIDER_ERROR','PROVIDER_AUTH','MODEL_UNAVAILABLE','PROVIDER_PERMISSION','PROVIDER_QUOTA','PROVIDER_RATE_LIMIT','PROVIDER_SCHEMA','PROVIDER_REQUEST','PROVIDER_UNAVAILABLE','PROVIDER_CONNECTION','PROVIDER_TIMEOUT']),
+  code:z.enum(['INVALID_REQUEST','NOT_CONFIGURED','LIVE_DISABLED','CONSENT_REQUIRED','DUPLICATE_ATTEMPT','LIVE_BUSY','LIVE_LIMIT_REACHED','INVALID_DESIGN','INVALID_MESH','INVALID_RECIPE','TIMEOUT','CANCELLED','REFUSED','INCOMPLETE','PROVIDER_ERROR','PROVIDER_AUTH','MODEL_UNAVAILABLE','PROVIDER_PERMISSION','PROVIDER_QUOTA','PROVIDER_RATE_LIMIT','PROVIDER_SCHEMA','PROVIDER_REQUEST','PROVIDER_UNAVAILABLE','PROVIDER_CONNECTION','PROVIDER_TIMEOUT','INVALID_AUDIO','INVALID_TRANSCRIPT','TRANSCRIPTION_TIMEOUT']),
   message:z.string().min(1).max(240),
   provider:ProviderDiagnosticSchema.optional(),
 }).strict();

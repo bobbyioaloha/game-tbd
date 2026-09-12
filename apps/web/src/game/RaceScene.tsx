@@ -1,4 +1,6 @@
-import { useRef } from 'react';
+import { PowerUpModel } from '../components/PowerUpModel';
+import type { RaceCreationHost } from './race-creation-host';
+import { useRef, useSyncExternalStore } from 'react';
 import { TargetLock } from './target-lock';
 import type { Item } from './race-course';
 import { RaceObjects } from './RaceObjects';
@@ -10,7 +12,7 @@ import { PracticeRace, FINISH_DEPTH, RACER_COLORS, LANE_HALF_WIDTH } from './pra
 
 export const defaultBindings = {left:'KeyA',right:'KeyD',forward:'KeyW',backward:'KeyS',brake:'KeyK',look:'KeyI',use:'KeyJ',boost:'KeyU',dodge:'KeyL'};
 export type Action = keyof typeof defaultBindings;
-export type RaceRuntime = {race:PracticeRace;keys:Set<string>;paused:boolean;bindings:typeof defaultBindings;clock:number;generation:number;fireRequested:boolean;dodgeRequested:boolean;target?:number};
+export type RaceRuntime = {race:PracticeRace;voice?:RaceCreationHost;keys:Set<string>;paused:boolean;bindings:typeof defaultBindings;clock:number;generation:number;fireRequested:boolean;dodgeRequested:boolean;target?:number};
 export type Marker = {id:number;name:string;left:number;top:number;angle:number;edge:boolean;gap:string;locked:boolean;selected:boolean;progress:number};
 export const initialRaceHud = {speed:0,depth:0,x:-7.5,z:0,brake:false,look:false,time:0,place:1,finish:null as number|null,remaining:FINISH_DEPTH,markers:[] as Marker[],allFinished:false,item:'Empty',effects:'',targetName:'',itemKey:null as Item|null,feedback:'',boost:false,fuel:0,dodgeCooldown:0,threat:'',threatAngle:0,threatDistance:'',standings:new PracticeRace(false).standings()};
 
@@ -39,8 +41,10 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       runtime.clock+=dt;
       accumulator.current+=dt;
       while(accumulator.current>=1/120) {
+        const before=runtime.race.snapshot(runtime.race.racers[0]).position;
         if(runtime.dodgeRequested){runtime.race.dodge(0,input);runtime.dodgeRequested=false;}
         runtime.race.step(1/120,input,!!held('brake'),!!held('boost'));
+        runtime.voice?.step(1/120,before,runtime.race.snapshot(runtime.race.racers[0]).position);
         accumulator.current-=1/120;
       }
     }
@@ -93,7 +97,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         const roll=(1-(racer.dodgeUntil-race.elapsed)/0.35)*Math.PI*2;
         group.rotation.x=racer.dodgeDirection.z*roll;group.rotation.z=-racer.dodgeDirection.x*roll;
       }
-      const protectedNow=race.elapsed<racer.immuneUntil||race.elapsed<racer.shieldUntil;
+      const protectedNow=race.elapsed<racer.immuneUntil||race.elapsed<Math.max(racer.shieldUntil,racer.creationShieldUntil);
       group.visible=racer.finishTime!==undefined||!protectedNow||Math.floor(race.elapsed*12)%2===0;
       group.position.set(rx,ry-y+bounce+0.3,rz);
       group.scale.set(t>=0 ? 1.25 : 1,squash,t>=0 ? 1.25 : 1);
@@ -131,8 +135,8 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         item:player.item?ITEM_NAMES[player.item]:'Empty',itemKey:player.item,feedback:race.feedbackUntil>race.elapsed?race.feedback:'',boost:player.boosting,fuel:player.boostFuel,dodgeCooldown:Math.max(0,player.dodgeReady-race.elapsed),threat:threat?.kind??'',threatAngle,threatDistance:threat?Math.round(Math.abs(threat.position[1]-y))+' m '+(threat.position[1]>y?'above':'below'):'',
         targetName:runtime.target===undefined?'':race.racers[runtime.target].name,
         effects:[
-          race.elapsed<player.slowUntil?'SLOWED '+(player.slowUntil-race.elapsed).toFixed(1)+'s':'',
-          race.elapsed<player.shieldUntil?'GHOST '+(player.shieldUntil-race.elapsed).toFixed(1)+'s':'',
+          race.elapsed<Math.max(player.slowUntil,player.creationSlowUntil)?'SLOWED '+(Math.max(player.slowUntil,player.creationSlowUntil)-race.elapsed).toFixed(1)+'s':'',
+          race.elapsed<Math.max(player.shieldUntil,player.creationShieldUntil)?'GHOST '+(Math.max(player.shieldUntil,player.creationShieldUntil)-race.elapsed).toFixed(1)+'s':'',
           player.boosting?'BOOST ACTIVE':'',
           race.elapsed<player.flailUntil?'FLAILING':'',
           race.elapsed<player.sunUntil?'SUN BURST':'',
@@ -144,10 +148,23 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
     <ambientLight intensity={2}/><directionalLight position={[15,30,-10]} intensity={2.5}/>
     <group ref={racers}>{RACER_COLORS.map((color,index)=><group key={index}><StarfishDiver color={color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/></group>)}</group>
     <RaceObjects race={runtime.race}/>
+    {runtime.voice&&<RaceCreations host={runtime.voice}/>}
     <CloudField snapshot={()=>runtime.race.snapshot(runtime.race.racers[0])}/>
     <group ref={mat}><CrashMat/></group>
     <group ref={rails}>{[-LANE_HALF_WIDTH,LANE_HALF_WIDTH].flatMap(x=>[-LANE_HALF_WIDTH,LANE_HALF_WIDTH].map(z=><mesh key={x+','+z} position={[x,0,z]}>
       <cylinderGeometry args={[0.08,0.08,300,6]}/><meshBasicMaterial color="#d5eafb" transparent opacity={0.3}/>
     </mesh>))}</group>
   </>;
+}
+
+function RaceCreations({host}:{host:RaceCreationHost}) {
+  useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
+  const group=useRef<Group>(null);
+  useFrame(()=>{if(group.current)group.current.position.y=-host.race.snapshot(host.race.racers[0]).position[1];});
+  return <group ref={group}>
+    {host.voice&&<mesh position={host.voice.position} rotation={[0,0,Math.PI/4]}>
+      <boxGeometry args={[1.5,1.5,1.5]}/><meshStandardMaterial color="#ffcf65" emissive="#a86300" emissiveIntensity={0.6}/>
+    </mesh>}
+    {host.creation&&<group position={host.creation.position}><PowerUpModel spec={host.creation.spec}/></group>}
+  </group>;
 }

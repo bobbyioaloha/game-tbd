@@ -1,6 +1,7 @@
 // Race item boxes have a forgiving pickup volume independent of model size.
 import { planRival } from './rival-planner';
 import { TargetLock } from './target-lock';
+import type { PowerUpEffect } from '@sky/shared';
 import { FreefallController } from './freefall-controller';
 import type { PlayerSnapshot, SteeringInput, Position } from './player-controller';
 import { makeCourse, obstacleHit, obstaclePose, OBSTACLE_RULES, segmentSphere, type Item, type Obstacle } from './race-course';
@@ -16,6 +17,7 @@ export type RaceStanding={id:number;name:string;place:number;progress:number;gap
 export type Racer = {
   id:number;name:string;controller:FreefallController;landed?:PlayerSnapshot;finishTime?:number;
   target:[number,number];decision:number;brakeUntil:number;item:Item|null;
+  creationSlowUntil:number;creationSlowMultiplier:number;creationShieldUntil:number;
   slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;sunOrigin:Position|null;nextUse:number;aiLock:TargetLock;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;sunVictims:Set<number>;
 };
 export type Projectile={id:number;owner:number;position:Position;velocity:Position;target?:number;expires:number};
@@ -34,6 +36,7 @@ export class PracticeRace {
     this.racers=['You','Lime','Lilac','Lemon'].map((name,id)=>({
       id,name,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
       target:[0,0],decision:0,brakeUntil:0,item:null,
+      creationSlowUntil:0,creationSlowMultiplier:1,creationShieldUntil:0,
       slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,sunOrigin:null,nextUse:0,aiLock:new TargetLock(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},sunVictims:new Set(),
     }));
     this.obstacles=this.courseEnabled?makeCourse():[];
@@ -61,7 +64,7 @@ export class PracticeRace {
     return true;
   }
   protected(racer:Racer){
-    return this.elapsed<racer.shieldUntil||this.elapsed<racer.immuneUntil||this.elapsed<racer.dodgeUntil-0.1;
+    return this.elapsed<Math.max(racer.shieldUntil,racer.creationShieldUntil)||this.elapsed<racer.immuneUntil||this.elapsed<racer.dodgeUntil-0.1;
   }
   threat(owner:number){
     const p=this.snapshot(this.racers[owner]).position;
@@ -112,6 +115,22 @@ export class PracticeRace {
     }
     return true;
   }
+  applyCreationEffects(effects:PowerUpEffect[]) {
+    const player=this.racers[0];
+    if (player.finishTime!==undefined) return;
+    for (const effect of effects) {
+      if (effect.type==='reduceFallSpeed') {
+        player.creationSlowUntil=this.elapsed+effect.durationSeconds;
+        player.creationSlowMultiplier=effect.multiplier;
+      } else if (effect.type==='invulnerability') player.creationShieldUntil=this.elapsed+effect.durationSeconds;
+      else {
+        const position=this.snapshot(player).position;
+        for (const obstacle of this.obstacles) if (obstacle.active && distance(position,obstaclePose(obstacle,this.elapsed).position)<=effect.radiusMeters) {
+          obstacle.active=false;obstacle.hitAt=this.elapsed;
+        }
+      }
+    }
+  }
   step(dt:number,input:SteeringInput,brake:boolean,boost=false){
     if(this.finished||dt<=0||!Number.isFinite(dt))return;
     const old=this.racers.map(r=>this.snapshot(r).position);
@@ -128,7 +147,7 @@ export class PracticeRace {
         steering={x:(racer.target[0]-p[0])*0.8,z:(racer.target[1]-p[2])*0.8};
         racer.controller.braking=this.elapsed<racer.brakeUntil;
         const nearby=this.obstacles.some(o=>o.active&&distance(p,obstaclePose(o,this.elapsed).position)<=12);
-        const rival=this.racers.filter(r=>r.id!==racer.id&&r.finishTime===undefined&&r.shieldUntil<=this.elapsed)
+        const rival=this.racers.filter(r=>r.id!==racer.id&&r.finishTime===undefined&&Math.max(r.shieldUntil,r.creationShieldUntil)<=this.elapsed)
           .filter(r=>this.eligibleTarget(racer.id,r.id,this.snapshot(r).position[1]>p[1]))
           .sort((a,b)=>this.snapshot(a).position[1]-this.snapshot(b).position[1])[0];
         const up=rival?this.snapshot(rival).position[1]>p[1]:false;
@@ -154,7 +173,7 @@ export class PracticeRace {
       const x=Math.max(-1,Math.min(1,steering.x)),z=Math.max(-1,Math.min(1,steering.z));
       const steeringScale=(flailing?0.3:1)/Math.max(1,Math.hypot(x,z));
       const motion=racer.controller.step(dt,{x:x*steeringScale,z:z*steeringScale},{
-        fallSpeedMultiplier:this.elapsed<racer.slowUntil?0.5:1,boostSeconds,steerSpeed:dodging?36:undefined,
+        fallSpeedMultiplier:Math.min(this.elapsed<racer.slowUntil?0.5:1,this.elapsed<racer.creationSlowUntil?racer.creationSlowMultiplier:1),boostSeconds,steerSpeed:dodging?36:undefined,
       });
       for(const box of this.boxes)if(box.active&&segmentSphere(motion.previousPosition,motion.position,box.position,ITEM_PICKUP_RADIUS)){
         if(racer.item){

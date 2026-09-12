@@ -53,7 +53,7 @@ export function CreationDemoPage() {
         <p role="status">{state.message}</p>
         <label htmlFor="transcript">Simulated transcript</label>
         <input id="transcript" className="lab-input" value={text} onChange={event => setText(event.target.value)} disabled={!['available','prompted'].includes(state.phase)}/>
-        <p>No microphone or AI calls yet. Hold Space after the gold pickup, or hold the button below. Releasing submits this text.</p>
+        <p>This scene only simulates speech using the text above. For real microphone input, use Game → Movement test or Generation lab → Voice and select a live profile.</p>
         <button className="generate" disabled={!['prompted','recording'].includes(state.phase)}
           onPointerDown={event => {event.currentTarget.setPointerCapture(event.pointerId); loop.startRecording();}}
           onPointerUp={() => {void loop.finishRecording();}}

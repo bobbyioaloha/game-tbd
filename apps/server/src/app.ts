@@ -1,3 +1,4 @@
+import { registerVoiceRoutes } from './voice/routes.js';
 import { buildPipeline } from './generation/pipeline-bootstrap.js';
 import { registerLabRoutes } from './generation/lab-routes.js';
 import type { CreationPipeline } from './generation/pipeline.js';
@@ -9,6 +10,7 @@ export function buildApp(options: {liveEnabled?:boolean; creationProvider?: Crea
   const app=Fastify({logger:{redact:['req.headers.authorization','req.headers.cookie']},bodyLimit:4096});
   const pipeline = options.pipeline ?? buildPipeline(process.env,options.liveEnabled ?? false);
   registerLabRoutes(app, pipeline);
+  registerVoiceRoutes(app, pipeline);
   registerCreationRoutes(app, options.creationProvider ?? {
     mode:'mock', generate:(request, options) => pipeline.run({...request,profileId:'mock'},options),
   }, options.creationTimeoutMs);

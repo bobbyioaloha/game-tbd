@@ -5,10 +5,12 @@ TAI x OpenAI Hackathon September 2026
 Controls and movement are isolated from voice/generation. Start with [the partner handoff guide](docs/controls-handoff.md).
 
 ## Prompt-to-mesh lab
-The Generation lab compares **procedural parts** with **raw mesh generation**, using a configurable design → visuals pipeline and a shared 30-second deadline. Try the duck, toaster, and shield in mock mode immediately; live OpenAI profiles need a server API key and explicit paid-mode startup. Twelve comparison prompts, distance previews, ratings, timing, and JSON export help evaluate the two approaches. See [setup and API details](docs/prompt-to-mesh-pipeline.md). The game still uses its independent mock.
+The Generation lab compares **procedural parts** with **raw mesh generation**, using a configurable design → visuals pipeline and a shared 30-second deadline. Try the duck, toaster, and shield in mock mode immediately; live OpenAI profiles need a server API key and explicit paid-mode startup. Twelve comparison prompts, distance previews, ratings, timing, and JSON export help evaluate the two approaches. See [setup and API details](docs/prompt-to-mesh-pipeline.md). Voice input is available in both the lab and main race; see [voice setup and API details](docs/voice-input-plan.md).
 
 ## Current skeleton
-The default **Generation lab** supports text prompts, visual methods, pipeline profiles, intermediate design inspection, a 3D preview, cancellation, and exportable comparison history. **Game** contains the merged race/movement test and a separate voice/creation demo demonstrating falling → Voice Power Up → simulated speech → creation → effect activation. Voice remains simulated; live generation is available only by explicit submission in the lab after configuring a key and starting `bun run dev:live`. See [the creation skeleton guide](docs/creation-skeleton.md) for controls, the v2 contract, lifecycle rules, and the live-provider implementation boundary.
+The default **Generation lab** supports typed or recorded prompts, visual methods, pipeline profiles, a 3D preview, cancellation, and exportable comparison history. **Game → Movement test** integrates microphone capture into the main race: collect a Voice Power Up, hold Space, release to transcribe and generate, then collect the creation to activate its effect. The separate **Voice / creation demo** remains a deterministic simulated regression scene.
+
+Everything defaults to mock mode. Real speech recognition and generation require a server key, explicit `bun run dev:live` startup, and consent for each attempt. See [voice testing](docs/voice-input-plan.md) and [the creation contract](docs/creation-skeleton.md).
 
 The v1 contract and fixture API remain available for compatibility alongside the v2 creation pipeline.
 
@@ -38,18 +40,26 @@ Build output lives in each workspace's dist directory. After building, `bun run 
 
 ## Secure, opt-in API keys
 
-Save `OPENAI_API_KEY` only in `apps/server/.env`, using your editor. The file is ignored by Git; commit only the empty `.env.example`. Do not paste keys into chat, terminal commands/history, `VITE_` variables, or frontend files. One standard project API key serves both pipeline stages. Each developer uses their own local key.
+Save `OPENAI_API_KEY` only in `apps/server/.env`, using your editor. The file is ignored by Git; commit only the empty `.env.example`. Do not paste keys into chat, terminal commands/history, `VITE_` variables, or frontend files. One standard project API key serves transcription and both generation stages. Each developer uses their own local key.
 
 - `bun run dev` and the normal server `start` command keep paid calls disabled, even with a key or inherited enable environment variables.
-- Stop the default server, then run `bun run dev:live` to explicitly enable the local paid lab. Its server does **not** watch/restart on edits; restarting deliberately resets the allowance. Vite still supports frontend hot reload.
+- Stop the default server, then run `bun run dev:live` to explicitly enable local paid speech and generation. Its server does **not** watch/restart on edits; restarting deliberately resets the allowance. Vite still supports frontend hot reload.
 - The lab always starts on **Mock two-stage pipeline**. For live work select a live profile, check **Allow this paid attempt**, then click **Generate · up to 2 API calls**. Changing the prompt, method, or profile clears consent; each attempt clears it too.
-- `LIVE_MAX_ATTEMPTS=3` allows three dispatched live attempts per server start, shared across all profiles and browser tabs. Configure an integer from 1 to 10. Failed and cancelled dispatched attempts count. Only one live attempt runs at a time; repeated attempt IDs never dispatch again. Restarting resets the allowance, so it is not a monthly dollar cap.
+- `LIVE_MAX_ATTEMPTS=3` allows three dispatched live attempts per server start, shared across typed/voice lab tests, gameplay, profiles, and browser tabs. Configure an integer from 1 to 10. Failed and cancelled dispatched attempts count. Only one live attempt runs at a time; repeated attempt IDs never dispatch again. Restarting resets the allowance, so it is not a monthly dollar cap.
 - The browser sees availability, models, token budgets and remaining attempts, never credentials. Refreshing profiles is local-only and does not validate the key against OpenAI. Startup, builds, tests, previews, game mocks, and changing a prompt do not call OpenAI.
 - Keep this unauthenticated development lab on localhost. Both dev servers bind to loopback by default; live server startup rejects non-loopback HOST settings. Vite refuses to serve `.env` and server source files. Public deployment needs a separate access-control design.
 
 Set a small project **hard spend limit** in the OpenAI dashboard as an additional limit; spend alerts alone do not stop traffic, and hard-limit enforcement can slightly overshoot. See [OpenAI spend limits](https://developers.openai.com/api/docs/guides/spend-limits). Cancel/timeout does not guarantee already-dispatched work is free. No automatic retries or paid connectivity checks are made.
 
 For a deployed backend, inject the key through the host's secret manager, never into the web build. See [API key handling](https://developers.openai.com/api/reference/overview#authentication) and [the lab contract](docs/prompt-to-mesh-pipeline.md).
+
+## Test voice input
+
+- **Mock lab:** Input source → Voice, select a comparison prompt, Enable microphone, then hold/release the button. Mock mode uses that simulated transcript; it does not recognize audio. Transcribe only returns text without generating.
+- **Mock race:** Game → Movement test. Before starting, choose a simulated transcript and Enable microphone. Stay at the starting X/Z for the gold pickup at 180 m, then hold Space and release. Falling continues, and the creation spawns ahead for collection.
+- **Paid:** start `bun run dev:live`, select a live profile, and allow that voice attempt (or arm one attempt before a race). Speech-only makes up to 1 API call; speech-to-creation up to 3. Reuse the existing key. `TRANSCRIPTION_MODEL` defaults to `gpt-transcribe`.
+
+Desktop Chrome/Edge, English first. Limits: 8 s recording, 10 s upload/transcription, then 30 s generation. Empty or over-ten-word transcripts stop the attempt. Pause/focus loss/reset/navigation cancels active work. Audio is held in memory for the request and never saved in lab history or exports. See [voice architecture and contracts](docs/voice-input-plan.md).
 
 ## Layout and parallel ownership
 - `packages/shared/src/schema.ts`: versioned Zod contract and inferred types; no React or server dependencies.
@@ -60,7 +70,9 @@ For a deployed backend, inject the key through the host's secret manager, never 
 - `apps/web/src/pages/GenerationLabPage.tsx`: isolated prompt-to-mesh testing.
 - `apps/server/src/generation`: two-stage pipeline, model transport, configuration, and HTTP routes.
 - `apps/web/src/generation/client.ts`: mock and HTTP implementations of shared GenerationClient.
-- `apps/web/src/voice/types.ts`: separate transcription interface.
+- `apps/web/src/voice`: recorder, typed voice client, shared controls, lab UI, and race setup.
+- `apps/server/src/voice`: bounded uploads and replaceable transcription providers.
+- `packages/shared/src/voice.ts`: strict audio metadata, transcript, and event contracts.
 - `apps/server/src/app.ts`: injectable Fastify API; legacy endpoints default to mocks and the lab exposes explicit live profiles.
 
 Developer A can implement gameplay within the web game modules while Developer B implements generation, server provider integration, and voice. Both consume the shared contract. Coordinate shared schema and root configuration changes.
@@ -118,8 +130,8 @@ Messages must be safe, 1–200 characters; never expose credentials or provider 
 
 Keep OPENAI_API_KEY in apps/server/.env; never put secrets in VITE_ variables. The legacy AI_API_KEY is a fallback when OPENAI_API_KEY is unset or blank. Parse and validate AI output as declarative JSON; never evaluate it as JavaScript.
 
-## Voice and next tasks
-1. Gameplay developer: refine controls and movement through PlayerController and use-game-input.ts. The demo already supplies falling, collisions, forward spawning, and effect timers; see the controls handoff guide before extending them.
-2. Generation developer: evaluate live model results in the isolated lab, then implement VoiceTranscriber in apps/web/src/voice and integrate the validated pipeline through CreationClient. Preserve the one-attempt rule, cancellation, and rejection of stale results.
+## Next tasks
+1. Gameplay: refine pickup placement, HUD, controls, and effect feedback through the race modules. Preserve the single movement loop and semantic voice actions; see the controls handoff.
+2. Generation: deliberately test real English speech and evaluate recognition, latency, and mesh quality in the lab. Extend effects by changing the shared schema and typed race handlers together.
 
-The original v1 fixture playground remains available. The current Game skeleton implements movement, collision, and effects with simulated speech and generation; see the current skeleton guide above.
+The original v1 fixture playground and the simulated creation demo remain available.

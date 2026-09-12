@@ -87,3 +87,21 @@ for (const action of ['cancel', 'reset', 'end', 'dispose'] as const) {
     }
   });
 }
+
+test('recorder errors consume the attempt immediately and stale errors cannot fail a new run',async()=>{
+  let onError:((error:Error)=>void)|undefined;
+  const loop=new CreationLoop({generate:async()=>{assert.fail('Failed audio reached generation');}}, {
+    kind:'audio',
+    async start(_onLimit,onFailure){onError=onFailure;},
+    async stop(){assert.fail('Failed audio was submitted');},
+    cancel(){},
+  },host());
+  loop.start();loop.collectVoice();loop.startRecording();await flush();
+  onError?.(new Error('Microphone disconnected.'));
+  assert.equal(loop.getSnapshot().phase,'failed');
+  assert.match(loop.getSnapshot().message,/Microphone disconnected/);
+  await loop.finishRecording();
+  loop.reset();loop.start();loop.collectVoice();
+  onError?.(new Error('Late device error.'));
+  assert.equal(loop.getSnapshot().phase,'prompted');
+});

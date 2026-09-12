@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
-import { meshFixture, proceduralFixtures, appearanceToRecipe, GeneratedCreationSchema, PipelineEventSchema, type PipelineEvent } from '@sky/shared';
+import { meshFixture, proceduralFixtures, appearanceToRecipe, GeneratedCreationSchema, PipelineEventSchema, StageConfigSchema, type PipelineEvent } from '@sky/shared';
 import { CreationPipeline } from './generation/pipeline.js';
 import { pipelineProfiles, resolveAPIKey } from './generation/pipeline-config.js';
 import { PipelineFailure } from './generation/pipeline-errors.js';
@@ -56,14 +56,19 @@ test('design timeout aborts stage even if transport ignores signal',async () => 
   assert.equal(calls,1);assert.ok(signal?.aborted);
 });
 test('geometry shares total deadline and cannot start a fresh full budget',async () => {
+  const events:PipelineEvent[]=[];
   let calls = 0, geometrySignal:AbortSignal | undefined;
   const pipeline = harness(async request => {
     calls++;
     if (request.stage === 'design') {await delay(20);return {data:design};}
     geometrySignal=request.signal;return new Promise(() => {});
   },{totalMs:70,designMs:50});
-  await assert.rejects(pipeline.run({text:'crystal',profileId:'mock'}),error => error instanceof PipelineFailure && error.code === 'TIMEOUT');
+  await assert.rejects(pipeline.run({text:'crystal',profileId:'mock'},{emit:event=>events.push(event)}),error => error instanceof PipelineFailure && error.code === 'TIMEOUT');
   assert.equal(calls,2);assert.ok(geometrySignal?.aborted);
+  const terminal=events.at(-1);assert.ok(terminal?.type==='failed');
+  assert.equal(terminal.stage,'geometry');assert.match(terminal.error.message,/shared .*generation deadline.*geometry/);
+  assert.match(terminal.error.message,/Design used .*remaining time/);
+  assert.equal(events.filter(event=>event.type==='failed').length,1);
 });
 test('cancelled attempt never emits complete and starts no further stages',async () => {
   const controller = new AbortController(), events:PipelineEvent[] = [];
@@ -295,3 +300,36 @@ for (const phase of ['headers','body'] as const) {
     assert.equal(events.filter(event => event.type === 'failed').length,1);
   });
 }
+
+test('direct Sol profile is opt-in and incompatible Astra reasoning is rejected before dispatch',()=>{
+  const disabled=pipelineProfiles({},false);
+  assert.equal(disabled[0].id,'mock');
+  assert.equal(disabled.find(profile=>profile.id==='sol-direct')?.available,false);
+  const profiles=pipelineProfiles({OPENAI_API_KEY:'test-key'},true);
+  const direct=profiles.find(profile=>profile.id==='sol-direct')!;
+  for(const config of [direct.design,direct.geometry]) {
+    StageConfigSchema.parse(config);assert.equal(config.model,'gpt-5.6-sol');assert.equal(config.reasoning,'none');
+  }
+  for(const prefix of ['DESIGN','GEOMETRY']) {
+    assert.throws(()=>pipelineProfiles({[prefix+'_MODEL']:'gpt-6-astra',[prefix+'_REASONING']:'none'}),/GPT-6 Astra requires/);
+  }
+  assert.equal(profiles.find(profile=>profile.id==='sol-astra')?.geometry.reasoning,'low');
+});
+test('direct Sol sends none reasoning through the real SDK and still uses one guarded two-call attempt',async()=>{
+  let calls=0;const fixture=proceduralFixtures[0];
+  const transport=openAITransport('test-direct-key',async(_url,init)=>{
+    calls++;const body=JSON.parse(String(init?.body));
+    assert.equal(body.model,'gpt-5.6-sol');assert.equal(body.reasoning.effort,'none');
+    assert.equal(body.text.format.strict,true);assert.equal(body.store,false);
+    const data=body.text.format.name.startsWith('design')?fixture.design:appearanceToRecipe(fixture.appearance);
+    return new Response(JSON.stringify({object:'response',id:'resp_test',status:'completed',output:[
+      {type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify(data)}]},
+    ]}),{headers:{'content-type':'application/json'}});
+  });
+  const pipeline=new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:'test-direct-key'},true),{mock:mockStageTransport,live:transport},undefined,{enabled:true,maxAttempts:3});
+  const request={profileId:'sol-direct',geometryMode:'primitives' as const,text:fixture.prompt};
+  await assert.rejects(pipeline.run(request),error=>error instanceof PipelineFailure&&error.code==='CONSENT_REQUIRED');assert.equal(calls,0);
+  const spec=await pipeline.run({...request,paidAttempt:{id:'861f3264-c7cf-4e5e-8a95-8bf5e7388b79',confirmed:true}});
+  GeneratedCreationSchema.parse(spec);assert.equal(calls,2);assert.equal(pipeline.liveUsage.attemptsUsed,1);
+  assert.equal(pipeline.liveUsage.busy,false);
+});
