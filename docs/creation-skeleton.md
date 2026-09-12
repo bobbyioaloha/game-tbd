@@ -1,15 +1,15 @@
 # Voice-to-creation skeleton
 
+The lab has since gained a two-stage live provider: see [prompt-to-mesh pipeline](prompt-to-mesh-pipeline.md). The Game skeleton described here still uses mocks.
+
 ## Try it
 Run `bun run dev` from the repository, then open http://localhost:5173.
 
-**Generation lab** is the default page. Enter up to ten words and click **Generate creation**. The default source calls the real Fastify `POST /api/creations` route, whose provider is currently a deterministic mock. The other source runs offline in the browser. Both use the v2 contract. Inspect the result's geometry/effects, rotate it, or expand the JSON inspector. Errors preserve the previous preview. Requests can be cancelled; retries are explicit test submissions. This lab deliberately bypasses gameplay's one-attempt gate.
-
-Mock mapping: “ghost” selects Ghost cloak; “sun”, “angry”, or “clear” selects Angry sun; “jelly” or “umbrella” selects Jellyfish umbrella; everything else selects Wind crystal, a hand-authored freeform mesh. This does not synthesize arbitrary geometry yet.
+**Generation lab** now selects a two-stage server profile. See the pipeline guide above for current behavior, configuration, history, and streaming details.
 
 **Game** is a small integration scene. Before starting, set the simulated transcript. Start a run and remain centered to collect the gold Voice Power Up after about 2.4 seconds. Hold Space (or the hold-to-speak button) and release to submit. WASD moves on X/Z while falling on -Y. The creation spawns ahead and is collected automatically on collision if you remain in its path. Red cubes end the run unless protection is active. Try “ghost cloak” or “angry sun” for the other effects. Start a new run to obtain another Voice Power Up.
 
-No microphone or paid API calls are made. The transcription adapter returns the text field value; it is explicitly a simulation. The original Fixtures page and v1 API remain available.
+The Game skeleton makes no microphone or paid API calls. The transcription adapter returns the text field value; it is explicitly a simulation. The original Fixtures page and v1 API remain available.
 
 ## Architecture
 - `packages/shared/src/creation.ts`: CreationSpec v2, bounded mesh validation, v1 adapter, typed client and distinct VoicePickup / CreationPickup.
@@ -54,9 +54,7 @@ Effect classes currently map to: movement → reduceFallSpeed, protection → in
 
 The route invokes its provider exactly once, enforces a 30-second deadline, aborts on disconnect, and validates unknown provider output. The HTTP client validates again and uses a 35-second deadline. The in-game controller guards long transcription/generation phases separately. Provider errors are not forwarded to the client.
 
-Next, implement an Astra-backed CreationProvider and inject it through `buildApp({creationProvider})` in the server entry point. The provider accepts validated text plus AbortSignal and returns unknown data. Configure credentials server-side; disable SDK retries; bound model output; handle refusal/incomplete output; use structured data followed by the existing geometric checks. No SDK, key handling, or live provider is implemented in this step. Update the lab's provider labels/status when enabling live mode.
-
-Then test varied text prompts in Generation lab before switching GamePage's DemoGame client argument from mockCreationClient to httpCreationClient. Real audio capture and server transcription can subsequently replace the simulated transcriber without changing the generation contract.
+The isolated server pipeline is now implemented; live game integration and real voice transcription remain separate next steps. See the pipeline guide above.
 
 ## Verification
 `bun run build`, `bun run typecheck`, and `bun run test`.

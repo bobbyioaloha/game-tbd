@@ -10,7 +10,9 @@
 - Inspect existing work and avoid unrelated changes. Run relevant checks before handoff.
 
 - Voice Power Ups are authored one-attempt grants, separate from generated CreationSpec v2 objects. Keep v1 fixtures/API compatible.
-- Preserve the one-attempt rule: no automatic retries, refunds, or stale results spawning into another run. Voice and AI are mocked until explicitly implemented.
-- New server generation belongs behind CreationProvider; Generation lab is the manual text-to-3D test interface.
+- Preserve the one-attempt rule: no automatic retries, refunds, or stale results spawning into another run. Game voice and generation remain mocked; the isolated Generation lab can run the implemented two-stage live pipeline.
+- CreationPipeline owns two-stage generation; CreationProvider is the adapter boundary for the existing raw-spec API. Generation lab is the manual text-to-3D test interface.
 
 - PlayerController and use-game-input.ts are the controls extension points. DemoGame owns world integration; CreationLoop receives semantic pickup events and calls CreationHost. Avoid duplicate frame integration.
+
+- Live lab attempts run design then geometry with a shared 30-second deadline and no SDK retries. Geometry receives only the visual brief. Preserve one mesh / one effect and keep controls/gameplay isolated. See docs/prompt-to-mesh-pipeline.md.

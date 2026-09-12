@@ -10,7 +10,7 @@ function App() {
     <button className={page==='generation'?'active':''} onClick={()=>setPage('generation')}>Generation lab</button>
     <button className={page==='lab'?'active':''} onClick={()=>setPage('lab')}>Fixtures</button>
     <button className={page==='game'?'active':''} onClick={()=>setPage('game')}>Game</button>
-  </nav><span className="badge">● MOCK PROVIDERS</span></header>
+  </nav><span className="badge">● DEVELOPMENT</span></header>
     {page==='generation' ? <GenerationLabPage/> : page==='lab' ? <PlaygroundPage/> : <GamePage/>}
   </>;
 }

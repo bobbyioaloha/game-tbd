@@ -7,3 +7,5 @@ button:disabled{cursor:default;opacity:.5}.secondary{background:#293a49;color:#e
 .json-inspector{margin:30px 0;padding:16px;border:1px solid #3a4958;border-radius:8px}.json-inspector summary{cursor:pointer}.json-inspector pre{max-height:400px;overflow:auto;font-size:12px;white-space:pre-wrap}
 .game-view{height:530px}.game-view canvas{height:530px}aside small{color:#a8b7c6;line-height:1.6}aside label{font-size:12px}
 @media(max-width:760px){header .brand{font-size:15px;letter-spacing:1px}nav{gap:0}nav button{font-size:11px;padding:8px}.game-view{height:430px}}
+
+.history-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid #34414c;font-size:12px}.history-row button{background:#263642;color:#eaf0f8;padding:7px 12px;border:1px solid #4b5f70;border-radius:5px}

@@ -65,11 +65,15 @@ export class CreationLoop {
   };
   startRecording = () => {
     if (!this.state.running || this.state.phase !== 'prompted') return;
+    const token = this.serial;
+    const recordingActive = () => this.current(token) && ['recording', 'transcribing'].includes(this.state.phase);
     this.state.phase = 'recording'; this.state.phaseSeconds = 0;
     this.state.message = 'Recording simulation… release to submit.'; this.emit();
-    const token = this.serial;
-    this.recordingStart = Promise.resolve().then(() => this.voice.start());
-    void this.recordingStart.catch(() => { if (this.current(token)) this.fail('Could not start recording.'); });
+    this.recordingStart = Promise.resolve().then(() => {
+      // A quick release may already be transcribing; cancellation must prevent a late start.
+      if (recordingActive()) return this.voice.start();
+    });
+    void this.recordingStart.catch(() => { if (recordingActive()) this.fail('Could not start recording.'); });
   };
   finishRecording = async () => {
     if (!this.state.running || this.state.phase !== 'recording') return;
