@@ -1,7 +1,10 @@
+import { registerCreationRoutes } from './generation/routes.js';
+import type { CreationProvider } from './generation/provider.js';
 import Fastify from 'fastify';
 import { fixtures, GenerationRequestSchema, PowerUpSpecSchema } from '@sky/shared';
-export function buildApp() {
+export function buildApp(options: {creationProvider?: CreationProvider; creationTimeoutMs?: number} = {}) {
   const app=Fastify({logger:true,bodyLimit:4096});
+  registerCreationRoutes(app, options.creationProvider, options.creationTimeoutMs);
   app.get('/api/health',async () => ({status:'ok',mode:'mock'}));
   app.post('/api/powerups',async (request,reply) => {
     const parsed=GenerationRequestSchema.safeParse(request.body);
