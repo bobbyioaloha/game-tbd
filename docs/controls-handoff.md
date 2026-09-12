@@ -10,7 +10,7 @@ The actual game uses `MovementTest`, `RaceScene`, `PracticeRace`, and `freefall-
 - `race-event-host.ts` owns the authored voice pickup and v3 request lifecycle. It reads the latest player position when spawning; the race event runtime owns the shared collectible, contacts and effect lifetime. The old `race-creation-host.ts` is a v2 compatibility adapter.
 - `voice/RaceVoiceControls.tsx` owns microphone/profile setup and per-run paid consent. Pause, reset, finish, and unmount must cancel active voice work and invalidate late results.
 
-Manual check: Game → Movement test → Enable microphone before the run → keep the default mock profile → start falling without steering → collect the gold pickup at 180 m → hold/release Space → follow the radar to the creation later in the course; any racer can activate it. The same input works through the hold button. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
+Manual check: Game → Setup → Voice setup → Enable microphone before the run → keep the default mock profile → start falling without steering → collect the gold pickup at 180 m → hold/release Space → follow the radar to the creation later in the course; any racer can activate it. The same input works through the hold button. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
 
 ## Separate regression demo
 

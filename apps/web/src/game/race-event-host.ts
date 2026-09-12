@@ -2,8 +2,7 @@ import { RaceEventCreationSchema, mockRaceEventForText, type RaceEventCreation, 
 import { CreationAttempt } from './creation-attempt';
 import { PracticeRace, ITEM_PICKUP_RADIUS, LANE_HALF_WIDTH } from './practice-race';
 import { BRAKE_SPEED } from './freefall-controller';
-import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
-import { raceCreationSpawnPosition } from './race-creation-placement';
+import { RACE_CREATION_PICKUP_RADIUS, raceCreationSpawnPosition } from './race-event-config';
 import { obstaclePose, segmentSphere } from './race-course';
 import type { Position } from './player-controller';
 import type { PromptCapture } from '../voice/types';

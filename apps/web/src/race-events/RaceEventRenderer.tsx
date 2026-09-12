@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { fitModelToDiameter } from './model-presentation';
 import { useFrame } from '@react-three/fiber';
 import { Object3D, Color, DoubleSide, type Group, type InstancedMesh, type Mesh, type MeshBasicMaterial } from 'three';
@@ -10,7 +10,7 @@ export function RaceEventRenderer({events,debug=false,modelScale=1,modelDiameter
   {events:RaceEventPort;debug?:boolean;modelScale?:number;modelDiameter?:number;modelTilt?:readonly [number,number];pickupContactRadius?:number}) {
   const initial=events.getSnapshot();
   const root=useRef<Group>(null),model=useRef<Group>(null),content=useRef<Group>(null),field=useRef<Mesh>(null),pickup=useRef<Mesh>(null),outline=useRef<Mesh>(null),debris=useRef<InstancedMesh>(null);
-  const scratch=useRef(new Object3D()),color=useRef(new Color());
+  const {scratch,color}=useMemo(()=>({scratch:new Object3D(),color:new Color()}),[]);
   useLayoutEffect(()=>{
     if(content.current&&modelDiameter!==undefined)fitModelToDiameter(content.current,modelDiameter);
   },[initial.instance?.spec,modelDiameter]);
@@ -31,11 +31,11 @@ export function RaceEventRenderer({events,debug=false,modelScale=1,modelDiameter
     if(debris.current) {
       debris.current.count=state.debris.length;
       state.debris.forEach((particle,i)=>{
-        scratch.current.position.set(particle.position[0]-state.position[0],particle.position[1]-state.position[1],particle.position[2]-state.position[2]);
-        scratch.current.rotation.set(state.elapsedSeconds+i,state.elapsedSeconds*0.8+i,0);
-        scratch.current.scale.setScalar(particle.collidable?RACE_EVENT_LIMITS.debrisRadius:0.4);scratch.current.updateMatrix();
-        debris.current!.setMatrixAt(i,scratch.current.matrix);
-        debris.current!.setColorAt(i,color.current.set(particle.collidable?'#ffbd63':'#85cbd8'));
+        scratch.position.set(particle.position[0]-state.position[0],particle.position[1]-state.position[1],particle.position[2]-state.position[2]);
+        scratch.rotation.set(state.elapsedSeconds+i,state.elapsedSeconds*0.8+i,0);
+        scratch.scale.setScalar(particle.collidable?RACE_EVENT_LIMITS.debrisRadius:0.4);scratch.updateMatrix();
+        debris.current!.setMatrixAt(i,scratch.matrix);
+        debris.current!.setColorAt(i,color.set(particle.collidable?'#ffbd63':'#85cbd8'));
       });
       debris.current.instanceMatrix.needsUpdate=true;
       if(debris.current.instanceColor)debris.current.instanceColor.needsUpdate=true;

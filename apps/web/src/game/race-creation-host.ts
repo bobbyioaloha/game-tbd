@@ -7,9 +7,8 @@ import { mockCreationClient } from '../generation/creation-client';
 import type { PromptCapture } from '../voice/types';
 import type { AudioCreationClient } from '../voice/voice-client';
 import type { Position } from './player-controller';
-
-import { raceCreationSpawnPosition } from './race-creation-placement';
-export { raceCreationSpawnPosition } from './race-creation-placement';
+import { raceCreationSpawnPosition } from './race-event-config';
+export { raceCreationSpawnPosition } from './race-event-config';
 
 // World integration only; the race still owns all movement and its fixed-step clock.
 export class RaceCreationHost {
