@@ -41,6 +41,6 @@ export function raceEventPreset(type:RaceEventType) {
   return {...entry,effect:RaceEventEffectSchema.parse(entry.effect)};
 }
 export const RACE_EVENT_LIMITS = Object.freeze({
-  collectibleRadius:1, racerRadius:0.6, debrisRadius:1.15, collectibleLifetime:20,
+  collectibleRadius:1, maxPickupContactRadius:16, racerRadius:0.6, debrisRadius:1.15, collectibleLifetime:20,
   maxStepSeconds:1/30, maxAcceleration:36, maxVelocityDelta:36, maxAnchorSpeed:100, maxDebris:128, debrisWaves:3, debrisLifetime:2.4,
 });

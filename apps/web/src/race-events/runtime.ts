@@ -15,7 +15,7 @@ export class RaceEventRuntime implements RaceEventPort {
   private readonly pickupContactRadius:number;
   constructor(options:{pickupContactRadius?:number}={}) {
     const radius=options.pickupContactRadius??limits.collectibleRadius+limits.racerRadius;
-    if(!Number.isFinite(radius)||radius<0.1||radius>5)throw new Error('Invalid pickup contact radius.');
+    if(!Number.isFinite(radius)||radius<0.1||radius>limits.maxPickupContactRadius)throw new Error('Invalid pickup contact radius.');
     this.pickupContactRadius=radius;
   }
   private pickupLifetime(){return this.instance?.pickupLifetimeSeconds??limits.collectibleLifetime;}
@@ -201,7 +201,7 @@ export class RaceEventRuntime implements RaceEventPort {
       if(contacts[0])this.activate(contacts[0].id);
       else if(this.racers.length&&this.racers.every(racer=>{
         const position=active.find(segment=>segment.id===racer.id)?.to??racer.position;
-        return position[1]<this.instance!.position[1]-limits.collectibleRadius-5;
+        return position[1]<this.instance!.position[1]-this.pickupContactRadius-5;
       }))this.expire('passed');
       return;
     }

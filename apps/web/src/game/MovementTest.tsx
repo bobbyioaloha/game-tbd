@@ -3,12 +3,13 @@ import { CHARACTERS } from './characters';
 import type { GregPose } from './GregModel';
 import { raceEventFixtures } from '@sky/shared';
 import { RaceEventRuntime } from '../race-events/runtime';
+import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
 import { RaceEventReport } from './RaceEventReport';
 import { RaceCreationHud } from './RaceCreationVisuals';
 import { RaceVoiceControls, useRaceVoice } from '../voice/RaceVoiceControls';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { PracticeRace, ITEM_PICKUP_RADIUS } from './practice-race';
+import { PracticeRace } from './practice-race';
 import { RaceScene, defaultBindings, initialRaceHud, type RaceRuntime } from './RaceScene';
 import { RaceOverlay } from './RaceOverlay';
 import { BRAKE_SPEED } from './freefall-controller';
@@ -31,7 +32,7 @@ export function MovementTest() {
   const settingsRef=useRef(settings);settingsRef.current=settings;
   const [angle,setAngle]=useState(35),[zoom,setZoom]=useState(8);
   const [pose,setPose]=useState<GregPose>('Stand'),[previewPaused,setPreviewPaused]=useState(false),[take,setTake]=useState(0);
-  const [race]=useState(()=>new PracticeRace(true,Math.random,new RaceEventRuntime({pickupContactRadius:ITEM_PICKUP_RADIUS})));
+  const [race]=useState(()=>new PracticeRace(true,Math.random,new RaceEventRuntime({pickupContactRadius:RACE_CREATION_PICKUP_RADIUS})));
   const voice=useRaceVoice(race);
   const microphone=useSyncExternalStore(voice.recorder.subscribe,voice.recorder.getSnapshot);
   const voiceBlockedReason=!microphone.ready?'Enable the microphone before starting the race.'

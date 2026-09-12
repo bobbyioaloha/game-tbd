@@ -4,7 +4,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Box3, DoubleSide, Shape, Vector3, type Group } from 'three';
 import { raceEventPreset, type RaceEventCreation } from '@sky/shared';
 import { RaceEventRenderer } from '../race-events/RaceEventRenderer';
-import { ITEM_PICKUP_RADIUS } from './practice-race';
+import { RACE_CREATION_MODEL_DIAMETER, RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
 import { PowerUpModel } from '../components/PowerUpModel';
 import type { RaceEventHost } from './race-event-host';
 import type { initialRaceHud } from './RaceScene';
@@ -35,7 +35,7 @@ export function RaceCreations({host}:{host:RaceEventHost}) {
         <ringGeometry args={[radius-0.24,radius,48]}/><meshBasicMaterial color="#ffe66b" transparent opacity={0.4-i*0.1} side={DoubleSide} depthWrite={false}/>
       </mesh>)}
     </group>}
-    {creation&&<RaceEventRenderer key={creation.instanceId} events={host.race.events!} modelScale={1.65} modelTilt={[0.55,0.15]} pickupContactRadius={ITEM_PICKUP_RADIUS}/>}
+    {creation&&<RaceEventRenderer key={creation.instanceId} events={host.race.events!} modelDiameter={RACE_CREATION_MODEL_DIAMETER} modelTilt={[0.55,0.15]} pickupContactRadius={RACE_CREATION_PICKUP_RADIUS}/>}
   </group>;
 }
 
@@ -101,7 +101,7 @@ export function RaceCreationHud({host,paused,finished,marker,live,mockText,block
     </>}
     {event.phase==='collectible'&&event.instance&&<div className="race-event-status waiting" role="status">
       <strong>{event.instance.spec.displayName} → {effectLabel}</strong>
-      <span>CREATED · NOT ACTIVATED · Fly into the marked object. Any racer can trigger it.</span>
+      <span>CREATED · Fly through the glowing halo to activate. Brake to line up. Any racer can trigger it.</span>
     </div>}
     {marker&&<div className={'creation-radar '+(marker.edge?'at-edge ':'')+(marker.left>50?'label-left':'')} style={{left:marker.left+'%',top:marker.top+'%'}}>
       <span className="creation-radar-symbol" style={marker.edge?{transform:'rotate('+marker.angle+'deg)'}:undefined}>{marker.edge?'↑':''}</span>

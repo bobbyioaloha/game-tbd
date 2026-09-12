@@ -2,6 +2,7 @@ import { RaceEventCreationSchema, mockRaceEventForText, type RaceEventCreation, 
 import { CreationAttempt } from './creation-attempt';
 import { PracticeRace, ITEM_PICKUP_RADIUS, LANE_HALF_WIDTH } from './practice-race';
 import { BRAKE_SPEED } from './freefall-controller';
+import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
 import { raceCreationSpawnPosition } from './race-creation-placement';
 import { obstaclePose, segmentSphere } from './race-course';
 import type { Position } from './player-controller';
@@ -14,8 +15,8 @@ export function eventPlacement(race:PracticeRace):{position:Position;pickupLifet
   const desired=raceCreationSpawnPosition(player.position);
   const offsets=[[0,0],[-10,0],[10,0],[0,-10],[0,10],[-10,-10],[10,10],[-10,10],[10,-10]];
   const position=offsets.map(([x,z]):Position=>[
-    Math.max(-LANE_HALF_WIDTH+4,Math.min(LANE_HALF_WIDTH-4,desired[0]+x)),desired[1],
-    Math.max(-LANE_HALF_WIDTH+4,Math.min(LANE_HALF_WIDTH-4,desired[2]+z)),
+    Math.max(-LANE_HALF_WIDTH+RACE_CREATION_PICKUP_RADIUS,Math.min(LANE_HALF_WIDTH-RACE_CREATION_PICKUP_RADIUS,desired[0]+x)),desired[1],
+    Math.max(-LANE_HALF_WIDTH+RACE_CREATION_PICKUP_RADIUS,Math.min(LANE_HALF_WIDTH-RACE_CREATION_PICKUP_RADIUS,desired[2]+z)),
   ]).find(candidate=>race.obstacles.every(obstacle=>{
     if(!obstacle.active)return true;
     const p=obstaclePose(obstacle,race.elapsed).position;

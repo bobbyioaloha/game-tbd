@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { raceEventFixtures, type RaceEventCreation, type RacerEventInput } from '@sky/shared';
-import { PracticeRace, ITEM_PICKUP_RADIUS } from './practice-race';
+import { PracticeRace } from './practice-race';
 import { FreefallController } from './freefall-controller';
+import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
 import { RaceEventRuntime } from '../race-events/runtime';
 import { RaceEventHost, eventPlacement } from './race-event-host';
 import type { AudioCreationClient } from '../voice/voice-client';
@@ -11,7 +12,7 @@ const dt=1/120,idle={x:0,z:0},normal={fallSpeedMultiplier:1};
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 const creation=(type:RaceEventCreation['effect']['type'])=>raceEventFixtures.find(item=>item.spec.effect.type===type)!.spec;
 function makeRace(course=false) {
-  return new PracticeRace(course,()=>0.42,new RaceEventRuntime({pickupContactRadius:ITEM_PICKUP_RADIUS}));
+  return new PracticeRace(course,()=>0.42,new RaceEventRuntime({pickupContactRadius:RACE_CREATION_PICKUP_RADIUS}));
 }
 function place(race:PracticeRace,id:number,x:number,depth:number,z=0) {
   const racer=race.racers[id];
@@ -27,10 +28,12 @@ function step(race:PracticeRace,host?:RaceEventHost,ticks=1) {
   }
 }
 function activeRace(type:RaceEventCreation['effect']['type'],radius?:number) {
-  const race=makeRace();[-8,0,8,26].forEach((x,id)=>place(race,id,x,117));
+  const race=makeRace();[-8,0,8,26].forEach((x,id)=>place(race,id,x,120-RACE_CREATION_PICKUP_RADIUS));
   race.events!.spawn({instanceId:'event',creatorId:'0',spec:radius!==undefined&&'radiusMeters'in creation(type).effect?{...creation(type),effect:{...creation(type).effect,radiusMeters:radius}} as RaceEventCreation:creation(type),position:[0,-120,0],seed:7});
   step(race);
   assert.equal(race.events!.getSnapshot().triggererId,'1');
+  // Test effects at the same relative positions after the rival wins the larger pickup.
+  [-8,0,8,26].forEach((x,id)=>place(race,id,x,117));
   return race;
 }
 
@@ -219,4 +222,19 @@ test('slipstream counts actual blocked obstacles once without destroying them',(
   step(race,undefined,3);
   assert.equal(race.events!.getSnapshot().impact?.obstacleBlocks['0'],1);
   assert.equal(race.obstacles[0].active,true);assert.equal(race.racers[0].flailUntil,0);
+});
+
+test('main-race creation collects a near miss at full fall speed',()=>{
+  const race=makeRace();
+  place(race,0,7,80);
+  race.racers[0].controller.setFallSpeed(60);
+  race.racers[0].boostFuel=2;
+  race.racers.slice(1).forEach(racer=>{racer.finishTime=0;});
+  race.events!.spawn({instanceId:'forgiving',creatorId:'0',seed:1,
+    spec:creation('repulsionBurst'),position:[0,-120,0]});
+  for(let tick=0;tick<100;tick++)race.step(dt,idle,false,true);
+  const event=race.events!.getSnapshot();
+  assert.equal(event.triggererId,'0');
+  assert.equal(event.phase,'active');
+  assert.equal(event.impact?.impulseCounts['0'],1);
 });

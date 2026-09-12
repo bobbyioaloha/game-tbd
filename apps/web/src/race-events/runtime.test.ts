@@ -123,7 +123,37 @@ test('game-authored pickup bounds are independent of model size and lifetime sta
     runtime.resolveContacts([{id:'a',from:[offset,5,0],to:[offset,-5,0]}]);
     assert.equal(runtime.getSnapshot().phase,offset<3.5?'active':'collectible');
   }
-  for(const radius of [0,6,NaN])assert.throws(()=>new RaceEventRuntime({pickupContactRadius:radius}));
+  for(const radius of [0,RACE_EVENT_LIMITS.maxPickupContactRadius+1,NaN,Infinity])assert.throws(()=>new RaceEventRuntime({pickupContactRadius:radius}));
   for(const lifetime of [0,601,Infinity])assert.throws(()=>new RaceEventRuntime().spawn({instanceId:'bad',creatorId:'a',seed:0,
     position:[0,0,0],spec:raceEventFixtures[0].spec,pickupLifetimeSeconds:lifetime}));
+});
+
+test('a wide pickup stays collectible until the racer has passed its full contact zone',()=>{
+  const runtime=new RaceEventRuntime({pickupContactRadius:10});
+  runtime.spawn({instanceId:'wide',creatorId:'creator',seed:1,position:[0,0,0],spec:raceEventFixtures[0].spec});
+  // Already below the centre, but still able to steer into the lower half of the sphere.
+  runtime.prepareStep(1/30,[racer('creator',12,-7)]);
+  runtime.resolveContacts([{id:'creator',from:[12,-7,0],to:[11,-8,0]}]);
+  assert.equal(runtime.getSnapshot().phase,'collectible');
+  runtime.prepareStep(1/30,[racer('creator',11,-8)]);
+  runtime.resolveContacts([{id:'creator',from:[11,-8,0],to:[3,-9,0]}]);
+  assert.equal(runtime.getSnapshot().triggererId,'creator');
+});
+
+test('wide pickup contact is independent of appearance and still rejects paths outside it',()=>{
+  for(const size of [0.2,3])for(const offset of [9.9,10.1]) {
+    const runtime=new RaceEventRuntime({pickupContactRadius:10});
+    runtime.spawn({instanceId:'wide',creatorId:'creator',seed:1,position:[0,0,0],spec:{
+      ...raceEventFixtures[0].spec,
+      appearance:{type:'primitives',primitives:[{type:'box',position:[3,0,0],rotation:[0,0,0],scale:[size,size,size],color:'#ffcc00'}]},
+    }});
+    runtime.prepareStep(1/30,[racer('creator',offset,12)]);
+    runtime.resolveContacts([{id:'creator',from:[offset,12,0],to:[offset,-12,0]}]);
+    assert.equal(runtime.getSnapshot().phase,offset<10?'active':'collectible');
+  }
+  const runtime=new RaceEventRuntime({pickupContactRadius:10});
+  runtime.spawn({instanceId:'passed',creatorId:'creator',seed:1,position:[0,0,0],spec:raceEventFixtures[0].spec});
+  runtime.prepareStep(1/30,[racer('creator',12,-16)]);
+  runtime.resolveContacts(still([racer('creator',12,-16)]));
+  assert.equal(runtime.getSnapshot().expirationReason,'passed');
 });
