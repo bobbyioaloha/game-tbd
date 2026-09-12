@@ -1,0 +1,24 @@
+{
+  "name": "skyfall",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "npm run build -w @sky/shared && concurrently -k -n shared,server,web \"npm run dev -w @sky/shared\" \"npm run dev -w @sky/server\" \"npm run dev -w @sky/web\"",
+    "build": "npm run build -w @sky/shared && npm run build -w @sky/server && npm run build -w @sky/web",
+    "typecheck": "npm run build -w @sky/shared && npm run typecheck --workspaces",
+    "test": "npm run build -w @sky/shared && tsx --test packages/shared/src/contract.test.ts apps/server/src/app.test.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "concurrently": "^9.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.2"
+  }
+}

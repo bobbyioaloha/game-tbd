@@ -1,0 +1,9 @@
+// Implement recording/transcription here; generation receives text, never audio.
+// Call start on push-to-talk keydown, stop on keyup. Ignore repeated keydown.
+export interface VoiceTranscriber {
+  start():Promise<void>;
+  stop():Promise<string>;
+  cancel():void;
+}
+// Validate the completed transcript with GenerationRequestSchema before generation.
+// Handle microphone permission, focus loss, cancellation, and >10 words in voice UI.
