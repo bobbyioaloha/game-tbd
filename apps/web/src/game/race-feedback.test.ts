@@ -63,3 +63,17 @@ test('arena and course opportunities match the expanded prototype',()=>{
   assert.equal(race.boxes[5].position[1]-race.boxes[0].position[1],-250);
 
 });
+
+test('incidents count actual collisions once, ignore protected contact, and reset',()=>{
+  const race=new PracticeRace(false);
+  race.racers.slice(1).forEach(r=>{r.finishTime=0;});
+  const player=race.racers[0],position=race.snapshot(player).position;
+  race.obstacles=[{id:700,kind:'fridge',position:[position[0],-1,0],rotation:[0,0,0],active:true,hitAt:-1}];
+  race.step(1/120,{x:0,z:0},false);
+  assert.equal(player.incidents,1);
+  race.obstacles[0].active=true;
+  race.step(1/120,{x:0,z:0},false);
+  assert.equal(player.incidents,1,'immunity prevents another incident');
+  race.reset();
+  assert.equal(race.racers[0].incidents,0);
+});

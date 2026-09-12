@@ -19,8 +19,9 @@ function ItemIcon({item}:{item:Item|null}){
 export function RaceOverlay({hud,paused,useKey,boostKey,dodgeKey}:{hud:typeof initialRaceHud;paused:boolean;useKey:string;boostKey:string;dodgeKey:string}){
   const selected=hud.markers.find(marker=>marker.selected);
   return <>
+    <div className="incident-counter"><span className="safety-label">SAFETY RECORD</span>INCIDENTS <strong>{hud.incidents}</strong></div>
     <div className="race-tracker" aria-label="Race progress and standings">
-      <strong>RACE PROGRESS ↓</strong>
+      <strong>PERSONNEL IN TRANSIT ↓</strong>
       <div className="race-tracker-course" aria-hidden="true">
         <span className="tracker-start">START</span><span className="tracker-finish">FINISH</span>
         {[...hud.standings].sort((a,b)=>a.id-b.id).map(racer=><div key={racer.id} className="tracker-marker" style={{top:(racer.progress*100)+'%'}}>
@@ -50,11 +51,11 @@ export function RaceOverlay({hud,paused,useKey,boostKey,dodgeKey}:{hud:typeof in
     </div>)}
     {!paused&&hud.itemKey==='umbrella'&&!selected&&hud.finish===null&&<div className="aim-hint">Bring a rival near the middle to lock · {useKey} fires straight without a lock</div>}
     {hud.finish===null&&<div className={'play-item '+(hud.itemKey?'loaded':'')} aria-label={'Held item: '+hud.item}>
-      <ItemIcon item={hud.itemKey}/><div><small>HELD ITEM</small><strong>{hud.item}</strong><span>{hud.itemKey?useKey+' · '+(hud.itemKey==='umbrella'?(hud.look?'Fire upward':'Fire downward'):'Activate'):'Collect a striped box'}</span></div>
+      <ItemIcon item={hud.itemKey}/><div><small>PPE / ISSUED EQUIPMENT</small><strong>{hud.item}</strong><span>{hud.itemKey?useKey+' · '+(hud.itemKey==='umbrella'?(hud.look?'Fire upward':'Fire downward'):'Activate'):'Collect a striped box'}</span></div>
     </div>}
     {!paused&&hud.feedback&&<div className="race-feedback" role="status" key={hud.feedback}>{hud.feedback}</div>}
     {hud.finish===null&&<div className="flight-tools">
-      <label>BOOST FUEL · {boostKey}<progress aria-label="Boost fuel" value={hud.fuel} max={4}/></label>
+      <div className="safety-label">AUTHORIZED CONTROLS</div><label>BOOST FUEL · {boostKey}<progress aria-label="Boost fuel" value={hud.fuel} max={4}/></label>
       <span>{hud.fuel.toFixed(1)} / 4.0 s {hud.boost?' · BOOSTING':''}</span>
       <strong>{dodgeKey} · {hud.dodgeCooldown>0?'DODGE '+hud.dodgeCooldown.toFixed(1)+'s':'DODGE READY'}</strong>
     </div>}
