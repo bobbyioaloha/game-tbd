@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { proceduralFixtures, type CreationSpec } from '@sky/shared';
-import { RaceCreationHost } from './race-creation-host';
+import { RaceCreationHost, raceCreationSpawnPosition } from './race-creation-host';
 import { PracticeRace } from './practice-race';
-import { creationSpawnPosition } from './world-geometry';
+
 const fixture=proceduralFixtures[0];
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 function setup() {
@@ -23,9 +23,9 @@ test('main race keeps falling while generating, spawns from latest position, and
   for(let i=0;i<120;i++)game.step();
   const current=game.race.snapshot(game.race.racers[0]);assert.ok(current.position[1]<before);
   game.resolve();await pending;
-  assert.deepEqual(game.host.creation?.position,creationSpawnPosition(current.position,current.fallSpeed));
+  assert.deepEqual(game.host.creation?.position,raceCreationSpawnPosition(current.position));
   assert.equal(game.race.racers[0].creationSlowUntil,0);
-  for(let i=0;i<600&&game.host.creation;i++)game.step();
+  for(let i=0;i<10000&&game.host.creation;i++)game.step();
   assert.equal(game.host.loop.getSnapshot().phase,'activated');assert.ok(game.race.racers[0].creationSlowUntil>game.race.elapsed);
   assert.equal(game.calls(),1);game.host.dispose();
 });
@@ -48,4 +48,36 @@ test('generated slow honors its multiplier and expiry without multiplying existi
   assert.ok(race.snapshot(race.racers[0]).fallSpeed>4);
   for(let i=0;i<600;i++)race.step(1/120,{x:0,z:0},false);
   assert.ok(race.snapshot(race.racers[0]).fallSpeed>20);
+});
+
+test('race creations target the last 40 percent with a 300 m lead and safe late cutoff',()=>{
+  assert.deepEqual(raceCreationSpawnPosition([12,-200,-8]),[12,-2160,-8]);
+  assert.deepEqual(raceCreationSpawnPosition([12,-2400,-8]),[12,-2700,-8]);
+  assert.deepEqual(raceCreationSpawnPosition([12,-3500,-8]),[12,-3540,-8]);
+  assert.throws(()=>raceCreationSpawnPosition([0,-3520,0]),/finish is too close/);
+});
+
+test('voice star uses the forgiving box-sized swept pickup without collecting outside it',()=>{
+  for(const offset of [3.4,3.6]){
+    const race=new PracticeRace(false);
+    const host=new RaceCreationHost(race,{async start(){},async stop(){return 'rubber duck';},cancel(){}});
+    host.start();const [x,y,z]=host.voice!.position;
+    host.step(1/120,[x+offset,y+20,z],[x+offset,y-20,z]);
+    assert.equal(host.loop.getSnapshot().phase,offset<3.5?'prompted':'missed');
+    host.dispose();
+  }
+});
+
+test('generated pickup accepts a glancing high-speed crossing and applies effects only once',async()=>{
+  const game=setup();game.host.loop.startRecording();await flush();
+  const pending=game.host.loop.finishRecording();await flush();game.resolve();await pending;
+  const [x,y,z]=game.host.creation!.position;
+  game.host.step(1/120,[x+3.4,y+20,z],[x+3.4,y-20,z]);
+  assert.equal(game.host.loop.getSnapshot().phase,'activated');
+  assert.equal(game.host.creation,undefined);
+  const expiry=game.race.racers[0].creationSlowUntil;
+  game.race.elapsed+=1;
+  game.host.step(1/120,[x,y+20,z],[x,y-20,z]);
+  assert.equal(game.race.racers[0].creationSlowUntil,expiry);
+  game.host.dispose();
 });

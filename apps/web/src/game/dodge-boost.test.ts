@@ -61,7 +61,7 @@ test('dodge has locked direction, cooldown, short immunity, and breaks homing',(
   race.step(0.1,{x:-1,z:0},false);
   assert.ok(race.snapshot(p).position[0]>x);
   race.elapsed=0.26;assert.equal(race.protected(p),false);
-  race.elapsed=2;assert.equal(race.dodge(0,idle),false);race.elapsed=2.5;assert.equal(race.dodge(0,idle),true);
+  race.elapsed=14.99;assert.equal(race.dodge(0,idle),false);race.elapsed=15;assert.equal(race.dodge(0,idle),true);
 });
 test('dodge prevents obstacle impact inside its invincibility window',()=>{
   const race=new PracticeRace(false),p=race.racers[0],position=race.snapshot(p).position;
@@ -94,7 +94,7 @@ test('threat detection separates lock acquisition from incoming missiles',()=>{
 test('course has varied junk and non-row box arrangements',()=>{
   const kinds=new Set(makeCourse().map(o=>o.kind));
   for(const kind of ['duck','piano','toilet','rock'])assert.ok(kinds.has(kind as never));
-  const race=new PracticeRace();assert.equal(race.rings.length,3);
+  const race=new PracticeRace();assert.equal(race.rings.length,4);
   assert.ok(new Set(race.boxes.slice(0,5).map(b=>b.position[2])).size>2);
 });
 
@@ -130,4 +130,17 @@ test('expired projectiles cannot damage a racer',()=>{
   race.step(0.01,idle,false);
   assert.equal(victim.slowUntil,0);
   assert.equal(race.projectiles.length,0);
+});
+test('pipe rings award twice normal fuel, respect capacity, and cannot be collected twice',()=>{
+  for(const fuel of [2,4])for(const initial of [0,3]){
+    const race=new PracticeRace(false),player=race.racers[0];
+    const x=race.snapshot(player).position[0];
+    player.boostFuel=initial;player.controller.setFallSpeed(30);
+    race.rings=[{id:1,position:[x,-1,0],used:new Set(),fuel}];
+    race.step(0.1,idle,false);
+    assert.equal(player.boostFuel,Math.min(4,initial+fuel));
+    assert.ok(race.rings[0].used.has(0));
+    player.controller=new FreefallController(36,x,0);player.controller.setFallSpeed(30);player.boostFuel=0;
+    race.step(0.1,idle,false);assert.equal(player.boostFuel,0);
+  }
 });
