@@ -4,7 +4,7 @@ export const GRAVITY = 9.81;
 export const TERMINAL_SPEED = 30;
 export const BRAKE_SPEED = 8;
 export const BRAKE_DECELERATION = 20;
-export const STEER_SPEED = 12;
+export const STEER_SPEED = 20;
 
 // No keyboard or world ownership. The existing demo may inject this controller.
 export class FreefallController implements PlayerController {
@@ -12,13 +12,14 @@ export class FreefallController implements PlayerController {
   constructor(private bound = Infinity, private startX = 0, private startZ = 0) { this.reset(); }
   braking = false;
   reset() { this.state = {position: [this.startX, 0, this.startZ], fallSpeed: 0}; this.braking = false; }
+  setFallSpeed(speed:number){this.state.fallSpeed=Math.max(0,speed);}
   impact(multiplier: number, knockback: Position) {
     this.state.fallSpeed *= multiplier;
     this.state.position[0] = Math.max(-this.bound, Math.min(this.bound, this.state.position[0]+knockback[0]));
     this.state.position[2] = Math.max(-this.bound, Math.min(this.bound, this.state.position[2]+knockback[2]));
   }
   getSnapshot(): PlayerSnapshot { return {...this.state, position: [...this.state.position]}; }
-  step(delta: number, input: SteeringInput, modifiers: MovementModifiers & {maxFallSpeed?: number}): PlayerMotion {
+  step(delta: number, input: SteeringInput, modifiers: MovementModifiers & {maxFallSpeed?: number;steerSpeed?:number}): PlayerMotion {
     const dt = Number.isFinite(delta) ? Math.max(0, delta) : 0;
     const previousPosition = [...this.state.position] as [number, number, number];
     const multiplier = Math.max(0, Math.min(1, modifiers.fallSpeedMultiplier));
@@ -33,7 +34,7 @@ export class FreefallController implements PlayerController {
     const z = Math.max(-1, Math.min(1, input.z));
     const length = Math.max(1, Math.hypot(x, z));
     this.state = {
-      position: [Math.max(-this.bound, Math.min(this.bound, previousPosition[0] + x / length * STEER_SPEED * dt)), previousPosition[1] - distance, Math.max(-this.bound, Math.min(this.bound, previousPosition[2] + z / length * STEER_SPEED * dt))],
+      position: [Math.max(-this.bound, Math.min(this.bound, previousPosition[0] + x / length * (modifiers.steerSpeed??STEER_SPEED) * dt)), previousPosition[1] - distance, Math.max(-this.bound, Math.min(this.bound, previousPosition[2] + z / length * (modifiers.steerSpeed??STEER_SPEED) * dt))],
       fallSpeed: end,
     };
     return {...this.getSnapshot(), previousPosition};

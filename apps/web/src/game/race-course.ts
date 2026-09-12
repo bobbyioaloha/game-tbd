@@ -3,10 +3,18 @@ import type { Position } from './player-controller';
 
 export type Item = 'umbrella' | 'cloak' | 'sun';
 export const ITEM_NAMES: Record<Item,string> = {umbrella:'Jellyfish umbrella',cloak:'Ghost cloak',sun:'Angry sun'};
-export type ObstacleKind = 'balloon'|'fridge'|'satellite'|'sofa';
+export type ObstacleKind = 'balloon'|'fridge'|'satellite'|'sofa'|'duct'|'duck'|'toilet'|'piano'|'rock';
 export type Collider = {center:Position; size:Position; sphere?:number; penalty:number};
 export type Obstacle = {id:number;kind:ObstacleKind;position:Position;rotation:Position;active:boolean;hitAt:number};
 export const OBSTACLE_RULES: Record<ObstacleKind,{heft:string;flail:number;knockback:number;colliders:Collider[]}> = {
+  duck:{heft:'rubbery',flail:0.35,knockback:5,colliders:[{center:[0,0,0],size:[4,3,4],sphere:2,penalty:0.75}]},
+  toilet:{heft:'porcelain',flail:0.6,knockback:3,colliders:[{center:[0,0,0],size:[2.5,3.2,3.5],penalty:0.45}]},
+  piano:{heft:'very heavy',flail:0.7,knockback:4,colliders:[{center:[0,0,0],size:[5,3,3],penalty:0.35}]},
+  rock:{heft:'space rock',flail:0.55,knockback:3,colliders:[{center:[0,0,0],size:[4,4,4],sphere:2,penalty:0.5}]},
+  duct:{heft:'pipe wall',flail:0.6,knockback:2,colliders:[
+    {center:[-6.5,0,0],size:[1,24,14],penalty:0.5},{center:[6.5,0,0],size:[1,24,14],penalty:0.5},
+    {center:[0,0,-6.5],size:[12,24,1],penalty:0.5},{center:[0,0,6.5],size:[12,24,1],penalty:0.5},
+  ]},
   balloon:{heft:'light',flail:0.3,knockback:1,colliders:[{center:[0,1,0],size:[3,4,3],sphere:2,penalty:0.8}]},
   fridge:{heft:'heavy',flail:0.6,knockback:3,colliders:[{center:[0,0,0],size:[2,3.6,1.8],penalty:0.4}]},
   satellite:{heft:'heavy body / light panels',flail:0.6,knockback:2,colliders:[
@@ -17,13 +25,24 @@ export const OBSTACLE_RULES: Record<ObstacleKind,{heft:string;flail:number;knock
   sofa:{heft:'bouncy',flail:0.45,knockback:5,colliders:[{center:[0,0,0],size:[4.8,2,2.4],penalty:0.6}]},
 };
 export function makeCourse() {
-  const kinds:ObstacleKind[]=['satellite','fridge','balloon','sofa'];
-  return Array.from({length:64},(_,i):Obstacle=>({
-    id:i,kind:kinds[i%4],position:[((i*13)%35)-17,-220-i*49,((i*19)%35)-17],
-    rotation:[i*0.21,i*0.73,i*0.13],active:true,hitAt:-1,
-  }));
+  const kinds:ObstacleKind[]=['satellite','fridge','balloon','sofa','duck','toilet','piano','rock'];
+  const junk=Array.from({length:192},(_,i):Obstacle=>{
+    const row=Math.floor(i/4),slot=(i%4+row%5)%5;
+    return {id:i,kind:kinds[i%kinds.length],position:[-30+slot*15,-160-row*65,((row*17+i%4*13)%61)-30],
+      rotation:[i*0.21,i*0.73,i*0.13],active:true,hitAt:-1};
+  });
+  const ducts=makeDucts();
+  return [...junk.filter(o=>!ducts.some(d=>Math.abs(o.position[1]-d.position[1])<28&&Math.hypot(o.position[0]-d.position[0],o.position[2]-d.position[2])<18)),...ducts];
+}
+export function makeDucts():Obstacle[]{
+  return [650,1650,2650].flatMap((depth,course)=>Array.from({length:3},(_,section)=>({
+    id:1000+course*3+section,kind:'duct' as const,
+    position:[(course%2?-18:10)+section*4,-depth-section*24,course%2?16:-16] as Position,
+    rotation:[0,0,0] as Position,active:true,hitAt:-1,
+  })));
 }
 export function obstaclePose(obstacle:Obstacle,time:number) {
+  if(obstacle.kind==='duct')return {position:obstacle.position,rotation:obstacle.rotation};
   const p:[number,number,number]=[...obstacle.position];
   if(obstacle.kind==='balloon') p[0]+=Math.sin(time*0.4+obstacle.id)*2;
   const rotation:Position=[obstacle.rotation[0]+(obstacle.kind==='fridge'?time*0.35:0),obstacle.rotation[1]+time*0.3,obstacle.rotation[2]];
