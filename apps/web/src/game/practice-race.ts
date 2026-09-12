@@ -144,11 +144,9 @@ export class PracticeRace {
       if(racer.id!==0&&incoming)this.dodge(racer.id,{x:racer.id%2?1:-1,z:0});
       const wantsBoost=racer.id===0?boost:!racer.danger&&this.elapsed>=racer.slowUntil;
       racer.boosting=wantsBoost&&!racer.controller.braking&&racer.boostFuel>0;
-      if(racer.boosting){
-        racer.boostFuel=Math.max(0,racer.boostFuel-dt);
-        racer.controller.setFallSpeed(this.elapsed<racer.slowUntil?30:60);
-      }
-      racer.boostUntil=racer.boosting?this.elapsed+dt:0;
+      const boostSeconds=racer.boosting?Math.min(dt,racer.boostFuel):0;
+      racer.boostFuel=Math.max(0,racer.boostFuel-boostSeconds);
+      racer.boostUntil=racer.boosting?this.elapsed+boostSeconds:0;
       const dodging=this.elapsed<racer.dodgeUntil;
       if(dodging)steering=racer.dodgeDirection;
       const flailing=!dodging&&this.elapsed<racer.flailUntil;
@@ -156,7 +154,7 @@ export class PracticeRace {
       const x=Math.max(-1,Math.min(1,steering.x)),z=Math.max(-1,Math.min(1,steering.z));
       const steeringScale=(flailing?0.3:1)/Math.max(1,Math.hypot(x,z));
       const motion=racer.controller.step(dt,{x:x*steeringScale,z:z*steeringScale},{
-        fallSpeedMultiplier:this.elapsed<racer.slowUntil?0.5:1,maxFallSpeed:racer.boosting?60:30,steerSpeed:dodging?36:undefined,
+        fallSpeedMultiplier:this.elapsed<racer.slowUntil?0.5:1,boostSeconds,steerSpeed:dodging?36:undefined,
       });
       for(const box of this.boxes)if(box.active&&segmentSphere(motion.previousPosition,motion.position,box.position,ITEM_PICKUP_RADIUS)){
         if(racer.item){

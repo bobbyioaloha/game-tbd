@@ -50,8 +50,10 @@ test('item slot does not overwrite held items; rings store boost fuel',()=>{
   assert.equal(race.boxes[0].active,true);assert.equal(race.racers[0].item,'cloak');
   advance(race,1);
   assert.ok(race.rings[0].used.has(0));assert.equal(race.racers[0].boostFuel,2);
+  const before=race.snapshot(race.racers[0]).fallSpeed;
   race.step(0.1,idle,false,true);
-  assert.equal(race.snapshot(race.racers[0]).fallSpeed,60);
+  assert.ok(race.snapshot(race.racers[0]).fallSpeed>before);
+  assert.ok(race.snapshot(race.racers[0]).fallSpeed<60);
 });
 test('empty slot collects only the supported items and restart clears course effects',()=>{
   const race=new PracticeRace(false);

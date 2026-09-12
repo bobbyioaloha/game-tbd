@@ -24,6 +24,8 @@ Boxes grant jellyfish umbrella (homing slow projectile after lock), ghost cloak 
 
 ## Audit fixes
 
+Boost accelerates at 30 m/s per second toward its cap and only applies for the duration paid by fuel. Release, braking, or fuel exhaustion removes speed above the normal 30 m/s cap. Impacts reduce current speed even during boost; recovery uses acceleration instead of an immediate speed reset.
+
 - On-screen key instructions reflect rebound controls.
 - Touching a sun blast while protected no longer grants immunity to that blast for its entire lifetime.
 - Expired projectiles are skipped before movement and damage processing.

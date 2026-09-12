@@ -8,9 +8,48 @@ test('boost is stored, consumed on demand, and braking preserves fuel',()=>{
   const race=new PracticeRace(false),p=race.racers[0];
   p.boostFuel=4;
   race.step(0.1,idle,false);assert.equal(p.boostFuel,4);assert.equal(p.boosting,false);
-  race.step(0.1,idle,false,true);assert.ok(Math.abs(p.boostFuel-3.9)<1e-8);assert.equal(race.snapshot(p).fallSpeed,60);
+  const before=race.snapshot(p).fallSpeed;
+  race.step(0.1,idle,false,true);assert.ok(Math.abs(p.boostFuel-3.9)<1e-8);
+  assert.ok(race.snapshot(p).fallSpeed>before&&race.snapshot(p).fallSpeed<60);
   race.step(0.1,idle,true,true);assert.ok(Math.abs(p.boostFuel-3.9)<1e-8);assert.equal(p.boosting,false);
   race.reset();assert.equal(race.racers[0].boostFuel,0);
+});
+test('brief boost taps cannot outperform holding boost or retain unpaid speed',()=>{
+  const run=(tap:boolean)=>{
+    const race=new PracticeRace(false),p=race.racers[0];
+    p.boostFuel=2;p.controller.setFallSpeed(30);
+    for(let i=0;i<1200;i++){
+      const powered=!tap||i%60===0;
+      race.step(1/120,idle,false,powered);
+      if(!powered)assert.ok(race.snapshot(p).fallSpeed<=30);
+    }
+    return {depth:-race.snapshot(p).position[1],fuel:p.boostFuel};
+  };
+  const held=run(false),tapped=run(true);
+  assert.ok(held.depth>tapped.depth+30);
+  assert.equal(held.fuel,0);assert.ok(tapped.fuel>1.8);
+});
+test('obstacle slowdown recovers gradually while boost remains held',()=>{
+  const race=new PracticeRace(false),p=race.racers[0],dt=1/120;
+  p.boostFuel=2;p.controller.setFallSpeed(60);
+  race.obstacles=[{id:0,kind:'fridge',position:[-7.5,-2,0],rotation:[0,0,0],active:true,hitAt:-1}];
+  race.step(dt,idle,false,true);
+  const hitSpeed=race.snapshot(p).fallSpeed;
+  assert.ok(p.flailUntil>race.elapsed);assert.ok(hitSpeed<30);
+  race.step(dt,idle,false,true);
+  assert.ok(race.snapshot(p).fallSpeed>hitSpeed&&race.snapshot(p).fallSpeed<30);
+});
+test('fuel exhaustion within a step and braking cannot retain unpaid boost speed',()=>{
+  for(const brake of [false,true]){
+    const race=new PracticeRace(false),p=race.racers[0];
+    p.boostFuel=0.005;p.controller.setFallSpeed(60);
+    race.step(0.1,idle,brake,true);
+    assert.equal(p.boostFuel,brake?0.005:0);
+    assert.ok(race.snapshot(p).fallSpeed<=30);
+    assert.ok(-race.snapshot(p).position[1]<=3.15+1e-8);
+    race.step(0.1,idle,brake,true);
+    assert.equal(p.boosting,false);
+  }
 });
 test('dodge has locked direction, cooldown, short immunity, and breaks homing',()=>{
   const race=new PracticeRace(false),p=race.racers[0];
