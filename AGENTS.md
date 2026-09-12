@@ -1,6 +1,6 @@
 # Shared foundation
-- TypeScript npm workspaces: apps/web (React/Vite/R3F), apps/server (Fastify), packages/shared (Zod contracts, inferred types, fixtures).
-- Run npm install, npm run dev; verify with npm run build, npm run typecheck, npm test.
+- TypeScript Bun workspaces: apps/web (React/Vite/R3F), apps/server (Fastify), packages/shared (Zod contracts, inferred types, fixtures).
+- Run bun install, bun run dev; verify with bun run build, bun run typecheck, bun run test.
 - Controls/movement are owned separately: see docs/controls-handoff.md. Keep user input and player position updates out of creation-loop.ts.
 - Gameplay developer owns apps/web/src/pages/GamePage.tsx and future gameplay modules. Use PowerUpModel for visuals and shared effect types for interpretation.
 - Generation developer owns apps/server, apps/web/src/generation, and apps/web/src/voice. Voice returns text; generation returns validated data.

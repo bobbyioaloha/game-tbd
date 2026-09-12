@@ -1,7 +1,7 @@
 # Voice-to-creation skeleton
 
 ## Try it
-Run `npm run dev` from the repository, then open http://localhost:5173.
+Run `bun run dev` from the repository, then open http://localhost:5173.
 
 **Generation lab** is the default page. Enter up to ten words and click **Generate creation**. The default source calls the real Fastify `POST /api/creations` route, whose provider is currently a deterministic mock. The other source runs offline in the browser. Both use the v2 contract. Inspect the result's geometry/effects, rotate it, or expand the JSON inspector. Errors preserve the previous preview. Requests can be cancelled; retries are explicit test submissions. This lab deliberately bypasses gameplay's one-attempt gate.
 
@@ -59,5 +59,5 @@ Next, implement an Astra-backed CreationProvider and inject it through `buildApp
 Then test varied text prompts in Generation lab before switching GamePage's DemoGame client argument from mockCreationClient to httpCreationClient. Real audio capture and server transcription can subsequently replace the simulated transcriber without changing the generation contract.
 
 ## Verification
-`npm run build`, `npm run typecheck`, and `npm test`.
+`bun run build`, `bun run typecheck`, and `bun run test`.
 Tests cover v1 compatibility, invalid mesh data, one-attempt semantics, current-position spawning, stale results, missed creations, and structured server failures/timeouts. Browser verification covers server generation and the in-game pickup-to-activation flow.

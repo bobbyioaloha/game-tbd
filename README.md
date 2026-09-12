@@ -10,23 +10,25 @@ The default **Generation lab** tests the server's mock creation provider with a 
 The sections below document the original v1 foundation, preserved for compatibility.
 
 ## Start
-Use Node 22.12+ and npm 10+. On Windows with this repository in WSL, run these commands in a WSL terminal.
+Use Node 22.12+ and Bun 1.4.2+ (the package manager is pinned to bun@1.4.2). Install Bun using [its official instructions](https://bun.sh/docs/installation). On Windows with this repository in WSL, run these commands in a WSL terminal.
 
 ```sh
-npm install
+bun install
 cp .env.example apps/server/.env
-npm run dev
+bun run dev
 ```
+
+Commit bun.lock for reproducible installs; use bun install --frozen-lockfile in CI. Bun manages dependencies and scripts; the backend and existing tests still run on Node. Use bun run test to run the project test script.
 
 Open http://localhost:5173. One command builds shared types first and starts the shared watcher, Vite, and Fastify. Ctrl+C stops all three. The server defaults to http://127.0.0.1:3001; GET /api/health reports mock mode. No credentials are needed. Vite proxies /api to port 3001; if you change PORT, also update the proxy target in apps/web/vite.config.ts.
 
 ```sh
-npm run build
-npm run typecheck
-npm test
+bun run build
+bun run typecheck
+bun run test
 ```
 
-Build output lives in each workspace's dist directory. After building, `npm start -w @sky/server` runs the server. Deploy the web dist separately with a same-origin /api reverse proxy. The development servers are not a production deployment.
+Build output lives in each workspace's dist directory. After building, `bun run --filter @sky/server start` runs the server. Deploy the web dist separately with a same-origin /api reverse proxy. The development servers are not a production deployment.
 
 ## Layout and parallel ownership
 - `packages/shared/src/schema.ts`: versioned Zod contract and inferred types; no React or server dependencies.

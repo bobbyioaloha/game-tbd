@@ -44,6 +44,6 @@ The world owns pickup existence/removal and collision. Remove a pickup before re
 Voice inputs call startRecording(), finishRecording(), and cancelRecording(). Keyboard bindings are in use-game-input.ts; the page's accessible hold-to-speak button sends the same actions. Recording and generation must not pause the player.
 
 ## Checks
-Run `npm run build`, `npm run typecheck`, and `npm test`. Lifecycle tests require no player at all; demo tests cover integration and an injected alternate controller.
+Run `bun run build`, `bun run typecheck`, and `bun run test`. Lifecycle tests require no player at all; demo tests cover integration and an injected alternate controller.
 
 Manual check: Game → Start new run → stay centered for the gold pickup → hold/release Space → keep falling → collect the creation → observe the fall-speed change. The generation lab remains independent.
