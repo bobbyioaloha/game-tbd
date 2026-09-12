@@ -21,3 +21,14 @@ select:focus-visible{outline:2px solid #d1ff8a;outline-offset:3px}
 .comparison-export a{color:#c9e6a5}.comparison-export textarea{display:block;width:100%;margin:12px 0;background:#101923;color:#edf5ff;border:1px solid #4b5f70;padding:12px;font:12px monospace;resize:vertical}
 
 .paid-attempt label{display:flex;align-items:center;gap:10px;margin:14px 0;letter-spacing:0}.paid-attempt input[type="checkbox"]{width:18px;height:18px;margin:0;padding:0;accent-color:#c9e6a5}
+
+.voice-controls{display:grid;gap:10px;margin:14px 0}.voice-controls meter{width:100%}.voice-controls p{margin:0}.voice-consent{display:flex;align-items:center;gap:8px}.voice-consent input[type="checkbox"]{width:18px;height:18px}.race-voice{border-top:1px solid #8aa8b7;margin-top:20px;padding-top:12px}.race-voice select{display:block;max-width:100%;width:100%}.race-voice .voice-controls button{min-height:40px}
+
+.voice-lab button:not(.generate){padding:9px 12px;background:#263642;color:#eaf0f8;border:1px solid #4b5f70;border-radius:6px;font:inherit;font-size:12px}
+.voice-lab .voice-controls>span{font-size:12px;color:#a8b7c6}.voice-controls .generate{touch-action:none;user-select:none}
+
+.race-voice select{margin:8px 0 14px;padding:10px;background:#101923;color:#edf5ff;border:1px solid #4b5f70;border-radius:6px;font:inherit;font-size:12px}
+.race-voice-status{position:absolute;bottom:24px;left:20px;right:20px;z-index:2;background:#14263cee;border:1px solid #e4c865;border-radius:10px;padding:12px 16px;pointer-events:none;font-size:13px;text-align:center}
+.race-voice-status span{display:block;margin-top:6px;color:#c9e6a5}
+
+.voice-mode-notice{margin:16px 0;padding:12px;border:1px solid #b99848;border-radius:8px;background:#302b1d}.voice-mode-notice strong{color:#ffda85;font-size:13px}.voice-mode-notice p{margin:8px 0 0}

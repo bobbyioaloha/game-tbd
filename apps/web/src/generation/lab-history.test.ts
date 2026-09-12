@@ -18,7 +18,7 @@ test('comparison counts failures and cancellations and separates methods, config
   const summary = summarizeAttempts(attempts);
   assert.equal(summary.length, 4);
   assert.deepEqual(summary[0], {label: 'Test / Procedural parts / live',
-    attempts: 4, ready: 2, failed: 1, cancelled: 1, medianMs: 6000});
+    attempts: 4, ready: 2, failed: 1, cancelled: 1, transcribed:0, medianMs: 6000});
   const exported = JSON.parse(serializeLabHistory(attempts));
   assert.equal(exported.attempts.length, 7);
   assert.equal(exported.attempts[2].outcome, 'cancelled');
@@ -29,4 +29,11 @@ test('partial usage survives a local cancellation without becoming zero usage', 
   const metric = {stage: 'design' as const, model: 'design', durationMs: 100};
   assert.deepEqual(attemptMetrics([{type: 'design', design: proceduralFixtures[0].design, metric}]), [metric]);
   assert.equal(attemptMetrics([]).length, 0);
+});
+
+test('failed speech attempts retain their configured model in comparison labels',()=>{
+  const summary=summarizeAttempts([{...attempt,outcome:'failed',inputSource:'voice',
+    voice:{mode:'create',captureMs:1000,transcriptionModel:'gpt-transcribe',events:[]}}]);
+  assert.match(summary[0].label,/gpt-transcribe/);
+  assert.equal(summary[0].failed,1);
 });

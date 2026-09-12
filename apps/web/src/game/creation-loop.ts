@@ -1,9 +1,10 @@
+import type { AudioCreationClient } from '../voice/voice-client';
 import { CreationSpecSchema, GenerationRequestSchema, type CreationClient, type CreationSpec, type PowerUpEffect } from '@sky/shared';
-import type { VoiceTranscriber } from '../voice/types';
+import type { PromptCapture } from '../voice/types';
 
-export type Phase = 'available' | 'prompted' | 'recording' | 'transcribing' | 'generating' | 'spawned' | 'activated' | 'missed' | 'failed' | 'ended';
+export type Phase = 'available' | 'prompted' | 'preparing' | 'recording' | 'transcribing' | 'generating' | 'spawned' | 'activated' | 'missed' | 'failed' | 'ended';
 export type CreationSnapshot = {
-  session: number; running: boolean; phase: Phase; message: string; phaseSeconds: number;
+  session: number; running: boolean; phase: Phase; message: string; phaseSeconds: number; transcript?:string;
 };
 export interface CreationHost {
   // Host chooses the position from its current player state when generation completes.
@@ -19,7 +20,7 @@ export class CreationLoop {
   private serial = 0;
   private pendingCreation?: {instanceId: string; spec: CreationSpec};
   private state!: CreationSnapshot;
-  constructor(private client: CreationClient, private voice: VoiceTranscriber, private host: CreationHost) { this.reset(); }
+  constructor(private client: CreationClient, private voice: PromptCapture, private host: CreationHost, private audioClient?:AudioCreationClient) { this.reset(); }
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private emit() { this.state = {...this.state}; this.listeners.forEach(listener => listener()); }
@@ -66,16 +67,24 @@ export class CreationLoop {
   startRecording = () => {
     if (!this.state.running || this.state.phase !== 'prompted') return;
     const token = this.serial;
-    const recordingActive = () => this.current(token) && ['recording', 'transcribing'].includes(this.state.phase);
-    this.state.phase = 'recording'; this.state.phaseSeconds = 0;
-    this.state.message = 'Recording simulation… release to submit.'; this.emit();
-    this.recordingStart = Promise.resolve().then(() => {
-      // A quick release may already be transcribing; cancellation must prevent a late start.
-      if (recordingActive()) return this.voice.start();
+    const recordingActive = () => this.current(token) && ['preparing', 'recording', 'transcribing'].includes(this.state.phase);
+    const audio='kind' in this.voice && this.voice.kind==='audio';
+    this.state.phase = audio ? 'preparing' : 'recording'; this.state.phaseSeconds = 0;
+    this.state.message = audio ? 'Preparing microphone…' : 'Recording simulation… release to submit.'; this.emit();
+    this.recordingStart = Promise.resolve().then(async () => {
+      if (!recordingActive()) return;
+      const onLimit=()=>{void this.finishRecording();};
+      if ('kind' in this.voice && this.voice.kind==='audio') {
+        await this.voice.start(onLimit,error=>{if(recordingActive())this.fail(error.message);});
+      } else await this.voice.start(onLimit);
+      if (recordingActive() && this.state.phase==='preparing') {
+        this.state.phase='recording';this.state.phaseSeconds=0;this.state.message='Recording… release to submit.';this.emit();
+      }
     });
     void this.recordingStart.catch(() => { if (recordingActive()) this.fail('Could not start recording.'); });
   };
   finishRecording = async () => {
+    if (this.state.phase==='preparing') {this.cancelRecording();return;}
     if (!this.state.running || this.state.phase !== 'recording') return;
     const token = this.serial;
     this.state.phase = 'transcribing'; this.state.phaseSeconds = 0;
@@ -83,14 +92,28 @@ export class CreationLoop {
     try {
       await this.recordingStart;
       if (!this.current(token) || this.getSnapshot().phase !== 'transcribing') return;
-      const text = await this.voice.stop();
+      const captured = await this.voice.stop();
       if (!this.current(token) || this.getSnapshot().phase !== 'transcribing') return;
-      const input = GenerationRequestSchema.safeParse({text});
-      if (!input.success) { this.fail('Use one to ten words, at most 200 characters.'); return; }
-      this.state.phase = 'generating'; this.state.phaseSeconds = 0;
-      this.state.message = 'Creating while you fall…'; this.emit();
       this.abort = new AbortController();
-      const result = await this.client.generate(input.data, {signal: this.abort.signal});
+      let result:import('@sky/shared').CreationResult;
+      if (typeof captured==='string') {
+        const input = GenerationRequestSchema.safeParse({text:captured});
+        if (!input.success) {this.fail('Use one to ten words, at most 200 characters.');return;}
+        this.state.transcript=input.data.text;
+        this.state.phase='generating';this.state.phaseSeconds=0;this.state.message='Creating while you fall…';this.emit();
+        result=await this.client.generate(input.data,{signal:this.abort.signal});
+      } else {
+        if (!this.audioClient) throw new Error('Audio generation is not configured.');
+        const spec=await this.audioClient.generateAudio(captured,{signal:this.abort.signal,onProgress:(phase,message,transcript)=>{
+          if (!this.current(token) || !['transcribing','generating'].includes(this.state.phase)) return;
+          if (phase!==this.state.phase) this.state.phaseSeconds=0;
+          this.state.phase=phase;this.state.message=message;
+          if (transcript) this.state.transcript=transcript;
+          this.emit();
+        }});
+        result={ok:true,spec};
+        if (this.current(token) && this.state.phase==='transcribing') this.state.phase='generating';
+      }
       if (!this.current(token) || this.getSnapshot().phase !== 'generating') return;
       if (!result.ok) { this.fail(result.error.message); return; }
       const parsed = CreationSpecSchema.safeParse(result.spec);
@@ -100,20 +123,21 @@ export class CreationLoop {
       this.host.spawnCreation(instanceId, parsed.data);
       this.state.phase = 'spawned'; this.state.phaseSeconds = 0;
       this.state.message = parsed.data.displayName+' is ahead. Fly into it to activate.'; this.emit();
-    } catch {
-      if (this.current(token) && this.getSnapshot().phase !== 'failed') this.fail('Recording or generation failed.');
-    }
+    } catch (error) {
+      if (this.current(token) && this.getSnapshot().phase !== 'failed') this.fail(error instanceof Error ? error.message : 'Recording or generation failed.');
+    } finally {if (this.current(token)) this.voice.cancel();}
   };
   cancelRecording = () => {
-    if (['prompted','recording','transcribing'].includes(this.state.phase)) this.fail('Input cancelled.');
+    if (['prompted','preparing','recording','transcribing','generating'].includes(this.state.phase)) this.fail('Input cancelled.');
   };
   // Host supplies gameplay seconds; this advances only voice/generation deadlines.
   advanceTime(dt: number) {
     if (!this.state.running) return;
+    const previousTick=Math.floor(this.state.phaseSeconds*10);
     this.state.phaseSeconds += dt;
     if (this.state.phase === 'prompted' && this.state.phaseSeconds > 10) this.fail('Speaking window expired.');
     if (this.state.phase === 'recording' && this.state.phaseSeconds > 8) void this.finishRecording();
-    if (['transcribing','generating'].includes(this.state.phase) && this.state.phaseSeconds > 30) this.fail('Request timed out.');
-    this.emit();
+    if (!('kind' in this.voice) && ['transcribing','generating'].includes(this.state.phase) && this.state.phaseSeconds > 30) this.fail('Request timed out.');
+    if (Math.floor(this.state.phaseSeconds*10)!==previousTick) this.emit();
   }
 }

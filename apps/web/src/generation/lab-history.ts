@@ -1,4 +1,4 @@
-import type { CreationSpec, GeometryMode, PipelineEvent, PipelineProfile, StageMetric } from '@sky/shared';
+import type { CreationSpec, GeometryMode, PipelineEvent, PipelineProfile, StageMetric, PipelineErrorData, TranscriptResult, VoiceEvent } from '@sky/shared';
 
 export const HISTORY_LIMIT = 60;
 export const geometryModeLabels: Record<GeometryMode, string> = {
@@ -6,7 +6,9 @@ export const geometryModeLabels: Record<GeometryMode, string> = {
 };
 export type LabAttempt = {
   id: number; prompt: string; geometryMode: GeometryMode; profile: PipelineProfile;
-  outcome: 'ready' | 'failed' | 'cancelled'; message: string; elapsedMs: number;
+  outcome: 'ready' | 'failed' | 'cancelled' | 'transcribed'; message: string; elapsedMs: number;
+  inputSource?:'text'|'voice';
+  voice?:{mode:'create'|'transcribe-only';captureMs:number;transcriptionModel?:string;transcription?:TranscriptResult;error?:PipelineErrorData;events:VoiceEvent[]};
   spec?: CreationSpec; events: PipelineEvent[];
   recognition: 'unrated' | 'clear' | 'partial' | 'unclear';
 };
@@ -17,12 +19,13 @@ export function attemptMetrics(events: PipelineEvent[]): StageMetric[] {
   return events.flatMap(event => event.type === 'design' || event.type === 'geometry' ? [event.metric] : []);
 }
 export function summarizeAttempts(attempts: LabAttempt[]) {
-  const groups = new Map<string, {label: string; attempts: number; ready: number; failed: number; cancelled: number; durations: number[]}>();
+  const groups = new Map<string, {label: string; attempts: number; ready: number; failed: number; cancelled: number; transcribed:number; durations: number[]}>();
   for (const attempt of attempts) {
-    const key = JSON.stringify([attempt.profile, attempt.geometryMode]);
+    const speechModel=attempt.voice?.transcriptionModel??attempt.voice?.transcription?.metric.model;
+    const key = JSON.stringify([attempt.profile, attempt.geometryMode,attempt.inputSource??'text',attempt.voice?.mode,speechModel]);
     const group = groups.get(key) ?? {
-      label: attempt.profile.label+' / '+geometryModeLabels[attempt.geometryMode]+' / '+attempt.profile.mode,
-      attempts: 0, ready: 0, failed: 0, cancelled: 0, durations: [],
+      label: attempt.profile.label+' / '+geometryModeLabels[attempt.geometryMode]+' / '+attempt.profile.mode+(attempt.voice?' / voice / '+attempt.voice.mode+' / '+(speechModel??'unknown speech model'):''),
+      attempts: 0, ready: 0, failed: 0, cancelled: 0, transcribed:0, durations: [],
     };
     group.attempts++;
     group[attempt.outcome]++;

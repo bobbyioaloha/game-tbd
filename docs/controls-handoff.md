@@ -1,9 +1,23 @@
 # Controls and movement handoff
 
-Your entry points:
-- `apps/web/src/game/use-game-input.ts`: keyboard bindings → steering axes and semantic voice press/release actions. Replace or extend this for mouse, touch, or gamepad.
-- `apps/web/src/game/player-controller.ts`: PlayerController interface and the simple falling/steering implementation. Own movement, acceleration, limits, and future player motion here.
-- `apps/web/src/pages/GamePage.tsx`: compose your controller with the demo and choose rendering/camera.
+## Main race
+
+The actual game uses `MovementTest`, `RaceScene`, `PracticeRace`, and `freefall-controller.ts`.
+
+- `MovementTest.tsx` owns keyboard input and rebinding. Space press/release invokes `useRaceVoice` actions; WASD/K/I/J remain in the existing handler. Do not add a second movement listener for voice.
+- `RaceScene.tsx` retains the sole 120 Hz fixed-step integration. After each `race.step`, it passes previous/current positions to `RaceCreationHost.step` for swept pickup checks and creation lifecycle timing.
+- `PracticeRace.applyCreationEffects` honors generated duration/multiplier/radius without occupying inventory. Keep bounded generated modifiers when changing movement.
+- `race-creation-host.ts` owns the authored voice pickup and generated collectible. It reads the latest player position at spawn time and never advances movement.
+- `voice/RaceVoiceControls.tsx` owns microphone/profile setup and per-run paid consent. Pause, reset, finish, and unmount must cancel active voice work and invalidate late results.
+
+Manual check: Game → Movement test → Enable microphone before the run → keep the default mock profile → start falling without steering → collect the gold pickup at 180 m → hold/release Space → collect the creation ahead. The same input works through the hold button. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
+
+## Separate regression demo
+
+`Game → Voice / creation demo` uses these older, injectable entry points:
+- `apps/web/src/game/use-game-input.ts`: keyboard bindings → steering axes and semantic voice actions.
+- `apps/web/src/game/player-controller.ts`: simple falling/steering PlayerController.
+- `apps/web/src/pages/CreationDemoPage.tsx`: compose DemoGame and its simulated transcriber.
 
 ## Movement interface
 ```ts
@@ -24,7 +38,7 @@ interface PlayerController {
 
 All positions are world meters. +Y is up; falling travels toward -Y. fallSpeed is a positive downward magnitude in meters/second. The demo supplies bounded frame delta, axes, and the active movement-effect multiplier. Return the actual movement segment so collision checks work with your motion. reset restores a new run's initial state; getSnapshot must return the current position/speed without advancing movement.
 
-Inject your implementation at the existing composition point in GamePage:
+Inject your implementation at the existing composition point in CreationDemoPage:
 ```ts
 new DemoGame(creationClient, transcriber, new YourPlayerController());
 ```
@@ -41,9 +55,9 @@ The creation lifecycle receives collectVoice / missVoice and collectCreation(ins
 
 The world owns pickup existence/removal and collision. Remove a pickup before reporting its event. CreationLoop additionally guards duplicate events and wrong instance IDs. The demo handles one Voice Power Up per run. If replacing the entire demo world, implement CreationHost and report these same events; reset/end must clear world pickups and invalidate lifecycle work together.
 
-Voice inputs call startRecording(), finishRecording(), and cancelRecording(). Keyboard bindings are in use-game-input.ts; the page's accessible hold-to-speak button sends the same actions. Recording and generation must not pause the player.
+Voice inputs call startRecording(), finishRecording(), and cancelRecording(). Demo keyboard bindings are in use-game-input.ts; the page's accessible hold-to-speak button sends the same actions. Recording and generation must not pause the player.
 
 ## Checks
 Run `bun run build`, `bun run typecheck`, and `bun run test`. Lifecycle tests require no player at all; demo tests cover integration and an injected alternate controller.
 
-Manual check: Game → Start new run → stay centered for the gold pickup → hold/release Space → keep falling → collect the creation → observe the fall-speed change. The generation lab remains independent.
+Demo manual check: Game → Voice / creation demo → Start new run → stay centered for the gold pickup → hold/release Space → keep falling → collect the creation → observe the fall-speed change. The generation lab remains independent.

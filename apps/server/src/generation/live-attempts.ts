@@ -15,7 +15,7 @@ export class LiveAttempts {
     return {enabled:this.policy.enabled,maxAttempts:this.policy.maxAttempts,attemptsUsed:this.used.size,
       attemptsRemaining:this.policy.maxAttempts-this.used.size,busy:this.busy};
   }
-  acquire(request:PipelineRequest):() => void {
+  acquire(request:Pick<PipelineRequest,'paidAttempt'>):() => void {
     if (!this.policy.enabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
     if (!request.paidAttempt?.confirmed) throw new PipelineFailure('CONSENT_REQUIRED','Allow this paid attempt before generating.');
     const id = request.paidAttempt.id;

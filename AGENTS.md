@@ -3,17 +3,17 @@
 - Run bun install, bun run dev; verify with bun run build, bun run typecheck, bun run test.
 - Controls/movement are owned separately: see docs/controls-handoff.md. Keep user input and player position updates out of creation-loop.ts.
 - Gameplay developer owns apps/web/src/pages/GamePage.tsx and future gameplay modules. Use PowerUpModel for visuals and shared effect types for interpretation.
-- Generation developer owns apps/server, apps/web/src/generation, and apps/web/src/voice. Voice returns text; generation returns validated data.
+- Generation developer owns apps/server, apps/web/src/generation, and apps/web/src/voice. Microphone capture returns audio; server transcription returns validated text; generation returns validated data.
 - Coordinate changes to packages/shared, root configs, and lockfile before editing. Preserve the v1 contract or explicitly coordinate a new version.
 - AI may return declarative data only. Validate at server and client boundaries; never evaluate generated code. Credentials stay server-side.
 - Keep collectible collision independent of appearance. Do not add physics, database, authentication, or multiplayer to this foundation.
 - Inspect existing work and avoid unrelated changes. Run relevant checks before handoff.
 
 - Voice Power Ups are authored one-attempt grants, separate from generated CreationSpec v2 objects. Keep v1 fixtures/API compatible.
-- Preserve the one-attempt rule: no automatic retries, refunds, or stale results spawning into another run. Game voice and generation remain mocked; the isolated Generation lab can run the implemented two-stage live pipeline.
-- CreationPipeline owns two-stage generation; CreationProvider is the adapter boundary for the existing raw-spec API. Generation lab is the manual text-to-3D test interface.
+- Preserve the one-attempt rule: no automatic retries, refunds, or stale results spawning into another run. Main race and Generation lab default to mocks and support explicitly opted-in paid speech/generation. The separate creation demo remains simulated.
+- CreationPipeline owns shared paid admission, optional transcription, and two-stage generation; CreationProvider is the adapter boundary for the existing raw-spec API. Generation lab is the text/voice-to-3D test interface.
 
-- PlayerController and use-game-input.ts are the controls extension points. DemoGame owns world integration; CreationLoop receives semantic pickup events and calls CreationHost. Avoid duplicate frame integration.
+- Main race controls live in MovementTest and freefall-controller.ts; RaceScene owns its sole fixed-step loop. PlayerController/use-game-input.ts and DemoGame remain the separate demo extension points; CreationLoop receives semantic pickup events and calls CreationHost. Avoid duplicate frame integration.
 
 - Live lab attempts run design then geometry with a shared 30-second deadline and no SDK retries. Geometry receives only the visual brief. Preserve one mesh / one effect and keep controls/gameplay isolated. See docs/prompt-to-mesh-pipeline.md.
 
@@ -21,6 +21,10 @@
 - Procedural rendering compiles static parts into one mesh with fixed tessellation and a separate 10,000-triangle budget. Preserve raw mesh limits and keep model-written code, colliders, and arbitrary renderer settings rejected.
 - GamePage contains the merged movement/race test and CreationDemoPage; lab experiments must not replace or wire into these game views implicitly.
 
-- Paid calls are disabled by default, even when API keys exist. Only explicit server --live (root bun run dev:live) enables the local lab; never turn on live mode as part of builds, tests, previews, or health checks.
+- Paid calls are disabled by default, even when API keys exist. Only explicit server --live (root bun run dev:live) enables local paid speech/generation; never turn on live mode as part of builds, tests, previews, or health checks.
 - Preserve server-side per-attempt consent, unique attempt IDs, one live request at a time and the bounded per-start allowance. Live server runs without watch/restart; failures and cancellation after dispatch consume attempts.
 - Never read, print, commit, export, or place local API keys in client code/VITE_ variables. Tests use fake credentials and intercepted transports; do not run paid tests without explicit user authorization for that test.
+
+- Voice uses shared contracts in packages/shared/src/voice.ts and replaceable capture/client/provider adapters in apps/web/src/voice and apps/server/src/voice. See docs/voice-input-plan.md.
+- Preserve 8-second capture, separate 10-second upload/transcription and 30-second generation budgets; one paid gate covers the full voice attempt. Never store audio in files, logs, or history exports.
+- RaceCreationHost owns voice pickup/spawn integration; it consumes the race's swept movement segment and never moves the player. Pause/reset/end/navigation abort voice work and discard stale results. Generated effects use their validated parameters and do not replace inventory.

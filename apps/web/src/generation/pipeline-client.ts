@@ -20,6 +20,10 @@ export async function runLabPipeline(request:PipelineRequest,signal:AbortSignal,
     );
     throw new Error(error.success ? error.data.message : 'The server rejected the pipeline request.');
   }
+  await readEventStream(response,PipelineEventSchema.parse,onEvent,event=>event.type==='complete'||event.type==='failed');
+}
+
+export async function readEventStream<T>(response:Response,parse:(data:unknown)=>T,onEvent:(event:T)=>void,isTerminal:(event:T)=>boolean) {
   if (!response.body) throw new Error('Streaming response unavailable.');
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -27,8 +31,8 @@ export async function runLabPipeline(request:PipelineRequest,signal:AbortSignal,
   const consume = (line:string) => {
     if (!line.trim()) return;
     if (terminal) throw new Error('Unexpected data after pipeline completion.');
-    const event = PipelineEventSchema.parse(JSON.parse(line));
-    terminal = event.type === 'complete' || event.type === 'failed';
+    const event = parse(JSON.parse(line));
+    terminal = isTerminal(event);
     onEvent(event);
   };
   try {

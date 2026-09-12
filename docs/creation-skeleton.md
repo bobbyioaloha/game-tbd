@@ -1,15 +1,15 @@
 # Voice-to-creation skeleton
 
-The lab has since gained a two-stage live provider: see [prompt-to-mesh pipeline](prompt-to-mesh-pipeline.md). The Game skeleton described here still uses mocks.
+The main race and lab now support recorded speech with opt-in live generation: see [voice implementation](voice-input-plan.md). This guide describes the separate simulated regression demo and the compatible CreationSpec v2 / legacy API.
 
 ## Try it
 Run `bun run dev` from the repository, then open http://localhost:5173.
 
 **Generation lab** now selects a two-stage server profile. See the pipeline guide above for current behavior, configuration, history, and streaming details.
 
-**Game** is a small integration scene. Before starting, set the simulated transcript. Start a run and remain centered to collect the gold Voice Power Up after about 2.4 seconds. Hold Space (or the hold-to-speak button) and release to submit. WASD moves on X/Z while falling on -Y. The creation spawns ahead and is collected automatically on collision if you remain in its path. Red cubes end the run unless protection is active. Try “ghost cloak” or “angry sun” for the other effects. Start a new run to obtain another Voice Power Up.
+**Game → Voice / creation demo** is a small integration scene. Before starting, set the simulated transcript. Start a run and remain centered to collect the gold Voice Power Up after about 2.4 seconds. Hold Space (or the hold-to-speak button) and release to submit. WASD moves on X/Z while falling on -Y. The creation spawns ahead and is collected automatically on collision if you remain in its path. Red cubes end the run unless protection is active. Try “ghost cloak” or “angry sun” for the other effects. Start a new run to obtain another Voice Power Up.
 
-The Game skeleton makes no microphone or paid API calls. The transcription adapter returns the text field value; it is explicitly a simulation. The original Fixtures page and v1 API remain available.
+The separate Voice / creation demo makes no microphone or paid API calls. The transcription adapter returns the text field value; it is explicitly a simulation. The original Fixtures page and v1 API remain available.
 
 ## Architecture
 - `packages/shared/src/creation.ts`: CreationSpec v2, bounded mesh validation, v1 adapter, typed client and distinct VoicePickup / CreationPickup.
@@ -54,7 +54,7 @@ Effect classes currently map to: movement → reduceFallSpeed, protection → in
 
 The route invokes its provider exactly once, enforces a 30-second deadline, aborts on disconnect, and validates unknown provider output. The HTTP client validates again and uses a 35-second deadline. The in-game controller guards long transcription/generation phases separately. Provider errors are not forwarded to the client.
 
-The isolated server pipeline is now implemented; live game integration and real voice transcription remain separate next steps. See the pipeline guide above.
+The main race uses the new /api/voice/creations workflow; /api/creations remains the compatible mocked raw-spec endpoint. See the voice implementation guide above.
 
 ## Verification
 `bun run build`, `bun run typecheck`, and `bun run test`.

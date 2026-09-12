@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { RaceVoiceControls, useRaceVoice } from '../voice/RaceVoiceControls';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PracticeRace } from './practice-race';
 import { RaceScene, defaultBindings, initialRaceHud, type RaceRuntime } from './RaceScene';
@@ -16,7 +17,10 @@ const typing = (target: EventTarget | null) => target instanceof HTMLElement && 
 const initialHud = initialRaceHud;
 
 export function MovementTest() {
-  const [runtime] = useState<Runtime>(() => ({race: new PracticeRace(), keys: new Set(), paused: true, bindings: {...defaults}, clock: 0, generation: 0, fireRequested: false, dodgeRequested:false}));
+  const [race]=useState(()=>new PracticeRace());
+  const voice=useRaceVoice(race);
+  const voiceActions=useRef(voice);voiceActions.current=voice;
+  const [runtime] = useState<Runtime>(() => ({race, voice:voice.host, keys: new Set(), paused: true, bindings: {...defaults}, clock: 0, generation: 0, fireRequested: false, dodgeRequested:false}));
   const [paused, setPaused] = useState(true);
   const [hud, setHud] = useState(initialHud);
   const [bindings, setBindings] = useState<Bindings>({...defaults});
@@ -24,6 +28,7 @@ export function MovementTest() {
   const [notice, setNotice] = useState('');
   const pause = useCallback((value: boolean) => {
     runtime.paused = value;
+    if (value) runtime.voice?.pause(); else runtime.voice?.start();
     runtime.keys.clear(); runtime.fireRequested=false;runtime.dodgeRequested=false; runtime.target=undefined;
     runtime.race.racers[0].controller.braking = false;
     setPaused(value);
@@ -31,7 +36,7 @@ export function MovementTest() {
   }, [runtime]);
   const reset = () => {
     pause(true);
-    runtime.race.reset(); runtime.clock = 0; runtime.generation++;
+    runtime.race.reset();voiceActions.current.reset(); runtime.clock = 0; runtime.generation++;
     setHud(initialHud);
   };
 
@@ -57,6 +62,9 @@ export function MovementTest() {
         event.preventDefault(); pause(!runtime.paused); return;
       }
       if (typing(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
+      if (event.code==='Space') {
+        event.preventDefault();if (!runtime.paused&&!event.repeat) voiceActions.current.start();return;
+      }
       if (Object.values(runtime.bindings).includes(event.code)) {
         event.preventDefault();
         if (!runtime.paused) {
@@ -66,7 +74,7 @@ export function MovementTest() {
         }
       }
     };
-    const up = (event: KeyboardEvent) => { runtime.keys.delete(event.code); };
+    const up = (event: KeyboardEvent) => { runtime.keys.delete(event.code);if(event.code==='Space')voiceActions.current.finish(); };
     const blur = () => pause(true);
     const visibility = () => { if (document.hidden) pause(true); };
     window.addEventListener('keydown', down);
@@ -97,6 +105,11 @@ export function MovementTest() {
         <RaceOverlay hud={hud} paused={paused} useKey={label(bindings.use)} boostKey={label(bindings.boost)} dodgeKey={label(bindings.dodge)}/>
         {!paused && hud.finish === null && hud.remaining <= 100 && <div className="race-countdown">{Math.ceil(hud.remaining)} m<br/><small>BRACE FOR SQUISH</small></div>}
         {!paused && hud.finish !== null && <div className="race-result"><strong>SPLAT! {hud.place} / 4</strong><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={reset}>Race again</button></div>}
+        {!paused && hud.finish===null && voice.state.phase!=='available' && <div className="race-voice-status" role="status">
+          <strong>{voice.state.message}</strong>
+          {voice.state.phase==='prompted'&&<span>{voice.live?'Live speech':'Mock · uses “'+voice.mockText+'”'} · 10 words maximum · {Math.max(0,10-voice.state.phaseSeconds).toFixed(0)} s to begin</span>}
+          {voice.state.transcript&&<span>{voice.live?'Heard':'Simulated transcript'}: “{voice.state.transcript}”</span>}
+        </div>}
         {paused && <div className="movement-pause"><h2>Paused</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
           <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); pause(false);}}>Resume / start fall</button>
           <small>Escape resumes · leaving this window pauses</small></div>}
@@ -115,13 +128,14 @@ export function MovementTest() {
         <h2>Held item</h2><p className="race-inventory">{hud.item}</p>
         <p>{label(bindings.use)}: use / fire · {hud.look?'shoot upward':'shoot downward'}<br/>{hud.effects || 'No active effects'}</p>
         <p>Striped boxes: random item. Three rare rings refill boost fuel. Hold {label(bindings.boost)} to spend it; {label(bindings.brake)} brakes without draining fuel. Fridges, satellites, balloons and sofas: dodge!</p>
+        <RaceVoiceControls voice={voice} paused={paused}/>
         <h2>Controls</h2><p>Click a key to rebind. Uses physical key positions; changes last for this session.</p>
         <div className="movement-bindings">{(Object.keys(defaults) as Action[]).map(action =>
           <button key={action} aria-label={`Rebind ${names[action]}`} onClick={() => {pause(true); setBinding(action); setNotice('Press a letter key. Escape cancels.');}}>
             <span>{names[action]}</span><kbd>{binding === action ? '…' : label(bindings[action])}</kbd>
           </button>)}</div>
         <p role="status">{notice}</p>
-        <small>{label(bindings.dodge)} dodges · {label(bindings.boost)} boosts · Space reserved for voice.<br/>Rivals collect and use items. Voice is not connected.</small>
+        <small>{label(bindings.dodge)} dodges · {label(bindings.boost)} boosts · Hold Space for voice.<br/>Rivals collect and use inventory items. Voice creations belong to you.</small>
       </aside>
     </div>
   </section>;

@@ -28,7 +28,7 @@ Adding a key, starting the server, refreshing profiles, loading previews, and ed
 
 The server enables live calls only with the explicit `--live` CLI argument used by `dev:live`. It enforces paid consent, unique attempt IDs, one live attempt in flight, and `LIVE_MAX_ATTEMPTS` (default 3, integer 1–10) across all profiles and tabs. Dispatched failures/cancellations consume the allowance; invalid or already-cancelled requests do not. Replaying a dispatched ID never generates again. Counts and IDs live in server memory and reset on restart. Live mode intentionally runs without a backend watcher so code edits cannot silently reset them. Restart deliberately to load backend changes or obtain another allowance.
 
-The unauthenticated paid lab is for localhost only. Live startup rejects a non-loopback HOST, paid browser requests reject non-local origins, and Vite blocks `.env` and server files. The server gate remains authoritative if the UI is bypassed. Game endpoints remain mocks.
+The unauthenticated paid lab is for localhost only. Live startup rejects a non-loopback HOST, paid browser requests reject non-local origins, and Vite blocks `.env` and server files. The server gate remains authoritative if the UI is bypassed. Legacy raw-spec endpoints remain mocks; the main race uses the explicitly guarded voice endpoint.
 
 Set a project hard spend limit separately in the OpenAI dashboard; the per-start attempt allowance is not a dollar cap. Hard limits can slightly overshoot while enforcement propagates; alerts alone do not stop calls. See [spend limits](https://developers.openai.com/api/docs/guides/spend-limits).
 
@@ -48,6 +48,7 @@ Keep 30 seconds as the failure ceiling. A 5–10 second typical result is an eva
 
 Server profiles in `apps/server/src/generation/pipeline-config.ts`:
 - `mock`: deterministic two-stage transport.
+- `sol-direct`: Sol for both stages with `reasoning: none`, an explicit latency-testing alternative.
 - `sol-astra`: Sol design → Astra visuals.
 - `sol-sol`: Sol for both stages.
 - `configured`: environment-selected models and output budgets.
@@ -62,7 +63,7 @@ Server profiles in `apps/server/src/generation/pipeline-config.ts`:
 | GEOMETRY_REASONING | low |
 | GEOMETRY_MAX_OUTPUT_TOKENS | 12000 |
 
-Both visual methods use the selected geometry-stage settings. Supported IDs remain gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna. Reasoning is low, medium, or high; output budgets are integers 256–16000. Budgets include reasoning tokens. Incomplete responses fail.
+Both visual methods use the selected geometry-stage settings. Supported IDs remain gpt-6-astra, gpt-5.6-sol, gpt-5.6-terra, and gpt-5.6-luna. Reasoning is none, low, medium, or high (Astra rejects none); output budgets are integers 256–16000. Budgets include reasoning tokens. Incomplete responses fail.
 
 Calls use the official Responses API with strict Structured Outputs, no tools, store:false and maxRetries:0. Stage one has at most 8 seconds; stage two receives the remaining overall time. Geometry receives only the validated visual brief, never the original prompt or gameplay effect. Failed validation consumes the attempt; no silent fallback is applied to live results.
 
@@ -137,6 +138,16 @@ Disconnect/cancellation aborts active work and prevents later stages. It cannot 
 
 POST /api/creations still returns a raw spec and defaults to the pipeline's mock raw-mesh method. It never silently enables live calls.
 
+## Testing against the 30-second limit
+
+If transcription succeeds but design + geometry sum to roughly 30 seconds, generation reached its real shared deadline. For example, 6.61 seconds of design leaves about 23.39 seconds for geometry. A voice total of 33.5 seconds can include 2.3 seconds of capture and 0.82 seconds of transcription before that generation window.
+
+For the next deliberate comparison, try **Procedural parts** with **Sol direct · no reasoning**. It uses Sol for design and geometry with reasoning disabled, retaining the same validation, token caps, 30-second ceiling, and paid-attempt controls. This is a candidate for reducing latency, not a measured speed or quality guarantee. The existing Sol/Astra and Sol/Sol profiles retain low reasoning for comparison. No automatic fallback or retry is added.
+
+Sol supports `reasoning.effort: none`; Astra's lowest supported setting is `low`. Configuration rejects Astra + none before an API call. See [Sol settings](https://developers.openai.com/api/docs/models/gpt-5.6-sol) and [Astra settings](https://developers.openai.com/api/docs/models/gpt-6-astra). Smaller outputs are another possible improvement; increasing the output-token cap does not make an existing request faster. See [latency guidance](https://developers.openai.com/api/docs/guides/latency-optimization).
+
+Use **Use transcript as typed input** to compare generation with the already-recognized words, saving another transcription call. A new typed attempt still needs its own explicit paid consent. Restart `bun run dev:live` deliberately to load the new backend profile, then Refresh profiles. Restarting resets the in-memory allowance.
+
 ## Diagnosing a live failure
 
 Restart `bun run dev:live` after backend changes; live mode has no server watcher. Refresh the page before another deliberate attempt.
@@ -159,7 +170,7 @@ Previous generic PROVIDER_ERROR events cannot be reconstructed: their provider r
 
 ## Game integration boundary
 
-The updated Game tab contains **Movement test** (the race mechanics) and **Voice / creation demo**. Neither is wired to the live lab pipeline. Their controls, movement, collisions and effect timing remain separate.
+The updated Game tab contains **Movement test** (the race mechanics) and **Voice / creation demo**. Movement test shares the guarded speech/generation workflow through RaceCreationHost. Voice / creation demo remains simulated. Controls, movement, collisions and effect timing remain separate from generation.
 
 The intended future flow stays: collect authored Voice Power Up → speak once while falling → generate while falling → validate → spawn ahead of the current player → collect the creation → activate its one effect. Collision is game-owned and independent of appearance. Loading or materialization visuals must not activate effects early.
 
@@ -175,3 +186,7 @@ The intended future flow stays: collect authored Voice Power Up → speak once w
 Run `bun run build`, `bun run typecheck`, and `bun run test`. Automated tests use fixtures and intercepted SDK responses, never paid calls. Coverage includes recipe bounds, one-effect output, handoff isolation, raw API compatibility, cancellation/deadlines, compiler transforms and budgets, comparison accounting, existing game/race tests, paid-mode gates, consent, duplicate submissions, shared concurrency/allowance, and secret-free status/errors.
 
 References: [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [latency guidance](https://developers.openai.com/api/docs/guides/latency-optimization), [Astra](https://developers.openai.com/api/docs/models/gpt-6-astra).
+
+## Voice integration
+
+The Generation lab also accepts recorded input, and the main race shares its voice client and server coordinator. See [voice testing and API contracts](voice-input-plan.md). Typed generation remains two stages; voice adds a separately budgeted transcription stage and reserves the same paid allowance once for the entire workflow. The legacy simulated creation demo remains independent.

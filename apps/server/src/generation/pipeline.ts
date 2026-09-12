@@ -7,6 +7,8 @@ import {
 import { DESIGN_INSTRUCTIONS, DESIGN_JSON_SCHEMA, GEOMETRY_INSTRUCTIONS, GEOMETRY_JSON_SCHEMA, PROCEDURAL_DESIGN_INSTRUCTIONS, RECIPE_INSTRUCTIONS, RECIPE_JSON_SCHEMA } from './model-schemas.js';
 import { validateVisualOutput } from './visual-output.js';
 import { PipelineFailure, safePipelineError } from './pipeline-errors.js';
+import { mockTranscriptionProvider, transcribeClip, validateAudio, type AudioClip, type TranscriptionProvider } from '../voice/transcription.js';
+import { VoiceRequestSchema, type VoiceRequest, type VoiceEvent, type TranscriptResult } from '@sky/shared';
 import type { StageTransport } from './stage-transport.js';
 
 export type PipelineOptions = {signal?:AbortSignal; emit?:(event:PipelineEvent)=>void};
@@ -14,23 +16,84 @@ export class CreationPipeline {
   private readonly liveAttempts:LiveAttempts;
   get liveUsage() {return this.liveAttempts.status;}
   constructor(readonly profiles:PipelineProfile[], private transports:{mock:StageTransport;live?:StageTransport},
-    private budgets = {totalMs:PIPELINE_DEADLINE_MS,designMs:DESIGN_BUDGET_MS}, livePolicy?:LivePolicy) {
+    private budgets = {totalMs:PIPELINE_DEADLINE_MS,designMs:DESIGN_BUDGET_MS}, livePolicy?:LivePolicy,
+    private speech:{mock:TranscriptionProvider;live?:TranscriptionProvider} = {mock:mockTranscriptionProvider}) {
     this.liveAttempts = new LiveAttempts(livePolicy);
   }
-  async run(request:PipelineRequest, options:PipelineOptions = {}):Promise<GeneratedCreation> {
+  get transcriptionStatus() {return {model:this.speech.live?.model ?? 'gpt-transcribe',available:this.liveUsage.enabled && Boolean(this.speech.live)};}
+  private profileFor(profileId:string) {
+    const profile=this.profiles.find(item=>item.id===profileId);
+    if (!profile) throw new PipelineFailure('INVALID_REQUEST','Unknown pipeline profile.');
+    if (profile.mode==='live' && !this.liveUsage.enabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
+    if (!profile.available) throw new PipelineFailure('NOT_CONFIGURED',profile.unavailableReason ?? 'The provider is not configured.');
+    if (!this.transports[profile.mode]) throw new PipelineFailure('NOT_CONFIGURED','The generation provider is not configured.');
+    return profile;
+  }
+  private async withAttempt<T>(request:Pick<PipelineRequest,'paidAttempt'>,profile:PipelineProfile,signal:AbortSignal|undefined,work:()=>Promise<T>):Promise<T> {
+    if (signal?.aborted) throw new PipelineFailure('CANCELLED','Attempt cancelled.');
+    const release=profile.mode==='live' ? this.liveAttempts.acquire(request) : undefined;
+    try {return await work();} finally {release?.();}
+  }
+  async run(request:PipelineRequest,options:PipelineOptions={}):Promise<GeneratedCreation> {
+    let started=false;
+    try {
+      const parsed=PipelineRequestSchema.safeParse(request);
+      if (!parsed.success) throw new PipelineFailure('INVALID_REQUEST','Use one to ten words and select an available pipeline profile.');
+      const profile=this.profileFor(parsed.data.profileId);
+      return await this.withAttempt(parsed.data,profile,options.signal,()=>{
+        started=true;return this.generateStages(parsed.data,options);
+      });
+    } catch (error) {
+      const safe=safePipelineError(error);
+      if (!started) options.emit?.({type:'failed',stage:'design',error:safe,elapsedMs:0,metrics:[]});
+      throw new PipelineFailure(safe.code,safe.message,safe.provider);
+    }
+  }
+  async runVoice(audio:AudioClip,request:VoiceRequest,options:{signal?:AbortSignal;emit?:(event:VoiceEvent)=>void;transcribeOnly?:boolean;transcriptionBudgetMs?:number}={}):Promise<{result:TranscriptResult;spec?:GeneratedCreation}> {
+    const started=performance.now();
+    const signal=options.signal ?? new AbortController().signal;
+    try {
+      const parsed=VoiceRequestSchema.safeParse(request);
+      if (!parsed.success) throw new PipelineFailure('INVALID_REQUEST','Invalid voice request metadata.');
+      validateAudio(audio);
+      const profile=this.profileFor(parsed.data.profileId);
+      const provider=this.speech[profile.mode];
+      if (!provider) throw new PipelineFailure('NOT_CONFIGURED','Speech transcription is not configured.');
+      return await this.withAttempt(parsed.data,profile,signal,async()=>{
+        options.emit?.({type:'transcribing'});
+        const result=await transcribeClip(provider,audio,signal,profile.mode==='mock' ? parsed.data.mockText : undefined,options.transcriptionBudgetMs);
+        signal.throwIfAborted();
+        options.emit?.({type:'transcript',result});
+        if (options.transcribeOnly) return {result};
+        const spec=await this.generateStages({text:result.text,profileId:profile.id,geometryMode:parsed.data.geometryMode},
+          {signal,emit:event=>options.emit?.({type:'generation',event})});
+        signal.throwIfAborted();
+        options.emit?.({type:'complete',result,spec,elapsedMs:Math.round(performance.now()-started)});
+        return {result,spec};
+      });
+    } catch (error) {
+      const safe=signal.aborted ? {code:'CANCELLED' as const,message:'Attempt cancelled.'} : safePipelineError(error);
+      options.emit?.({type:'failed',error:safe,elapsedMs:Math.round(performance.now()-started)});
+      throw new PipelineFailure(safe.code,safe.message,safe.provider);
+    }
+  }
+  private async generateStages(request:PipelineRequest, options:PipelineOptions = {}):Promise<GeneratedCreation> {
     const started = performance.now();
     const elapsed = () => Math.max(0,Math.round(performance.now()-started));
     let stage:PipelineStage = 'design';
-    let releaseLive:(() => void) | undefined;
     const metrics:StageMetric[] = [];
     const emit = options.emit ?? (() => {});
     const overall = new AbortController();
     const cancel = () => overall.abort(new PipelineFailure('CANCELLED','Attempt cancelled.'));
     options.signal?.addEventListener('abort',cancel,{once:true});
     if (options.signal?.aborted) cancel();
-    const totalTimer = setTimeout(() => overall.abort(new PipelineFailure('TIMEOUT','The attempt deadline was reached.')),this.budgets.totalMs);
+    const deadlineFailure = () => new PipelineFailure('TIMEOUT',
+      'The shared '+(this.budgets.totalMs/1000)+'s generation deadline was reached during '+stage+'. '+
+      (stage==='geometry' ? 'Design used '+((metrics.find(item=>item.stage==='design')?.durationMs??0)/1000).toFixed(2)+'s; geometry received the remaining time. ' : '')+
+      'No automatic retry was made.');
+    const totalTimer = setTimeout(() => overall.abort(deadlineFailure()),this.budgets.totalMs);
     const ensureActive = () => {
-      if (performance.now()-started >= this.budgets.totalMs && !overall.signal.aborted) overall.abort(new PipelineFailure('TIMEOUT','The attempt deadline was reached.'));
+      if (performance.now()-started >= this.budgets.totalMs && !overall.signal.aborted) overall.abort(deadlineFailure());
       overall.signal.throwIfAborted();
     };
     try {
@@ -53,7 +116,7 @@ export class CreationPipeline {
         if (overall.signal.aborted) forward();
         const remaining = this.budgets.totalMs-(performance.now()-started);
         const budget = currentStage === 'design' ? Math.min(this.budgets.designMs,remaining) : remaining;
-        const timer = setTimeout(() => controller.abort(new PipelineFailure('TIMEOUT',currentStage+' stage exceeded its time budget.')),Math.max(0,budget));
+        const timer = setTimeout(() => controller.abort((currentStage==='geometry'?deadlineFailure():new PipelineFailure('TIMEOUT','Design exceeded its '+(budget/1000).toFixed(2)+'s time budget. No automatic retry was made.'))),Math.max(0,budget));
         let rejectAbort:(reason:unknown)=>void = () => {};
         const abortListener = () => rejectAbort(controller.signal.reason);
         const stageStarted = performance.now();
@@ -63,7 +126,7 @@ export class CreationPipeline {
           const aborted = new Promise<never>((_,reject) => {rejectAbort=reject;controller.signal.addEventListener('abort',abortListener,{once:true});});
           const response = await Promise.race([transport.run({stage:currentStage,geometryMode,config,instructions,input,schema,signal:controller.signal}),aborted]);
           ensureActive();
-          if (performance.now()-stageStarted >= budget) throw new PipelineFailure('TIMEOUT',currentStage+' stage exceeded its time budget.');
+          if (performance.now()-stageStarted >= budget) throw (currentStage==='geometry'?deadlineFailure():new PipelineFailure('TIMEOUT','Design exceeded its '+(budget/1000).toFixed(2)+'s time budget. No automatic retry was made.'));
           const metric:StageMetric = {stage:currentStage,model:config.model,durationMs:Math.round(performance.now()-stageStarted),...(response.usage ? {usage:response.usage} : {})};
           metrics.push(metric);
           return {response,metric};
@@ -76,7 +139,6 @@ export class CreationPipeline {
         }
       };
       ensureActive();
-      if (profile.mode === 'live') releaseLive = this.liveAttempts.acquire(parsedRequest.data);
       const designed = await call(profile.design,geometryMode === 'primitives' ? PROCEDURAL_DESIGN_INSTRUCTIONS : DESIGN_INSTRUCTIONS,parsedRequest.data.text,DESIGN_JSON_SCHEMA);
       const design = CreationDesignSchema.safeParse(designed.response.data);
       if (!design.success) throw new PipelineFailure('INVALID_DESIGN','Design did not contain a valid visual brief and one supported effect.');
@@ -99,7 +161,6 @@ export class CreationPipeline {
       emit({type:'failed',stage,error:safe,elapsedMs:elapsed(),metrics});
       throw new PipelineFailure(safe.code,safe.message,safe.provider);
     } finally {
-      releaseLive?.();
       clearTimeout(totalTimer); options.signal?.removeEventListener('abort',cancel);
     }
   }

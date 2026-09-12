@@ -24,7 +24,7 @@ export function LabHistory({history, busy, onInspect, onRate}: {
     </div>}
     {summarizeAttempts(history).map((group, index) => <p key={index}>
       <strong>{group.label}</strong><br/>
-      {group.ready}/{group.attempts} ready · {group.failed} failed · {group.cancelled} cancelled ·
+      {group.ready}/{group.attempts} ready · {group.failed} failed · {group.cancelled} cancelled · {group.transcribed} transcribed ·
       {' '}median successful time: {group.medianMs === null ? '—' : (group.medianMs/1000).toFixed(1)+' s'}
     </p>)}
     <div className="comparison-scroll"><table className="comparison-table">
@@ -33,9 +33,9 @@ export function LabHistory({history, busy, onInspect, onRate}: {
         const metrics = attemptMetrics(item.events);
         const usageKnown = metrics.length === 2 && metrics.every(metric => metric.usage);
         return <tr key={item.id}>
-          <td>{item.prompt}<small>{item.profile.label} · {item.profile.mode}</small></td>
+          <td>{item.prompt}<small>{item.profile.label} · {item.profile.mode} · {item.inputSource??'text'}</small></td>
           <td>{geometryModeLabels[item.geometryMode]}<small>{item.outcome}</small></td>
-          <td>{(item.elapsedMs/1000).toFixed(1)} s<small>{usageKnown
+          <td>{(item.elapsedMs/1000).toFixed(1)} s{item.voice&&<small>Capture {(item.voice.captureMs/1000).toFixed(1)} s · speech {item.voice.transcription?(item.voice.transcription.metric.durationMs/1000).toFixed(1)+' s':'unavailable'}</small>}<small>{usageKnown
             ? metrics.reduce((sum, metric) => sum+metric.usage!.inputTokens+metric.usage!.outputTokens, 0)+' total tokens'
             : 'Usage incomplete/unavailable'}</small></td>
           <td><select aria-label={'Recognizability of attempt '+item.id} value={item.recognition} disabled={item.outcome !== 'ready'}
