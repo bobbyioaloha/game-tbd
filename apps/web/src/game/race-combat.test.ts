@@ -9,7 +9,7 @@ function duel(up=false){
   const race=new PracticeRace(false);
   race.racers.forEach((r,id)=>{
     r.controller=new FreefallController(20,id>1?19:0,id>1?19:0);
-    r.decision=Infinity;r.target=id>1?[19,19]:[0,0];
+    r.dodgeReady=Infinity;r.decision=Infinity;r.target=id>1?[19,19]:[0,0];
   });
   race.racers[up?0:1].controller.step(2,idle,{fallSpeedMultiplier:1});
   return race;
@@ -41,7 +41,7 @@ test('sun clears only active obstacles within twelve metres',()=>{
   race.racers[0].item='sun';race.useItem(0,false);
   assert.equal(race.obstacles[0].active,false);assert.equal(race.obstacles[1].active,true);
 });
-test('item slot does not overwrite held items; rings grant a nonstacking speed boost',()=>{
+test('item slot does not overwrite held items; rings store boost fuel',()=>{
   const race=new PracticeRace(false);
   race.boxes=[{id:0,position:[-7.5,-1,0],active:true}];
   race.rings=[{id:0,position:[-7.5,-2,0],used:new Set()}];
@@ -49,9 +49,11 @@ test('item slot does not overwrite held items; rings grant a nonstacking speed b
   race.racers[0].item='cloak';advance(race,0.5);
   assert.equal(race.boxes[0].active,true);assert.equal(race.racers[0].item,'cloak');
   advance(race,1);
-  assert.ok(race.rings[0].used.has(0));assert.ok(race.racers[0].boostUntil>race.elapsed);
-  advance(race,2.5);
-  assert.ok(race.snapshot(race.racers[0]).fallSpeed>30);
+  assert.ok(race.rings[0].used.has(0));assert.equal(race.racers[0].boostFuel,2);
+  const before=race.snapshot(race.racers[0]).fallSpeed;
+  race.step(0.1,idle,false,true);
+  assert.ok(race.snapshot(race.racers[0]).fallSpeed>before);
+  assert.ok(race.snapshot(race.racers[0]).fallSpeed<60);
 });
 test('empty slot collects only the supported items and restart clears course effects',()=>{
   const race=new PracticeRace(false);
@@ -90,7 +92,7 @@ test('full course remains finite and all racers finish',()=>{
 test('flailing reduces player and rival steering to thirty percent, then expires',()=>{
   for(const id of [0,1]){
     const race=new PracticeRace(false),racer=race.racers[id];
-    racer.decision=Infinity;racer.target=[18,18];
+    racer.dodgeReady=Infinity;racer.decision=Infinity;racer.target=[18,18];
     const dt=1/120,input={x:1,z:1};
     const speed=()=>{
       const before=race.snapshot(racer).position;
@@ -98,9 +100,9 @@ test('flailing reduces player and rival steering to thirty percent, then expires
       const after=race.snapshot(racer).position;
       return Math.hypot(after[0]-before[0],after[2]-before[2])/dt;
     };
-    assert.ok(Math.abs(speed()-12)<1e-8);
+    assert.ok(Math.abs(speed()-20)<1e-8);
     racer.flailUntil=race.elapsed+dt;
-    assert.ok(Math.abs(speed()-3.6)<1e-8);
-    assert.ok(Math.abs(speed()-12)<1e-8);
+    assert.ok(Math.abs(speed()-6)<1e-8);
+    assert.ok(Math.abs(speed()-20)<1e-8);
   }
 });

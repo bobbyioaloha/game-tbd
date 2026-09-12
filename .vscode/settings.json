@@ -1,0 +1,12 @@
+{
+  "remote.portsAttributes": {
+    "3001": {
+      "label": "Skyfall API",
+      "onAutoForward": "silent"
+    },
+    "5173": {
+      "label": "Skyfall game",
+      "onAutoForward": "openBrowserOnce"
+    }
+  }
+}

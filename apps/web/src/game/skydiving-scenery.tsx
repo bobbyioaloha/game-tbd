@@ -4,7 +4,24 @@ import { Shape, type Group, type Mesh, type MeshStandardMaterial } from 'three';
 import type { PlayerSnapshot } from './player-controller';
 
 // An authored placeholder, independent of generated collectible visuals.
-export function StarfishDiver({color = '#ff9875'}: {color?: string}) {
+export function StarfishDiver({color = '#ff9875',motion}: {color?: string;motion?:()=>{time:number;speed:number}}) {
+  const body=useRef<Mesh>(null),original=useRef<Float32Array|null>(null),lastTime=useRef(-1);
+  useFrame(()=>{
+    if(!body.current||!motion)return;
+    const {time,speed}=motion();
+    if(time===lastTime.current)return;
+    lastTime.current=time;
+    const attribute=body.current.geometry.getAttribute('position');
+    if(!original.current)original.current=Float32Array.from(attribute.array);
+    const base=original.current,amount=Math.min(1,speed/60);
+    for(let i=0;i<attribute.count;i++){
+      const x=base[i*3],y=base[i*3+1],z=base[i*3+2],radius=Math.hypot(x,y);
+      const arm=Math.max(0,(radius-0.5)/1.2);
+      const wave=Math.sin(time*(4+amount*10)+Math.atan2(y,x)*5);
+      attribute.setXYZ(i,x-y*wave*arm*amount*0.04,y+x*wave*arm*amount*0.04,z+wave*arm*amount*0.25);
+    }
+    attribute.needsUpdate=true;body.current.geometry.computeVertexNormals();
+  });
   const shape = useMemo(() => {
     const star = new Shape();
     for (let i = 0; i < 10; i++) {
@@ -17,7 +34,7 @@ export function StarfishDiver({color = '#ff9875'}: {color?: string}) {
     return star;
   }, []);
   return <group>
-    <mesh rotation={[-Math.PI/2,0,0]}>
+    <mesh ref={body} rotation={[-Math.PI/2,0,0]}>
       <extrudeGeometry args={[shape, {depth: 0.25, bevelEnabled: true, bevelSize: 0.12, bevelThickness: 0.1, bevelSegments: 2, steps: 1}]}/>
       <meshStandardMaterial color={color} roughness={0.7}/>
     </mesh>
@@ -27,9 +44,9 @@ export function StarfishDiver({color = '#ff9875'}: {color?: string}) {
   </group>;
 }
 
-const clouds = Array.from({length: 64}, (_, index) => ({
-  x: ((index * 73) % 160) - 80,
-  z: ((index * 47) % 160) - 80,
+const clouds = Array.from({length: 24}, (_, index) => ({
+  x: index%2===0 ? (index%4===0?65:-65) : ((index*31)%100)-50,
+  z: index%2===1 ? (index%4===1?65:-65) : ((index*47)%100)-50,
   depth: ((index * 31) % 180),
   scale: 0.8 + (index % 5) * 0.3,
 }));
@@ -47,8 +64,8 @@ export function CloudField({snapshot}: {snapshot: () => PlayerSnapshot}) {
     field.current?.children.forEach((cloud, index) => {
       const seed = clouds[index];
       const relativeY = wrap(-y - seed.depth, 180) - 170;
-      cloud.position.set(x + wrap(seed.x-x+80,160)-80, relativeY, z + wrap(seed.z-z+80,160)-80);
-      const opacity = Math.min(0.85, Math.max(0, (-relativeY - 2) / 14));
+      cloud.position.set(seed.x, relativeY, seed.z);
+      const opacity = Math.min(0.5, Math.max(0, (-relativeY - 2) / 14));
       cloud.children.forEach(child => {
         ((child as Mesh).material as MeshStandardMaterial).opacity = opacity;
       });

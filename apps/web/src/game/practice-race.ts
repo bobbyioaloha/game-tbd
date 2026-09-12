@@ -1,36 +1,74 @@
-import { COLLECTIBLE_RADIUS_METERS } from '@sky/shared';
+// Race item boxes have a forgiving pickup volume independent of model size.
+import { planRival } from './rival-planner';
+import { TargetLock } from './target-lock';
 import { FreefallController } from './freefall-controller';
 import type { PlayerSnapshot, SteeringInput, Position } from './player-controller';
 import { makeCourse, obstacleHit, obstaclePose, OBSTACLE_RULES, segmentSphere, type Item, type Obstacle } from './race-course';
 
 export const FINISH_DEPTH = 3600;
-export const LANE_HALF_WIDTH = 20;
+export const LANE_HALF_WIDTH = 36;
+export const ITEM_PICKUP_RADIUS = 3.5;
+export const DODGE_COOLDOWN = 2.5;
+export const SUN_DURATION = 2.5;
+export const BOOST_CAPACITY = 4;
 export const RACER_COLORS = ['#ff9875','#a7f179','#c7a0ff','#ffe175'];
+export type RaceStanding={id:number;name:string;place:number;progress:number;gap:number;finished:boolean};
 export type Racer = {
   id:number;name:string;controller:FreefallController;landed?:PlayerSnapshot;finishTime?:number;
   target:[number,number];decision:number;brakeUntil:number;item:Item|null;
-  slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;nextUse:number;
+  slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;sunOrigin:Position|null;nextUse:number;aiLock:TargetLock;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;sunVictims:Set<number>;
 };
 export type Projectile={id:number;owner:number;position:Position;velocity:Position;target?:number;expires:number};
 export type Pickup={id:number;position:Position;active:boolean};
-export type Ring={id:number;position:Position;used:Set<number>};
+export type Ring={id:number;position:Position;used:Set<number>;radius?:number;duration?:number};
 const distance=(a:Position,b:Position)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
 export class PracticeRace {
   elapsed=0;racers:Racer[]=[];obstacles:Obstacle[]=[];boxes:Pickup[]=[];rings:Ring[]=[];projectiles:Projectile[]=[];
+  feedback='';feedbackUntil=0;
+  private announce(message:string){this.feedback=message;this.feedbackUntil=this.elapsed+2;}
   private seed=42;private shotId=0;
   constructor(private courseEnabled=true) {this.reset();}
   private random(){this.seed=(Math.imul(this.seed,1664525)+1013904223)>>>0;return this.seed/4294967296;}
   reset(){
-    this.elapsed=0;this.seed=42;this.shotId=0;this.projectiles=[];
+    this.feedback='';this.feedbackUntil=0;this.elapsed=0;this.seed=42;this.shotId=0;this.projectiles=[];
     this.racers=['You','Lime','Lilac','Lemon'].map((name,id)=>({
       id,name,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
       target:[0,0],decision:0,brakeUntil:0,item:null,
-      slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,nextUse:0,
+      slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,sunOrigin:null,nextUse:0,aiLock:new TargetLock(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},sunVictims:new Set(),
     }));
     this.obstacles=this.courseEnabled?makeCourse():[];
-    this.boxes=this.courseEnabled?[120,950,1800,2650].flatMap((depth,section)=>
-      [-12,0,12].map((x,index)=>({id:section*3+index,position:[x,-depth,section%2?8:0] as Position,active:true}))):[];
-    this.rings=this.courseEnabled?[600,1550,2450].map((depth,id)=>({id,position:[id%2?-11:11,-depth,id%2?10:-10] as Position,used:new Set()})):[];
+    this.boxes=this.courseEnabled?Array.from({length:14},(_,i)=>100+i*250).flatMap((depth,section)=>
+      Array.from({length:5},(_,index)=>{
+        const a=index*Math.PI/3+section*0.7;
+        const x=section%3===0?Math.cos(a)*24:section%3===1?-28+index*13:(this.random()*2-1)*30;
+        const z=section%3===0?Math.sin(a)*22:section%3===1?(index%2?14:-14):(this.random()*2-1)*28;
+        return {id:section*5+index,position:[x,-depth-index%3*6,z] as Position,active:true};
+      })):[];
+    this.rings=this.courseEnabled?[
+      {id:0,position:[12,-300,0],used:new Set<number>()},
+      ...this.obstacles.filter(o=>o.kind==='duct'&&(o.id===1004||o.id===1007)).map(o=>({
+        id:o.id,position:[o.position[0],o.position[1]-7,o.position[2]] as Position,used:new Set<number>(),radius:3,
+      })),
+    ]:[];
+  }
+  dodge(owner:number,input:SteeringInput){
+    const racer=this.racers[owner];
+    if(!racer||racer.finishTime!==undefined||this.elapsed<racer.dodgeReady)return false;
+    const length=Math.hypot(input.x,input.z);
+    racer.dodgeDirection=length?{x:input.x/length,z:input.z/length}:{x:1,z:0};
+    racer.dodgeUntil=this.elapsed+0.35;racer.dodgeReady=this.elapsed+DODGE_COOLDOWN;
+    for(const shot of this.projectiles)if(shot.target===owner)shot.target=undefined;
+    return true;
+  }
+  protected(racer:Racer){
+    return this.elapsed<racer.shieldUntil||this.elapsed<racer.immuneUntil||this.elapsed<racer.dodgeUntil-0.1;
+  }
+  threat(owner:number){
+    const p=this.snapshot(this.racers[owner]).position;
+    const shot=this.projectiles.filter(s=>s.target===owner).sort((a,b)=>distance(a.position,p)-distance(b.position,p))[0];
+    if(shot)return {kind:'MISSILE INCOMING',position:shot.position};
+    const targeting=this.racers.find(r=>r.id!==owner&&r.item==='umbrella'&&r.aiLock.target===owner&&r.aiLock.progress>0);
+    return targeting?{kind:'BEING TARGETED',position:this.snapshot(targeting).position}:null;
   }
   snapshot(racer:Racer){return racer.landed??racer.controller.getSnapshot();}
   get finished(){return this.racers.every(r=>r.finishTime!==undefined);}
@@ -38,9 +76,16 @@ export class PracticeRace {
     if(a.finishTime!==undefined||b.finishTime!==undefined)return (a.finishTime??Infinity)-(b.finishTime??Infinity)||a.id-b.id;
     return this.snapshot(a).position[1]-this.snapshot(b).position[1]||a.id-b.id;
   });}
+  standings():RaceStanding[]{
+    const playerDepth=-this.snapshot(this.racers[0]).position[1];
+    return this.order().map((racer,index)=>{
+      const depth=-this.snapshot(racer).position[1];
+      return {id:racer.id,name:racer.name,place:index+1,progress:Math.max(0,Math.min(1,depth/FINISH_DEPTH)),gap:depth-playerDepth,finished:racer.finishTime!==undefined};
+    });
+  }
   eligibleTarget(owner:number,target:number,lookUp:boolean){
     const a=this.racers[owner],b=this.racers[target];
-    if(!a||!b||a===b||b.finishTime!==undefined)return false;
+    if(!a||!b||a===b||b.finishTime!==undefined||this.elapsed<b.dodgeUntil)return false;
     const p=this.snapshot(a).position,q=this.snapshot(b).position;
     return (lookUp?q[1]>p[1]:q[1]<p[1])&&distance(p,q)<=180;
   }
@@ -50,21 +95,24 @@ export class PracticeRace {
     const item=racer.item;racer.item=null;
     if(item==='cloak')racer.shieldUntil=this.elapsed+5;
     if(item==='sun'){
-      racer.sunUntil=this.elapsed+0.5;
+      racer.sunUntil=this.elapsed+SUN_DURATION;racer.sunVictims.clear();let cleared=0;
       const p=this.snapshot(racer).position;
+      racer.sunOrigin=[...p];
       for(const obstacle of this.obstacles)if(obstacle.active&&distance(p,obstaclePose(obstacle,this.elapsed).position)<=12){
-        obstacle.active=false;obstacle.hitAt=this.elapsed;
+        obstacle.active=false;obstacle.hitAt=this.elapsed;cleared++;
       }
+      if(owner===0)this.announce(cleared?'SUN BURST — '+cleared+' obstacles cleared':'SUN BURST — No obstacles in range');
     }
+
     if(item==='umbrella'){
       const state=this.snapshot(racer);
       const targetId=target!==undefined&&this.eligibleTarget(owner,target,lookUp)?target:undefined;
       const velocity:Position=[0,(lookUp?60:-60)-state.fallSpeed,0];
-      this.projectiles.push({id:this.shotId++,owner,position:[...state.position],velocity,target:targetId,expires:this.elapsed+4});
+      this.projectiles.push({id:this.shotId++,owner,position:[...state.position],velocity,target:targetId,expires:this.elapsed+(targetId===undefined?4:8)});
     }
     return true;
   }
-  step(dt:number,input:SteeringInput,brake:boolean){
+  step(dt:number,input:SteeringInput,brake:boolean,boost=false){
     if(this.finished||dt<=0||!Number.isFinite(dt))return;
     const old=this.racers.map(r=>this.snapshot(r).position);
     for(const racer of this.racers){
@@ -73,49 +121,62 @@ export class PracticeRace {
       if(racer.id===0)racer.controller.braking=brake;
       else {
         if(this.elapsed>=racer.decision){
-          racer.target=[(this.random()*2-1)*18,(this.random()*2-1)*18];
-          const p=this.snapshot(racer).position;
-          const opportunity=[...this.boxes.filter(box=>box.active&&!racer.item),...this.rings.filter(r=>!r.used.has(racer.id))]
-            .filter(o=>p[1]-o.position[1]>0&&p[1]-o.position[1]<100).sort((a,b)=>b.position[1]-a.position[1])[0];
-          if(opportunity)racer.target=[opportunity.position[0],opportunity.position[2]];
-          racer.decision=this.elapsed+1+this.random()*2;
-          if(this.random()<0.22)racer.brakeUntil=this.elapsed+0.3+this.random()*0.7;
+          racer.danger=planRival(this,racer);
+          racer.decision=this.elapsed+0.25+(racer.id===1?0.1:0);
         }
         const p=this.snapshot(racer).position;
-        steering={x:(racer.target[0]-p[0])*0.6,z:(racer.target[1]-p[2])*0.6};
-        const danger=this.obstacles.find(o=>o.active&&p[1]-o.position[1]>0&&p[1]-o.position[1]<20&&Math.hypot(p[0]-o.position[0],p[2]-o.position[2])<6);
-        if(danger)steering={x:p[0]>danger.position[0]?1:-1,z:p[2]>danger.position[2]?1:-1};
+        steering={x:(racer.target[0]-p[0])*0.8,z:(racer.target[1]-p[2])*0.8};
         racer.controller.braking=this.elapsed<racer.brakeUntil;
-        if(racer.item&&this.elapsed>racer.nextUse){
-          const rival=this.racers.filter(r=>r.id!==racer.id&&r.finishTime===undefined).sort((a,b)=>distance(p,this.snapshot(a).position)-distance(p,this.snapshot(b).position))[0];
-          const up=rival?this.snapshot(rival).position[1]>p[1]:false;
-          if(racer.item!=='umbrella'||(rival&&this.eligibleTarget(racer.id,rival.id,up)))this.useItem(racer.id,up,rival?.id);
-          racer.nextUse=this.elapsed+2;
+        const nearby=this.obstacles.some(o=>o.active&&distance(p,obstaclePose(o,this.elapsed).position)<=12);
+        const rival=this.racers.filter(r=>r.id!==racer.id&&r.finishTime===undefined&&r.shieldUntil<=this.elapsed)
+          .filter(r=>this.eligibleTarget(racer.id,r.id,this.snapshot(r).position[1]>p[1]))
+          .sort((a,b)=>this.snapshot(a).position[1]-this.snapshot(b).position[1])[0];
+        const up=rival?this.snapshot(rival).position[1]>p[1]:false;
+        const currentEligible=racer.aiLock.target===undefined||this.eligibleTarget(racer.id,racer.aiLock.target,up);
+        const locked=racer.item==='umbrella'?racer.aiLock.update(rival?.id,dt,up,currentEligible):undefined;
+        if(racer.item!=='umbrella')racer.aiLock.reset();
+        if(racer.item&&this.elapsed>=racer.nextUse){
+          const use=racer.item==='umbrella'?locked!==undefined:racer.item==='cloak'?racer.danger:nearby;
+          if(use){this.useItem(racer.id,up,locked);racer.nextUse=this.elapsed+1;racer.aiLock.reset();}
         }
       }
-      const flailing=this.elapsed<racer.flailUntil;
+      const incoming=this.projectiles.find(s=>s.target===racer.id&&distance(s.position,this.snapshot(racer).position)<28);
+      if(racer.id!==0&&incoming)this.dodge(racer.id,{x:racer.id%2?1:-1,z:0});
+      const wantsBoost=racer.id===0?boost:!racer.danger&&this.elapsed>=racer.slowUntil;
+      racer.boosting=wantsBoost&&!racer.controller.braking&&racer.boostFuel>0;
+      const boostSeconds=racer.boosting?Math.min(dt,racer.boostFuel):0;
+      racer.boostFuel=Math.max(0,racer.boostFuel-boostSeconds);
+      racer.boostUntil=racer.boosting?this.elapsed+boostSeconds:0;
+      const dodging=this.elapsed<racer.dodgeUntil;
+      if(dodging)steering=racer.dodgeDirection;
+      const flailing=!dodging&&this.elapsed<racer.flailUntil;
       // Match controller input bounds before applying the flail penalty.
       const x=Math.max(-1,Math.min(1,steering.x)),z=Math.max(-1,Math.min(1,steering.z));
       const steeringScale=(flailing?0.3:1)/Math.max(1,Math.hypot(x,z));
       const motion=racer.controller.step(dt,{x:x*steeringScale,z:z*steeringScale},{
-        fallSpeedMultiplier:this.elapsed<racer.slowUntil?0.5:1,maxFallSpeed:this.elapsed<racer.boostUntil?45:30,
+        fallSpeedMultiplier:this.elapsed<racer.slowUntil?0.5:1,boostSeconds,steerSpeed:dodging?36:undefined,
       });
-      for(const box of this.boxes)if(box.active&&!racer.item&&segmentSphere(motion.previousPosition,motion.position,box.position,COLLECTIBLE_RADIUS_METERS)){
-        box.active=false;racer.item=(['umbrella','cloak','sun'] as Item[])[Math.floor(this.random()*3)];
+      for(const box of this.boxes)if(box.active&&segmentSphere(motion.previousPosition,motion.position,box.position,ITEM_PICKUP_RADIUS)){
+        if(racer.item){
+          if(racer.id===0&&this.feedbackUntil<=this.elapsed)this.announce('ITEM SLOT FULL');
+        }else{
+          box.active=false;racer.item=(['umbrella','cloak','sun'] as Item[])[Math.floor(this.random()*3)];
+          if(racer.id===0)this.announce('PICKED UP — '+({umbrella:'Jellyfish umbrella',cloak:'Ghost cloak',sun:'Angry sun'})[racer.item]);
+        }
       }
       for(const ring of this.rings)if(!ring.used.has(racer.id)&&motion.previousPosition[1]>ring.position[1]&&motion.position[1]<=ring.position[1]){
         const t=(ring.position[1]-motion.previousPosition[1])/(motion.position[1]-motion.previousPosition[1]);
         const x=motion.previousPosition[0]+(motion.position[0]-motion.previousPosition[0])*t,z=motion.previousPosition[2]+(motion.position[2]-motion.previousPosition[2])*t;
-        if(Math.hypot(x-ring.position[0],z-ring.position[2])<=3){ring.used.add(racer.id);racer.boostUntil=this.elapsed+4;}
+        if(Math.hypot(x-ring.position[0],z-ring.position[2])<=(ring.radius??5)){ring.used.add(racer.id);racer.boostFuel=Math.min(BOOST_CAPACITY,racer.boostFuel+2);if(racer.id===0)this.announce('BOOST FUEL +50%');}
       }
-      if(this.elapsed>=racer.shieldUntil&&this.elapsed>=racer.immuneUntil)for(const obstacle of this.obstacles){
+      if(!this.protected(racer))for(const obstacle of this.obstacles){
         if(!obstacle.active||Math.abs(obstacle.position[1]-motion.position[1])>20)continue;
         const penalty=obstacleHit(motion.previousPosition,motion.position,obstacle,this.elapsed);
         if(penalty!==null){
           const rules=OBSTACLE_RULES[obstacle.kind];
           racer.controller.impact(penalty,[(motion.position[0]>=obstacle.position[0]?1:-1)*rules.knockback,0,(motion.position[2]>=obstacle.position[2]?1:-1)*rules.knockback]);
           racer.flailUntil=this.elapsed+rules.flail;racer.immuneUntil=this.elapsed+1.5;
-          obstacle.active=false;obstacle.hitAt=this.elapsed;break;
+          if(obstacle.kind!=='duct'){obstacle.active=false;obstacle.hitAt=this.elapsed;}break;
         }
       }
       if(motion.position[1]<=-FINISH_DEPTH){
@@ -125,23 +186,43 @@ export class PracticeRace {
           motion.previousPosition[2]+(motion.position[2]-motion.previousPosition[2])*t]};
       }
     }
+    for(const attacker of this.racers)if(attacker.sunOrigin&&this.elapsed<attacker.sunUntil){
+      const radius=12*Math.min(1,(this.elapsed-(attacker.sunUntil-SUN_DURATION))/0.35);
+      for(const victim of this.racers){
+        if(victim.id===attacker.id||victim.finishTime!==undefined||attacker.sunVictims.has(victim.id))continue;
+        const p=this.snapshot(victim).position;
+        if(distance(p,attacker.sunOrigin)>radius)continue;
+        if(!this.protected(victim)){
+          attacker.sunVictims.add(victim.id);
+          const dx=p[0]-attacker.sunOrigin[0],dz=p[2]-attacker.sunOrigin[2],length=Math.hypot(dx,dz)||1;
+          victim.controller.impact(0.5,[dx/length*4,0,dz/length*4]);
+          victim.flailUntil=this.elapsed+0.6;victim.immuneUntil=this.elapsed+1.5;
+          if(victim.id===0)this.announce('HIT BY ANGRY SUN');
+          else if(attacker.id===0)this.announce('SUN HIT — '+victim.name);
+        }
+      }
+    }
     for(const shot of this.projectiles){
+      if(shot.expires<=this.elapsed)continue;
       const before:Position=[...shot.position];
       const target=shot.target===undefined?undefined:this.racers[shot.target];
       if(target&&target.finishTime===undefined){
         const q=this.snapshot(target).position;
-        // Limited lateral correction, not an unavoidable homing missile.
-        const blend=Math.min(1,dt*2);
-        for(const axis of [0,2])shot.velocity[axis]+=(Math.max(-14,Math.min(14,(q[axis]-shot.position[axis])*1.5))-shot.velocity[axis])*blend;
+        // A confirmed lock pursues in all three axes faster than any racer.
+        // Clamp travel to the target distance to avoid overshooting nearby targets.
+        const d=distance(q,shot.position);
+        const speed=Math.min(75,d/dt);
+        shot.velocity=q.map((value,i)=>(value-shot.position[i])/(d||1)*speed) as Position;
       }
       shot.position=shot.position.map((v,i)=>v+shot.velocity[i]*dt) as Position;
       for(const victim of this.racers){
-        if(victim.id===shot.owner||victim.finishTime!==undefined)continue;
+        if(victim.id===shot.owner||victim.finishTime!==undefined||(shot.target!==undefined&&victim.id!==shot.target))continue;
         const now=this.snapshot(victim).position;
         const a=before.map((v,i)=>v-old[victim.id][i]) as Position;
         const b=shot.position.map((v,i)=>v-now[i]) as Position;
         if(segmentSphere(a,b,[0,0,0],1.1)){
-          if(this.elapsed>=victim.shieldUntil&&this.elapsed>=victim.immuneUntil)victim.slowUntil=this.elapsed+3;
+          if(!this.protected(victim))victim.slowUntil=this.elapsed+3;
+          if(shot.owner===0)this.announce(this.protected(victim)?'SHOT BLOCKED':'UMBRELLA HIT — '+victim.name);
           shot.expires=0;break;
         }
       }
