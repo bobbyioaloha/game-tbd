@@ -30,7 +30,7 @@ flowchart TD
     H --> I[First racer to collect it starts the shared safety drill]
 ```
 
-The race continues during recording and generation. A run can offer up to two voice stars, each granting one fresh attempt. Later stars depend on the remaining race time; there is no encore. An empty transcript, more than ten words, a timeout, or cancellation ends that attempt; there is no automatic retry.
+The race continues during recording and generation. A normal voice-enabled run offers two voice stars if the player reaches their locations, each granting one fresh attempt. The second is fixed at a randomly chosen depth between 60% and 70% of the course, independently of the first attempt's outcome or generated event. Collecting it saves its grant while earlier voice work finishes; a waiting object or active effect does not block its request. A slow request can still finish too late to place before landing. An empty transcript, more than ten words, a timeout, or cancellation ends that attempt; there is no automatic retry or encore.
 
 In live mode, transcription uses a recorded clip. The design model writes a visual brief and a bounded drill recipe: a supported formation, force interaction, replay pattern, or inspection behavior with compatible options. Explicit behavior is honored when supported; omitted behavior is inferred. Authored rules supply strengths, durations and collision bounds. The geometry model receives only the visual brief. Models return structured data, and the browser renders only a completed, validated result.
 
@@ -90,7 +90,7 @@ A key belongs in the ignored `apps/server/.env` locally or a Vercel Secret when 
 
 The application allows up to 8 seconds of recording, a separate 10 seconds for upload/transcription, then 30 seconds for generation. Design uses at most 8 seconds of that generation window; geometry gets the time left. A live voice attempt can make up to three API calls under one consent and allowance entry.
 
-Pause, restart, finish, and navigation cancel pending race requests and reject stale results. Audio is kept in memory for the request. Lab comparison history and the race's last-result replay are also in memory; neither stores audio.
+Pause, restart, finish, and navigation cancel pending race requests, discard saved voice grants and waiting results, and reject stale results. A pause preserves an uncollected future star. Audio is kept in memory for the request. Lab comparison history and the race's last-result replay are also in memory; neither stores audio.
 
 Local live mode defaults to three attempts per server start. Hosted mode defaults to 100 per instance. These are temporary counters, not a durable or global spending cap. Read [voice setup](voice-input-plan.md#enable-live-ai-locally) or [deployment](deployment.md) before deliberately enabling paid calls.
 

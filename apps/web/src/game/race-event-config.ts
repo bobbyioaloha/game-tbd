@@ -17,14 +17,29 @@ export function raceCreationSpawnPosition(player:Position):Position {
 export const RACE_VOICE_ATTEMPTS = 2;
 export const VOICE_STAR_LEAD_METERS = 120;
 export const VOICE_STAR_APPROACH_SECONDS = 4;
-export const VOICE_STAR_DELAY_SECONDS = 4;
+export const SECOND_VOICE_STAR_MIN_PROGRESS = 0.6;
+export const SECOND_VOICE_STAR_MAX_PROGRESS = 0.7;
 export const CREATION_REVEAL_DELAY_SECONDS = 2;
 const APPROACH_SECONDS = 8;
+const MIN_APPROACH_SECONDS = 3;
 const MAX_EFFECT_SECONDS = 10;
 const FINISH_MARGIN_SECONDS = 2;
 
 export function raceVoiceStarLeadMeters(fallSpeed: number): number {
   return Math.max(VOICE_STAR_LEAD_METERS, fallSpeed * VOICE_STAR_APPROACH_SECONDS);
+}
+
+/** Sample once per run from an independent source; the authored depth stays fixed. */
+export function raceSecondVoiceStarDepth(sample: number): number {
+  if (!Number.isFinite(sample) || sample < 0 || sample > 1) throw new Error('Invalid voice-star random sample.');
+  const minDepth = FINISH_DEPTH * SECOND_VOICE_STAR_MIN_PROGRESS;
+  const maxDepth = FINISH_DEPTH * SECOND_VOICE_STAR_MAX_PROGRESS;
+  return minDepth + sample * (maxDepth - minDepth);
+}
+
+/** Reject dispatch only if even an immediately completed second creation cannot fit. */
+export function raceSecondVoiceTimeRequired(): number {
+  return CREATION_REVEAL_DELAY_SECONDS + MIN_APPROACH_SECONDS + MAX_EFFECT_SECONDS + FINISH_MARGIN_SECONDS;
 }
 
 // Braking must not make a near-finish request look affordable. Boosts may still
@@ -43,6 +58,6 @@ export function raceVoiceTimeRequired(stage: 'star' | 'recording' | 'submission'
 export function raceEventSpawnPosition(player: Position, fallSpeed: number, durationSeconds: number): Position {
   const speed = Math.max(TERMINAL_SPEED, fallSpeed);
   const depth = Math.min(FINISH_DEPTH - speed * (durationSeconds + FINISH_MARGIN_SECONDS), -player[1] + speed * APPROACH_SECONDS);
-  if (depth + player[1] < speed * 3) throw new Error('The finish is too close to place and play this creation.');
+  if (depth + player[1] < speed * MIN_APPROACH_SECONDS) throw new Error('The finish is too close to place and play this creation.');
   return [player[0], -depth, player[2]];
 }

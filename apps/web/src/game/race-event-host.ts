@@ -2,7 +2,7 @@ import { RaceEncounterSchema, mockSafetyDrillForText, mockRaceEventForText, enco
 import { CreationAttempt } from './creation-attempt';
 import { PracticeRace, ITEM_PICKUP_RADIUS, LANE_HALF_WIDTH } from './practice-race';
 import { BRAKE_SPEED } from './freefall-controller';
-import { RACE_CREATION_PICKUP_RADIUS, RACE_VOICE_ATTEMPTS, VOICE_STAR_DELAY_SECONDS, CREATION_REVEAL_DELAY_SECONDS, raceEventSpawnPosition, raceCreationTimeRemaining, raceVoiceTimeRequired, raceVoiceStarLeadMeters } from './race-event-config';
+import { RACE_CREATION_PICKUP_RADIUS, CREATION_REVEAL_DELAY_SECONDS, raceEventSpawnPosition, raceCreationTimeRemaining, raceVoiceTimeRequired, raceVoiceStarLeadMeters, raceSecondVoiceStarDepth, raceSecondVoiceTimeRequired } from './race-event-config';
 import { obstaclePose, segmentSphere } from './race-course';
 import type { Position } from './player-controller';
 import type { PromptCapture } from '../voice/types';
@@ -28,6 +28,11 @@ export function eventPlacement(race:PracticeRace,durationSeconds=10):{position:P
   return {position,pickupLifetimeSeconds:Math.min(600,Math.max(30,Math.ceil(longestLead/BRAKE_SPEED)+30))};
 }
 
+export type RaceVoiceOpportunitySnapshot = Readonly<{
+  secondStar:'scheduled'|'offered'|'collected'|'consumed'|'missed'|'discarded';
+  message:string;
+}>;
+
 /** Schedules voice opportunities and placement; never moves racers or resets a shared event between attempts. */
 export class RaceEventHost {
   readonly loop:CreationAttempt<RaceEncounter>;
@@ -35,18 +40,33 @@ export class RaceEventHost {
   private spawnSerial=0;
   runId=0;
   attemptNumber=1;
-  private nextStarAt?:number;
+  private voiceNumber:1|2=1;
+  private secondStarDepth=0;
   private opportunitiesClosed=false;
-  get opportunitiesRemaining() { return this.opportunitiesClosed?0:RACE_VOICE_ATTEMPTS-this.attemptNumber; }
+  private opportunity:RaceVoiceOpportunitySnapshot={secondStar:'scheduled',message:''};
+  private readonly opportunityListeners=new Set<()=>void>();
+  getSnapshot=()=>this.opportunity;
+  subscribe=(listener:()=>void)=>{this.opportunityListeners.add(listener);return()=>{this.opportunityListeners.delete(listener);};};
+  private updateSecondStar(secondStar:RaceVoiceOpportunitySnapshot['secondStar'],message:string) {
+    this.opportunity={secondStar,message};this.opportunityListeners.forEach(listener=>listener());
+  }
+  get opportunitiesRemaining() {
+    return !this.opportunitiesClosed&&['scheduled','offered','collected'].includes(this.opportunity.secondStar)?1:0;
+  }
   get nextOpportunityMessage() {
     if(this.loop.getSnapshot().phase==='ended')return this.loop.getSnapshot().message;
-    if(this.opportunitiesClosed)return 'Not enough race remains for another voice attempt.';
-    return this.opportunitiesRemaining>0?'Another star can appear while enough race remains.':'No more voice stars this run.';
+    return this.opportunity.message||'No more voice stars this run.';
   }
   requestBlockedReason(stage:'star'|'recording'|'submission'='recording'):string|undefined {
     const player=this.race.racers[0];
     if(player.finishTime!==undefined)return 'You have landed. No new creation can be requested.';
+    if(stage==='star')return;
     const {position,fallSpeed}=this.race.snapshot(player);
+    if(this.attemptNumber===2) {
+      if(stage==='submission'&&raceCreationTimeRemaining(position,fallSpeed)<raceSecondVoiceTimeRequired())
+        return 'Too close to landing to place another creation. Nothing was submitted.';
+      return;
+    }
     if(raceCreationTimeRemaining(position,fallSpeed)<raceVoiceTimeRequired(stage))return 'Not enough race remains to create and collect another object.';
   }
   private lastEvent?:RaceEventSnapshot;
@@ -64,7 +84,7 @@ export class RaceEventHost {
     if(current.instance)this.lastEvent={...current,debris:[],drill:undefined};
     else if(this.race.finished&&this.lastEvent)this.lastEvent={...this.lastEvent,phase:'expired',remainingSeconds:0,expirationReason:'complete'};
   }
-  constructor(readonly race:PracticeRace,capture:PromptCapture,client?:AudioCreationClient<RaceEncounter>) {
+  constructor(readonly race:PracticeRace,capture:PromptCapture,client?:AudioCreationClient<RaceEncounter>,private readonly starRandom:()=>number=Math.random) {
     if(!race.events)throw new Error('Race event runtime is required.');
     this.events=race.events;
     this.loop=new CreationAttempt({async generate({text}) {
@@ -90,6 +110,8 @@ export class RaceEventHost {
     this.unsubscribeAttempt=this.loop.subscribe(()=>{
       const state=this.loop.getSnapshot();
       if(state.phase==='failed'||state.phase==='ended')this.history.discardReady(state.message);
+      if(state.phase==='failed'&&this.attemptNumber===2&&this.opportunity.secondStar==='consumed')
+        this.updateSecondStar('discarded',state.message);
     });
     this.reset();
   }
@@ -109,7 +131,7 @@ export class RaceEventHost {
   }
   loadFixture(spec:RaceEncounter,quick=false) {
     // Called only by the development fixture panel while paused, before starting.
-    this.opportunitiesClosed=true;this.nextStarAt=undefined;
+    this.opportunitiesClosed=true;this.updateSecondStar('discarded','Voice stars are off for this fixture run.');
     this.loop.end('Local event fixture loaded. No microphone or API calls.');this.voice=undefined;
     const instanceId='fixture-'+this.loop.getSnapshot().session;
     this.spawn(spec,instanceId,quick);
@@ -119,35 +141,59 @@ export class RaceEventHost {
     this.remember();
     if(this.lastEvent&&this.lastEvent.phase!=='expired')this.lastEvent={...this.lastEvent,phase:'expired',remainingSeconds:0,expirationReason:'reset'};
     this.history.clear();
-    this.runId++;this.attemptNumber=1;this.nextStarAt=undefined;this.opportunitiesClosed=false;
+    this.runId++;this.attemptNumber=1;this.voiceNumber=1;this.opportunitiesClosed=false;
+    this.secondStarDepth=raceSecondVoiceStarDepth(this.starRandom());
     this.loop.reset();this.race.eventBridge!.reset();this.spawnSerial=0;
     const player=this.race.snapshot(this.race.racers[0]);
-    this.voice={kind:'voice',instanceId:'voice-'+this.loop.getSnapshot().session,position:[player.position[0],-180,player.position[2]]};
+    this.voice={kind:'voice',instanceId:'voice-'+this.runId+'-1',position:[player.position[0],-180,player.position[2]]};
+    this.updateSecondStar('scheduled','A second yellow star appears at 60-70% of the course.');
   }
   disableForRun() {
     if (this.race.elapsed !== 0 || this.loop.getSnapshot().running || this.creation) {
       throw new Error('Voice can only be disabled before the race.');
     }
-    this.voice = undefined;this.opportunitiesClosed=true;this.nextStarAt=undefined;
+    this.voice = undefined;this.opportunitiesClosed=true;
+    this.updateSecondStar('discarded','Voice creation is off for this run.');
     this.loop.end('Voice creation is off for this run.');
   }
   start(){this.loop.start();}
-  pause(){this.loop.cancelRecording();}
-  dispose(){this.opportunitiesClosed=true;this.nextStarAt=undefined;this.unsubscribeAttempt();this.loop.dispose();this.voice=undefined;this.history.clear();this.race.eventBridge!.reset();}
-  private offerNextStar() {
-    if(this.voice||this.opportunitiesRemaining===0||!this.loop.getSnapshot().running)return;
-    if(!['activated','missed','failed'].includes(this.loop.getSnapshot().phase))return;
-    // Start recovery only after the shared encounter ends for every racer.
-    if(this.creation){this.nextStarAt=undefined;return;}
-    this.nextStarAt??=this.race.elapsed+VOICE_STAR_DELAY_SECONDS;
-    if(this.race.elapsed<this.nextStarAt)return;
-    if(this.requestBlockedReason('star')){this.opportunitiesClosed=true;return;}
-    const {position:[x,y,z],fallSpeed}=this.race.snapshot(this.race.racers[0]);
-    this.attemptNumber++;this.nextStarAt=undefined;
-    // Reset only the completed attempt, never the shared event or its RNG.
-    this.loop.reset();
-    this.voice={kind:'voice',instanceId:'voice-'+this.loop.getSnapshot().session,position:[x,y-raceVoiceStarLeadMeters(fallSpeed),z]};
-    this.loop.start();
+  pause(){
+    if(this.opportunity.secondStar==='collected')this.updateSecondStar('discarded','Saved second request cancelled by pause.');
+    this.loop.cancelRecording();
+  }
+  dispose(){
+    this.opportunitiesClosed=true;this.voice=undefined;
+    this.updateSecondStar('discarded','Run ended. Saved voice requests were discarded.');
+    this.unsubscribeAttempt();this.loop.dispose();this.history.clear();this.race.eventBridge!.reset();
+  }
+  private offerSecondStar(to:Position) {
+    if(this.opportunitiesClosed||this.opportunity.secondStar!=='scheduled'||!this.loop.getSnapshot().running)return;
+    const {position:[x,,z],fallSpeed}=this.race.snapshot(this.race.racers[0]);
+    if(-to[1]<this.secondStarDepth-raceVoiceStarLeadMeters(fallSpeed))return;
+    this.voiceNumber=2;
+    this.voice={kind:'voice',instanceId:'voice-'+this.runId+'-2',position:[x,-this.secondStarDepth,z]};
+    this.updateSecondStar('offered','Second yellow star ahead. Collect it for another request.');
+  }
+  private collectOrMissVoice(from:Position,to:Position) {
+    if(!this.voice)return;
+    if(segmentSphere(from,to,this.voice.position,ITEM_PICKUP_RADIUS)) {
+      this.voice=undefined;
+      if(this.voiceNumber===1)this.loop.collectVoice();
+      else this.updateSecondStar('collected','Second request saved. Waiting for the current voice request to finish.');
+    } else if(to[1]<this.voice.position[1]-5) {
+      this.voice=undefined;
+      if(this.voiceNumber===1)this.loop.missVoice();
+      else this.updateSecondStar('missed','Second yellow star missed. No more voice stars this run.');
+    }
+  }
+  private startSavedGrant() {
+    if(this.opportunitiesClosed||this.opportunity.secondStar!=='collected'||!this.loop.getSnapshot().running)return;
+    // Voice work must settle first, including placement of a ready first result.
+    // A spawned first object and its active effect remain entirely runtime-owned.
+    if(!['spawned','activated','missed','failed'].includes(this.loop.getSnapshot().phase))return;
+    this.attemptNumber=2;
+    this.updateSecondStar('consumed','');
+    this.loop.reset();this.loop.start();this.loop.collectVoice();
   }
   step(dt:number,from:Position,to:Position) {
     const event=this.events.getSnapshot();
@@ -155,16 +201,19 @@ export class RaceEventHost {
     if(event.instance&&event.phase==='active')this.loop.collectCreation(event.instance.instanceId);
     if(event.instance&&event.phase==='expired')this.loop.missCreation(event.instance.instanceId);
     if(this.race.racers[0].finishTime!==undefined) {
+      const pending=['prompted','preparing','recording','transcribing','generating','ready'].includes(this.loop.getSnapshot().phase);
+      if(['scheduled','offered','collected'].includes(this.opportunity.secondStar)||(this.attemptNumber===2&&pending))
+        this.updateSecondStar('discarded','You landed before the second request could be completed.');
       if(this.loop.getSnapshot().running)this.loop.end('You landed. Shared events remain for the racers still falling.');
       this.voice=undefined;this.opportunitiesClosed=true;return;
     }
-    if(this.voice&&this.loop.getSnapshot().phase!=='available')this.voice=undefined;
+    if(this.voiceNumber===1&&this.voice&&this.loop.getSnapshot().phase!=='available')this.voice=undefined;
     this.loop.placeReadyCreation();
-    if(this.voice&&segmentSphere(from,to,this.voice.position,ITEM_PICKUP_RADIUS)) {
-      this.voice=undefined;this.loop.collectVoice();
-    }
-    if(this.voice&&to[1]<this.voice.position[1]-5){this.voice=undefined;this.loop.missVoice();}
+    // Resolve the first pickup before revealing a second one, including swept crossings.
+    if(this.voiceNumber===1)this.collectOrMissVoice(from,to);
+    this.offerSecondStar(to);
+    if(this.voiceNumber===2)this.collectOrMissVoice(from,to);
     this.loop.advanceTime(dt);
-    this.offerNextStar();
+    this.startSavedGrant();
   }
 }

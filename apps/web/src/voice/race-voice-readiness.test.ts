@@ -6,7 +6,7 @@ import ts from 'typescript';
 import { safetyDrillFixtures, PipelineProfilesSchema, type VoiceRequest } from '@sky/shared';
 import { PracticeRace } from '../game/practice-race';
 import { RaceEventRuntime } from '../race-events/runtime';
-import { RaceEventHost } from '../game/race-event-host';
+import { RaceEventHost, type RaceVoiceOpportunitySnapshot } from '../game/race-event-host';
 import { RACE_VOICE_ATTEMPTS } from '../game/race-event-config';
 import { drillAssessment } from '../game/drill-feedback';
 import { paidVoiceAvailable, raceVoiceReadiness } from './race-voice-readiness';
@@ -151,7 +151,7 @@ test('voice cannot be disabled after the run starts or after a fixture is placed
 });
 
 // Render only the HUD's state-derived copy; no renderer or browser is needed.
-test('a pre-pickup Space warning cannot override the collected-star prompt', () => {
+function hudSetup(phase='prompted') {
   const hudCode=ts.transpileModule(readFileSync(new URL('../game/RaceCreationVisuals.tsx',import.meta.url),'utf8'), {
     compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX},
   }).outputText;
@@ -159,21 +159,71 @@ test('a pre-pickup Space warning cannot override the collected-star prompt', () 
   const modules:Record<string,unknown>={
     react:{useState:(initial:unknown)=>[initial,()=>{}],useEffect:()=>{},useSyncExternalStore:(_:unknown,get:()=>unknown)=>get()},
     'react/jsx-runtime':{jsx,jsxs:jsx},'@react-three/fiber':{},three:{},'@sky/shared':{},
-    '../race-events/RaceEventRenderer':{},'./drill-feedback':{drillAssessment},'./race-event-config':{},'../components/PowerUpModel':{},
+    '../race-events/RaceEventRenderer':{},'./drill-feedback':{drillAssessment},'./race-event-config':{RACE_VOICE_ATTEMPTS},'../components/PowerUpModel':{},
   };
   const sandbox={exports:{} as {RaceCreationHud:(props:unknown)=>unknown},
     require:(id:string)=>{assert.ok(id in modules,'Unexpected import: '+id);return modules[id];},
   };
   runInNewContext(hudCode,sandbox);
+  let opportunity:RaceVoiceOpportunitySnapshot={secondStar:'scheduled',message:''};
   const props={enabled:true,paused:false,finished:false,live:false,mockText:'angry orange sun',blockedReason:'',
     microphone:{phase:'ready'},inputNotice:{id:1,text:'Collect the yellow star first.',phase:'available'},
-    host:{loop:{subscribe:()=>()=>{},getSnapshot:()=>({phase:'prompted'})},
+    host:{loop:{subscribe:()=>()=>{},getSnapshot:()=>({phase})},attemptNumber:1,
+      subscribe:()=>()=>{},getSnapshot:()=>opportunity,
       race:{elapsed:0,racers:[],events:{getSnapshot:()=>({phase:'empty'})}}},
   };
-  const result=JSON.stringify(sandbox.exports.RaceCreationHud(props));
-  assert.match(result,/Hold Space/);assert.doesNotMatch(result,/Collect the yellow star first/);
-  props.inputNotice={id:2,text:'Enable your microphone.',phase:'prompted'};
-  assert.match(JSON.stringify(sandbox.exports.RaceCreationHud(props)),/Enable your microphone/);
+  return {props,render:()=>JSON.stringify(sandbox.exports.RaceCreationHud(props)),
+    setOpportunity:(next:RaceVoiceOpportunitySnapshot)=>{opportunity=next;}};
+}
+
+test('a pre-pickup Space warning cannot override the collected-star prompt', () => {
+  const ui=hudSetup();
+  assert.match(ui.render(),/Hold Space/);assert.doesNotMatch(ui.render(),/Collect the yellow star first/);
+  ui.props.inputNotice={id:2,text:'Enable your microphone.',phase:'prompted'};
+  assert.match(ui.render(),/Enable your microphone/);
+});
+
+test('the second-star arrival is visible while the first creation is spawned or activated', () => {
+  for(const phase of ['spawned','activated']) {
+    const ui=hudSetup(phase);
+    const message='Second yellow star ahead. Collect it for another request.';
+    ui.setOpportunity({secondStar:'offered',message});
+    assert.ok(ui.render().includes(message),phase+' must not silence the independent star cue');
+    assert.match(ui.render(),/SECOND INSPECTION REQUEST/);
+  }
+});
+
+test('a saved second-star grant stays visible while the first request generates', () => {
+  const ui=hudSetup('generating');
+  const message='Second request saved. Waiting for the current voice request to finish.';
+  ui.setOpportunity({secondStar:'collected',message});
+  assert.ok(ui.render().includes(message));
+  assert.match(ui.render(),/Keep racing/);
+});
+
+test('a discarded second request remains visible at finish after the attempt ends', () => {
+  const ui=hudSetup('ended');
+  ui.props.finished=true;
+  const message='You landed before the second request could be completed.';
+  ui.setOpportunity({secondStar:'discarded',message});
+  assert.ok(ui.render().includes(message));
+  assert.match(ui.render(),/SECOND INSPECTION REQUEST/);
+});
+
+test('consumption, a missed star, and reset clear the previous second-star arrival cue', () => {
+  const ui=hudSetup('activated');
+  const arrival='Second yellow star ahead. Collect it for another request.';
+  ui.setOpportunity({secondStar:'offered',message:arrival});
+  assert.ok(ui.render().includes(arrival));
+  for(const opportunity of [
+    {secondStar:'consumed',message:''},
+    {secondStar:'missed',message:'Second yellow star missed. No more voice stars this run.'},
+    {secondStar:'scheduled',message:'A second yellow star appears at 60-70% of the course.'},
+  ] satisfies RaceVoiceOpportunitySnapshot[]) {
+    ui.setOpportunity(opportunity);
+    assert.ok(!ui.render().includes(arrival),opportunity.secondStar+' must clear the arrival');
+    if(opportunity.secondStar==='missed')assert.ok(ui.render().includes(opportunity.message));
+  }
 });
 
 test('one run consent admits only two separately identified requests, never duplicates on key repeat', async () => {
