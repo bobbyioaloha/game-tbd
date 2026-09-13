@@ -1,3 +1,4 @@
+import { PlaneCabin } from '../game/PlaneCabin';
 import { useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera, type Group } from 'three';
@@ -9,18 +10,20 @@ export function Preview({angle,zoom,pose,paused,chase,inGame=false,loop=false,ch
   const rig=useRef<Group>(null),windTime=useRef(0);
   const {camera,size}=useThree();
   useFrame((_,delta)=>{
-    if(camera instanceof PerspectiveCamera&&camera.fov!==42){camera.fov=42;camera.updateProjectionMatrix();}
+    if(camera instanceof PerspectiveCamera){camera.fov=42;camera.near=.1;camera.far=100;camera.updateProjectionMatrix();}
     if(!paused)windTime.current+=Math.min(delta,.1);
     if(chase){camera.up.set(0,0,-1);camera.position.set(0,10,0);camera.lookAt(0,1.35,0);}else{camera.up.set(0,1,0);camera.position.set(0,2.6,inGame&&size.width<=700?zoom+2:zoom);camera.lookAt(inGame&&size.width>700?1.6:0,inGame&&size.width<=700?.1:1.45,0);}
     if(rig.current)rig.current.rotation.y=angle*Math.PI/180;
   });
   return <>
-    <color attach="background" args={[inGame?'#75b8df':'#60777e']}/>
-    <fog attach="fog" args={[inGame?'#b8ddef':'#60777e',16,32]}/>
+    <color attach="background" args={[inGame?'#344d61':'#60777e']}/>
+    <fog attach="fog" args={[inGame?'#344d61':'#60777e',16,32]}/>
     <ambientLight intensity={0.85}/><directionalLight position={[-4,7,5]} intensity={2.1}/>
     <group ref={rig}><DinosaurModel character={character} pose={pose} loop={loop} paused={paused} wind={pose==='Stand'||pose==='Reach'||pose==='Checklist'||pose==='Diagnostics'||pose==='Equipment check'?undefined:()=>({time:windTime.current,speed:pose==='Brake'?12:45})}/></group>
-    <mesh position={[0,-0.08,0]}><cylinderGeometry args={[3.4,3.4,0.15,32]}/><meshLambertMaterial color="#30434a"/></mesh>
-    <mesh rotation={[-Math.PI/2,0,0]} position={[0,0.003,0]}><ringGeometry args={[3.1,3.16,48]}/><meshBasicMaterial color="#d8bd5b"/></mesh>
+    {inGame?<PlaneCabin/>:<group>
+      <mesh position={[0,-0.08,0]}><cylinderGeometry args={[3.4,3.4,.15,32]}/><meshLambertMaterial color="#30434a"/></mesh>
+      <mesh rotation={[-Math.PI/2,0,0]} position={[0,.003,0]}><ringGeometry args={[3.1,3.16,48]}/><meshBasicMaterial color="#d8bd5b"/></mesh>
+    </group>}
     {!inGame&&<gridHelper args={[40,40,'#7c9093','#6a8187']} position={[0,-0.17,0]}/>}
   </>;
 }
