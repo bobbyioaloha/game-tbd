@@ -72,7 +72,7 @@ For a guided tour, read [how the game works](docs/architecture.md). To experimen
 
 ## People and credits
 
-- [elizabeth-oda](https://github.com/elizabeth-oda): AI pipeline, geometry generation principles, deployment, and a bit of codebase sanity.
+- [elizabeth-oda](https://github.com/elizabeth-oda): AI pipeline, deployment, and a bit of codebase sanity.
 - [bobbyioaloha](https://github.com/bobbyioaloha): gameplay, character and environment design, and overall silliness.
 
 Codex assisted with planning, implementation, debugging, and documentation. The dinosaur assets are built with the repository's [procedural character script](scripts/build-greg.py); [the art guide](docs/dinosaur-art-direction.md) explains how to rebuild and change them.

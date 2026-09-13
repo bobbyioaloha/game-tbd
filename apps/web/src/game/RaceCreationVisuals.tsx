@@ -20,6 +20,7 @@ const impulseLabels:Record<Exclude<ReturnType<typeof encounterKind>,'observation
 // Presentation only: model transforms never change the host's pickup/collision bounds.
 export function RaceCreations({host}:{host:RaceEventHost}) {
   useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
+  useSyncExternalStore(host.subscribe,host.getSnapshot);
   const creation=host.creation;
   const world=useRef<Group>(null), star=useRef<Group>(null);
   const shape=useMemo(()=>{
@@ -62,6 +63,7 @@ function TrophyModel({spec}:{spec:RaceEncounter}) {
 
 export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockText,blockedReason,inputNotice,microphone,steeringKeys}:{steeringKeys:string;enabled:boolean;host:RaceEventHost;paused:boolean;finished:boolean;marker:typeof initialRaceHud.creationMarker;live:boolean;mockText:string;blockedReason:string;inputNotice:{id:number;text:string;phase:string};microphone:RecorderSnapshot}) {
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
+  const opportunity=useSyncExternalStore(host.subscribe,host.getSnapshot);
   const event=host.race.events!.getSnapshot();
   const effectLabel=event.instance?encounterLabel(event.instance.spec):'';
   const playerHit=event.affectedRacerIds?.includes('0') ?? false;
@@ -90,12 +92,16 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
     if(paused)return;
     const timer=window.setTimeout(()=>setNotice(false),4500);
     return()=>window.clearTimeout(timer);
-  },[state.phase,state.session,paused,inputNotice.id]);
+  },[state.phase,state.session,paused,inputNotice.id,opportunity.secondStar,opportunity.message]);
   if(paused)return null;
   const busy=['preparing','recording','transcribing','generating','ready'].includes(state.phase);
   const recording=microphone.phase==='recording';
   const inputHint=notice&&!busy&&inputNotice.phase===state.phase?inputNotice.text:'';
-  const showNotice=enabled&&!finished&&(Boolean(inputHint)||(notice||busy||state.phase==='prompted')&&!['activated','spawned','ended'].includes(state.phase));
+  const showVoiceNotice=!finished&&(Boolean(inputHint)||(notice||busy||state.phase==='prompted')&&!['activated','spawned','ended'].includes(state.phase));
+  const showOpportunityNotice=Boolean(opportunity.message)&&(
+    ['offered','collected'].includes(opportunity.secondStar)||
+    (notice||finished)&&['missed','discarded'].includes(opportunity.secondStar));
+  const showNotice=enabled&&(showVoiceNotice||showOpportunityNotice);
   const hint=state.phase==='available'?'Collect an Inspection Request (yellow star).'
     :state.phase==='preparing'?'Opening microphone…'
     :state.phase==='transcribing'?(live?'Understanding your request—keep racing.':'Loading the prepared prompt—keep racing.')
@@ -128,8 +134,9 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
       <strong>{announcement.name} created!</strong><span>AHEAD IN {announcement.distance} METERS!</span>
     </div>}
     {showNotice&&<div className={'creation-notice '+(recording?'is-recording':'')}>
-      <small>INSPECTION REQUEST {host.attemptNumber} / {RACE_VOICE_ATTEMPTS}</small>
-      <strong role='status'>{recording?'● Recording · release Space to submit':inputHint||(state.phase==='prompted'?(blockedReason?'★ Voice unavailable':'★ Hold Space · report a hazard in 10 words'):hint)}</strong>
+      <small>{showVoiceNotice?<>INSPECTION REQUEST {host.attemptNumber} / {RACE_VOICE_ATTEMPTS}</>:'SECOND INSPECTION REQUEST'}</small>
+      <strong role='status'>{showVoiceNotice?(recording?'● Recording · release Space to submit':inputHint||(state.phase==='prompted'?(blockedReason?'★ Voice unavailable':'★ Hold Space · report a hazard in 10 words'):hint)):opportunity.message}</strong>
+      {showVoiceNotice&&showOpportunityNotice&&opportunity.message!==hint&&<span role="status">★ {opportunity.message}</span>}
       {recording&&<div className="race-recording-meter">
         <div><span>MIC INPUT</span><span>{(microphone.elapsedMs/1000).toFixed(1)} / 8 s</span></div>
         <meter aria-label="Recording microphone input level" min={0} max={1} value={microphone.level}/>
