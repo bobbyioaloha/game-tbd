@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PIPELINE_DEADLINE_MS, proceduralFixtures, generationEvaluationPrompts, PipelineRequestSchema, type GeometryMode, type CreationDesign, type CreationSpec, type PipelineEvent, type PipelineProfile, type StageMetric, type LiveUsage } from '@sky/shared';
 import { LabPreview } from '../generation/LabPreview';
 import { LabHistory } from '../generation/LabHistory';
-import { attemptMetrics, geometryModeLabels, HISTORY_LIMIT, type LabAttempt } from '../generation/lab-history';
+import { attemptMetrics, sanitizeLabAttempt, geometryModeLabels, HISTORY_LIMIT, type LabAttempt } from '../generation/lab-history';
 import { loadPipelineProfiles, runLabPipeline } from '../generation/pipeline-client';
 
 function AssetGenerationLabPage() {
@@ -86,7 +86,7 @@ function AssetGenerationLabPage() {
         }
         if (event.type === 'failed') {
           outcome = 'failed';setMetrics(event.metrics);
-          message = event.stage+' failed · '+event.error.code+': '+event.error.message;setStatus(message);
+          message = event.error.code === 'REFUSED' ? event.error.message : event.stage+' failed · '+event.error.code+': '+event.error.message;setStatus(message);
         }
       });
     } catch (error) {
@@ -99,7 +99,7 @@ function AssetGenerationLabPage() {
         const duration = (performance.now()-started.current)/1000;
         pending.current = null;setBusy(false);setElapsed(duration);
         setRefresh(value => value+1);
-        setHistory(previous => [{id,prompt:input.data.text,profile,geometryMode,outcome,message,elapsedMs:duration*1000,spec:resultSpec,events:collected,recognition:'unrated' as const},...previous].slice(0,HISTORY_LIMIT));
+        setHistory(previous => [sanitizeLabAttempt({id,prompt:input.data.text,profile,geometryMode,outcome,message,elapsedMs:duration*1000,spec:resultSpec,events:collected,recognition:'unrated' as const}),...previous].slice(0,HISTORY_LIMIT));
       }
     }
   }
@@ -162,14 +162,14 @@ function AssetGenerationLabPage() {
           <label htmlFor="creation-prompt">Describe your creation · 10 words maximum</label>
           <input id="creation-prompt" value={text} disabled={formBusy} maxLength={200} onChange={event => setText(event.target.value)}/>
           {profile?.mode === 'live' && <div className="paid-attempt">
-            <p role="note">Paid attempt: up to two API calls using the models and token limits above. Failed or cancelled calls may still incur charges.</p>
+            <p role="note">Paid attempt: up to two generation calls using the models and token limits above, plus free content screening. Rejected requests make no creation. Failed or cancelled calls may still incur charges.</p>
             {liveUsage && <p role="status">{liveUsage.enabled ? 'Paid lab enabled' : 'Paid lab disabled'} · {liveUsage.attemptsRemaining} / {liveUsage.maxAttempts} attempts remaining this server start.{liveUsage.busy ? ' Another paid attempt is running.' : ''}</p>}
             {liveUsage?.attemptsRemaining === 0 && <p role="note">Allowance exhausted. Restart bun run dev:live deliberately to reset it.</p>}
             <label><input type="checkbox" checked={paidConsent}
               disabled={formBusy || !liveAttemptAvailable}
               onChange={event => setPaidConsent(event.target.checked)}/> Allow this paid attempt</label>
           </div>}
-          <button className="generate" disabled={!canGenerate}>{busy ? 'Generating…' : profile?.mode === 'live' ? 'Generate · up to 2 API calls' : 'Load mock example'}</button>
+          <button className="generate" disabled={!canGenerate}>{busy ? 'Generating…' : profile?.mode === 'live' ? 'Generate · up to 2 paid calls' : 'Load mock example'}</button>
           {busy && <button type="button" className="generate secondary" onClick={() => pending.current?.abort()}>Cancel attempt</button>}
           </>}
           {inputSource==='voice'&&<VoiceLabPanel profile={profile} geometryMode={geometryMode} mockText={text} liveUsage={liveUsage} transcription={transcription}
@@ -177,7 +177,7 @@ function AssetGenerationLabPage() {
             onUseText={transcript=>{setText(transcript);setInputSource('text');setPaidConsent(false);}}
             onAttempt={attempt=>{
               const id=++requestId.current;
-              setHistory(previous=>[{...attempt,id},...previous].slice(0,HISTORY_LIMIT));
+              setHistory(previous=>[sanitizeLabAttempt({...attempt,id}),...previous].slice(0,HISTORY_LIMIT));
             }}/> }
         </form>
         {inputSource==='text'&&<p role="status">{status}</p>}

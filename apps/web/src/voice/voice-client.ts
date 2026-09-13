@@ -3,7 +3,7 @@ import { readEventStream } from '../generation/pipeline-client';
 import type { Recording } from './recorder';
 
 export class VoiceRequestError extends Error {
-  constructor(readonly detail:import('@sky/shared').PipelineErrorData) {super(detail.code+': '+detail.message);}
+  constructor(readonly detail:import('@sky/shared').PipelineErrorData) {super(detail.code==='REFUSED' ? detail.message : detail.code+': '+detail.message);}
 }
 export async function requestVoice(recording:Recording,request:Omit<VoiceRequest,'captureMs'>,signal:AbortSignal,options:{transcribeOnly?:boolean;onEvent?:(event:VoiceEvent)=>void}={}):Promise<{result:TranscriptResult;spec?:CreationSpec}> {
   const metadata=VoiceRequestSchema.parse({...request,captureMs:recording.captureMs});

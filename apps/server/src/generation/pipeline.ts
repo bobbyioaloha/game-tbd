@@ -12,6 +12,7 @@ import { validateVisualOutput } from './visual-output.js';
 import { PipelineFailure, safePipelineError } from './pipeline-errors.js';
 import { mockTranscriptionProvider, transcribeClip, validateAudio, type AudioClip, type TranscriptionProvider } from '../voice/transcription.js';
 import type { StageTransport } from './stage-transport.js';
+import { mockContentGuard, screenContent, type ContentGuards } from './content-guard.js';
 
 type GenerationOptions<Event> = {signal?:AbortSignal;emit?:(event:Event)=>void};
 type VoiceOptions<Event> = GenerationOptions<Event> & {transcriptionBudgetMs?:number};
@@ -22,7 +23,8 @@ export class CreationPipeline {
   get liveUsage() {return this.liveAttempts.status;}
   constructor(readonly profiles:PipelineProfile[], private transports:{mock:StageTransport;live?:StageTransport},
     private budgets = {totalMs:PIPELINE_DEADLINE_MS,designMs:DESIGN_BUDGET_MS}, livePolicy?:LivePolicy,
-    private speech:{mock:TranscriptionProvider;live?:TranscriptionProvider} = {mock:mockTranscriptionProvider}) {
+    private speech:{mock:TranscriptionProvider;live?:TranscriptionProvider} = {mock:mockTranscriptionProvider},
+    private guards:ContentGuards = {mock:mockContentGuard}) {
     this.liveEnabled = livePolicy?.enabled ?? false;
     this.liveAttempts = new LiveAttempts(livePolicy);
   }
@@ -33,6 +35,7 @@ export class CreationPipeline {
     if (profile.mode==='live' && !this.liveEnabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
     if (!profile.available) throw new PipelineFailure('NOT_CONFIGURED',profile.unavailableReason ?? 'The provider is not configured.');
     if (!this.transports[profile.mode]) throw new PipelineFailure('NOT_CONFIGURED','The generation provider is not configured.');
+    if (!this.guards[profile.mode]) throw new PipelineFailure('NOT_CONFIGURED','Content screening is not configured.');
     return profile;
   }
   private async withAttempt<T>(request:Pick<PipelineRequest,'paidAttempt'>,profile:PipelineProfile,signal:AbortSignal|undefined,work:()=>Promise<T>):Promise<T> {
@@ -83,10 +86,15 @@ export class CreationPipeline {
         options.emit?.({type:'transcribing'});
         const result=await transcribeClip(provider,audio,signal,profile.mode==='mock' ? parsed.data.mockText : undefined,options.transcriptionBudgetMs);
         signal.throwIfAborted();
-        options.emit?.({type:'transcript',result});
-        if (options.transcribeOnly) return {result};
+        // The standalone transcription tool does not generate an asset. Creation
+        // transcripts are held until the generation input guard approves them.
+        if (options.transcribeOnly) {
+          options.emit?.({type:'transcript',result});
+          return {result};
+        }
         const spec=await this.generateStages({text:result.text,profileId:profile.id,geometryMode:parsed.data.geometryMode},
-          {signal,emit:event=>options.emit?.({type:'generation',event})},format);
+          {signal,emit:event=>options.emit?.({type:'generation',event})},format,
+          ()=>options.emit?.({type:'transcript',result}));
         signal.throwIfAborted();
         options.emit?.({type:'complete',result,spec,elapsedMs:Math.round(performance.now()-started)});
         return {result,spec};
@@ -98,7 +106,7 @@ export class CreationPipeline {
     }
   }
   private async generateStages<D extends {visualBrief:string},S>(request:PipelineRequest,
-    options:GenerationOptions<GenerationProgress<D,S>>,format:GenerationFormat<D,S>):Promise<S> {
+    options:GenerationOptions<GenerationProgress<D,S>>,format:GenerationFormat<D,S>,onInputApproved?:()=>void):Promise<S> {
     const started = performance.now();
     const elapsed = () => Math.max(0,Math.round(performance.now()-started));
     let stage:PipelineStage = 'design';
@@ -122,6 +130,8 @@ export class CreationPipeline {
       if (!parsedRequest.success) throw new PipelineFailure('INVALID_REQUEST','Use one to ten words and select an available pipeline profile.');
       const geometryMode = parsedRequest.data.geometryMode ?? 'mesh';
       const profile = this.profileFor(parsedRequest.data.profileId);
+      const guard = this.guards[profile.mode];
+      if (!guard) throw new PipelineFailure('NOT_CONFIGURED','Content screening is not configured.');
       const transport = this.transports[profile.mode];
       if (!transport) throw new PipelineFailure('NOT_CONFIGURED','The live provider is not configured.');
       const call = async (config:StageConfig,instructions:string,input:string,schema:Record<string,unknown>) => {
@@ -159,9 +169,14 @@ export class CreationPipeline {
         }
       };
       ensureActive();
+      await screenContent(guard,[parsedRequest.data.text],overall.signal);
+      ensureActive();
+      onInputApproved?.();
       const designed = await call(profile.design,format.instructions(geometryMode),parsedRequest.data.text,format.schema);
       const design = format.readDesign(designed.response.data);
       if (!design) throw new PipelineFailure('INVALID_DESIGN','Design did not contain a valid visual brief and one supported effect.');
+      await screenContent(guard,format.contentTexts(design),overall.signal);
+      ensureActive();
       emit({type:'design',design,metric:designed.metric});
       stage = 'geometry';
       // Deliberately hand off only appearance data, never the effect or original prompt.

@@ -1,3 +1,4 @@
+import { mockContentGuard } from './generation/content-guard.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +16,7 @@ function harness(live=false) {
     return {data:request.stage==='design'?fixture.design:appearanceToRecipe(appearance)};
   }};
   return {calls,pipeline:new CreationPipeline(pipelineProfiles(live?{OPENAI_API_KEY:'test-fake-key'}:{},live),{mock:transport,live:transport},undefined,
-    {enabled:live,maxAttempts:3},{mock:{model:'mock',transcribe:async()=>fixture.prompt},live:{model:'test-speech',transcribe:async()=>fixture.prompt}})};
+    {enabled:live,maxAttempts:3},{mock:{model:'mock',transcribe:async()=>fixture.prompt},live:{model:'test-speech',transcribe:async()=>fixture.prompt}},{mock:mockContentGuard,live:mockContentGuard})};
 }
 test('event design selects a type; server resolves balance and geometry sees only the visual brief',async()=>{
   const {pipeline,calls}=harness();const events:unknown[]=[];

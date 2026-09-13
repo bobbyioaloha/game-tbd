@@ -1,3 +1,4 @@
+import { mockContentGuard } from './generation/content-guard.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -243,7 +244,7 @@ test('geometry API diagnostics survive the complete SDK, pipeline and HTTP strea
     return new Response(JSON.stringify({object:'response',id:'resp_test',status:'completed',output:[{type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify(design)}]}]}),{headers:{'content-type':'application/json'}});
   });
   const pipeline=new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:'test-private-credential'},true),
-    {mock:mockStageTransport,live},undefined,{enabled:true,maxAttempts:3});
+    {mock:mockStageTransport,live},undefined,{enabled:true,maxAttempts:3},undefined,{mock:mockContentGuard,live:mockContentGuard});
   const app=buildApp({pipeline});
   try {
     const response=await app.inject({method:'POST',url:'/api/lab/creations',payload:{text:'crystal',profileId:'sol-astra',geometryMode:'primitives',paidAttempt:{id:'861f3264-c7cf-4e5e-8a95-8bf5e7388b79',confirmed:true}}});
@@ -326,7 +327,7 @@ test('direct Sol sends none reasoning through the real SDK and still uses one gu
       {type:'message',role:'assistant',content:[{type:'output_text',text:JSON.stringify(data)}]},
     ]}),{headers:{'content-type':'application/json'}});
   });
-  const pipeline=new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:'test-direct-key'},true),{mock:mockStageTransport,live:transport},undefined,{enabled:true,maxAttempts:3});
+  const pipeline=new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:'test-direct-key'},true),{mock:mockStageTransport,live:transport},undefined,{enabled:true,maxAttempts:3},undefined,{mock:mockContentGuard,live:mockContentGuard});
   const request={profileId:'sol-direct',geometryMode:'primitives' as const,text:fixture.prompt};
   await assert.rejects(pipeline.run(request),error=>error instanceof PipelineFailure&&error.code==='CONSENT_REQUIRED');assert.equal(calls,0);
   const spec=await pipeline.run({...request,paidAttempt:{id:'861f3264-c7cf-4e5e-8a95-8bf5e7388b79',confirmed:true}});

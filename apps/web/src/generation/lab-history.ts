@@ -39,6 +39,20 @@ export function summarizeAttempts(attempts: LabAttempt[]) {
     return {...group, medianMs};
   });
 }
+// Rejected attempts retain timing/failure metadata, not their content.
+export function sanitizeLabAttempt(attempt: LabAttempt): LabAttempt {
+  const refused = attempt.events.some(event => event.type === 'failed' && event.error.code === 'REFUSED')
+    || attempt.voice?.error?.code === 'REFUSED'
+    || attempt.voice?.events.some(event => event.type === 'failed' && event.error.code === 'REFUSED'
+      || event.type === 'generation' && event.event.type === 'failed' && event.event.error.code === 'REFUSED');
+  if (!refused) return attempt;
+  const metadataOnly = (event: PipelineEvent) => event.type !== 'design' && event.type !== 'complete';
+  return {...attempt, prompt:'[Content rejected]', spec:undefined,
+    events:attempt.events.filter(metadataOnly),
+    voice:attempt.voice ? {...attempt.voice, transcription:undefined,
+      events:attempt.voice.events.filter(event => event.type === 'transcribing' || event.type === 'failed'
+        || event.type === 'generation' && metadataOnly(event.event))} : undefined};
+}
 export function serializeLabHistory(attempts: LabAttempt[]) {
-  return JSON.stringify({version: 1, exportedAt: new Date().toISOString(), attempts}, null, 2);
+  return JSON.stringify({version: 1, exportedAt: new Date().toISOString(), attempts:attempts.map(sanitizeLabAttempt)}, null, 2);
 }

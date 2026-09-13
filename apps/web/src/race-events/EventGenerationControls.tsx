@@ -6,7 +6,7 @@ import {
 import { loadPipelineProfiles } from '../generation/pipeline-client';
 import { MicrophoneRecorder } from '../voice/recorder';
 import { RecorderControls } from '../voice/RecorderControls';
-import { raceEventClient } from './client';
+import { raceEventClient, RaceEventRequestError } from './client';
 
 type Attempt={controller:AbortController;request:PipelineRequest;started:number;submitted:boolean};
 export function EventGenerationControls({onCreation,onBusy,fixturePrompt}:{onCreation:(spec:RaceEventCreation)=>void;onBusy:(busy:boolean)=>void;fixturePrompt:string}) {
@@ -89,7 +89,10 @@ export function EventGenerationControls({onCreation,onBusy,fixturePrompt}:{onCre
         if(event.type==='generation')progress(attempt,event.event);
       });
       finish(attempt,'Ready. Run the local simulation to trigger the event.',spec);
-    } catch(error){finish(attempt,error instanceof Error?error.message:'Voice event generation failed.');}
+    } catch(error){
+      if(active.current===attempt&&error instanceof RaceEventRequestError&&error.detail.code==='REFUSED')setTranscript('');
+      finish(attempt,error instanceof Error?error.message:'Voice event generation failed.');
+    }
   };
   const record=async()=>{
     if(!mic.ready)return;const attempt=begin();if(!attempt)return;setStatus('Preparing microphone…');

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { setTimeout as delay } from 'node:timers/promises';
 import { meshFixture, mockRaceEventForText, mockCreationForText, mockProceduralForText, appearanceToRecipe, type GeometryMode, type StageConfig, type StageMetric } from '@sky/shared';
+import { CONTENT_REFUSAL_MESSAGE } from './content-policy.js';
 import { PipelineFailure } from './pipeline-errors.js';
 import { providerFailure, translateProviderError } from './provider-errors.js';
 
@@ -33,7 +34,7 @@ export function openAITransport(apiKey:string, fetchImpl?: typeof fetch):StageTr
         throw providerFailure({status:200,code:response.error?.code,requestId:response._request_id},request.config.model);
       }
       if (response.output.some(item => item.type === 'message' && item.content.some(content => content.type === 'refusal'))) {
-        throw new PipelineFailure('REFUSED','The model declined this request.');
+        throw new PipelineFailure('REFUSED',CONTENT_REFUSAL_MESSAGE);
       }
       if (response.status !== 'completed') {
         throw new PipelineFailure('INCOMPLETE','The model response was incomplete. No retry was made.');

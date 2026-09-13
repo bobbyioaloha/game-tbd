@@ -6,7 +6,7 @@ import {
 import { readEventStream } from '../generation/pipeline-client';
 import type { Recording } from '../voice/recorder';
 export class RaceEventRequestError extends Error {
-  constructor(readonly detail:import('@sky/shared').PipelineErrorData){super(detail.code+': '+detail.message);}
+  constructor(readonly detail:import('@sky/shared').PipelineErrorData){super(detail.code==='REFUSED' ? detail.message : detail.code+': '+detail.message);}
 }
 async function checked(response:Response) {
   if(response.ok)return response;

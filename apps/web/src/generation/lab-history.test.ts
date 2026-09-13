@@ -37,3 +37,24 @@ test('failed speech attempts retain their configured model in comparison labels'
   assert.match(summary[0].label,/gpt-transcribe/);
   assert.equal(summary[0].failed,1);
 });
+
+test('rejected history drops prompts, designs, specs and transcripts while keeping failure metrics', async () => {
+  const {sanitizeLabAttempt} = await import('./lab-history');
+  const metric = {stage:'design' as const,model:'design',durationMs:100};
+  const error = {code:'REFUSED' as const,message:'That request is not suitable for this game.'};
+  const failed = {type:'failed' as const,stage:'design' as const,error,metrics:[metric],elapsedMs:150};
+  const design = {type:'design' as const,design:{...proceduralFixtures[0].design,visualBrief:'private design'},metric};
+  const transcript = {text:'private transcript',metric:{model:'test-speech',durationMs:30}};
+  const rejected: LabAttempt = {...attempt,prompt:'private prompt',outcome:'failed',spec:proceduralFixtures[0].spec,
+    events:[design,failed],voice:{mode:'create',captureMs:1000,transcription:transcript,error,
+      events:[{type:'transcript',result:transcript},{type:'generation',event:design},{type:'failed',error,elapsedMs:150}]}};
+  const safe = sanitizeLabAttempt(rejected);
+  assert.equal(safe.prompt,'[Content rejected]');
+  assert.equal(safe.spec,undefined);assert.equal(safe.voice?.transcription,undefined);
+  assert.deepEqual(attemptMetrics(safe.events),[metric]);
+  assert.deepEqual(safe.events,[failed]);
+  for (const serialized of [JSON.stringify(safe),serializeLabHistory([rejected])]) {
+    for (const forbidden of ['private prompt','private transcript','private design','visualBrief','appearance']) assert.ok(!serialized.includes(forbidden));
+  }
+  assert.equal(sanitizeLabAttempt(attempt),attempt,'Approved history preserves comparison content');
+});
