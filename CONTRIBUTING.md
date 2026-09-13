@@ -1,4 +1,4 @@
-# Contributing to Mandatory Safety Exercise
+# Contributing to Falling Standards
 
 Thanks for taking a look. This began as two frontend developers' first game, so a useful contribution can be a clearer button, a better dinosaur pose, a reproducible bug report, or a small gameplay improvement.
 

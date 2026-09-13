@@ -162,7 +162,7 @@ export function MovementTest() {
     <div className="movement-layout">
       <div className={'movement-stage packaged-game '+(screen!=='race'?'personnel-menu':'')}>
         <div className="in-game-toolbar">
-          <span>⚠ MANDATORY SAFETY EXERCISE</span>
+          <span>⚠ FALLING STANDARDS</span>
           <div>
             {screen==='race'?<><button onClick={()=>{if(runtime.paused&&runtime.race.elapsed===0)startCountdown();else pause(!runtime.paused);}} disabled={binding!==null||settings}>{paused?'Resume':'Pause'}</button><button onClick={prepareRun}>Restart</button></>:null}
             <button aria-pressed={screen==='selection'} onClick={returnToPersonnel}>Personnel</button>
