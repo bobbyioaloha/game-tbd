@@ -1,3 +1,4 @@
+import { encounterKind } from '@sky/shared';
 import { LandingClearing } from './LandingClearing';
 import { PrehistoricEarth } from './PrehistoricEarth';
 import { DinosaurModel } from './GregModel';
@@ -15,7 +16,7 @@ import { Vector3, PerspectiveCamera, type Group, type Mesh, type MeshBasicMateri
 import { CloudField, StarfishDiver } from './skydiving-scenery';
 import { PracticeRace, FINISH_DEPTH, LANE_HALF_WIDTH } from './practice-race';
 
-const eventAuraColors={gravityWell:'#bb8cff',debrisShower:'#ffb94b',repulsionBurst:'#ff8555',protectiveZone:'#6dffff'};
+const eventAuraColors={gravityWell:'#bb8cff',debrisShower:'#ffb94b',repulsionBurst:'#ff8555',protectiveZone:'#6dffff',stampede:'#ffbe55',rapids:'#62e9eb'};
 
 export const defaultBindings = {left:'KeyA',right:'KeyD',forward:'KeyW',backward:'KeyS',brake:'KeyK',look:'KeyI',use:'KeyJ',boost:'KeyU',dodge:'KeyL'};
 export type Action = keyof typeof defaultBindings;
@@ -69,9 +70,9 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       follow.current.z=followCameraAxis(follow.current.z,landed?0:z,dt);
     }
     const eventState=race.events?.getSnapshot();
-    const affected=eventState?.phase==='active'&&eventState.impact?.affectedRacerIds.includes('0');
+    const affected=eventState?.phase==='active'&&eventState.affectedRacerIds.includes('0');
     if(camera instanceof PerspectiveCamera) {
-      const extra=affected?(eventState.instance?.spec.effect.type==='protectiveZone'?13:8):0;
+      const extra=affected?(eventState.instance&&encounterKind(eventState.instance.spec)==='protectiveZone'?13:8):0;
       if(!runtime.paused)camera.fov+=((landed?55:65)+extra-camera.fov)*(1-Math.exp(-dt*7));
       camera.near=landed?1:2;camera.far=30000;
       camera.updateProjectionMatrix();
@@ -115,13 +116,13 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       const protectedNow=race.elapsed<racer.immuneUntil||race.elapsed<Math.max(racer.shieldUntil,racer.creationShieldUntil);
       group.visible=racer.finishTime!==undefined||!protectedNow||Math.floor(race.elapsed*12)%2===0;
       const aura=group.getObjectByName('event-aura') as Mesh|undefined;
-      const eventOnRacer=eventState?.phase==='active'&&eventState.impact?.affectedRacerIds.includes(String(racer.id));
+      const eventOnRacer=eventState?.phase==='active'&&eventState.affectedRacerIds.includes(String(racer.id));
       if(aura) {
         aura.visible=Boolean(eventOnRacer)&&racer.finishTime===undefined;
         aura.scale.setScalar(1+Math.sin(race.elapsed*7+racer.id)*0.12);
-        if(eventState?.instance)(aura.material as MeshBasicMaterial).color.set(eventAuraColors[eventState.instance.spec.effect.type]);
+        if(eventState?.instance)(aura.material as MeshBasicMaterial).color.set(eventAuraColors[encounterKind(eventState.instance.spec)]);
       }
-      if(eventOnRacer&&eventState?.instance?.spec.effect.type==='gravityWell')group.rotation.z+=Math.sin(race.elapsed*8+racer.id)*0.28;
+      if(eventOnRacer&&eventState?.instance&&encounterKind(eventState.instance.spec)==='gravityWell')group.rotation.z+=Math.sin(race.elapsed*8+racer.id)*0.28;
       group.position.set(rx,ry-y+bounce+(racer.finishTime!==undefined?0:.3),rz);
       group.scale.set(1,squash,1);
     });
@@ -140,7 +141,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       });
       const creation=runtime.voice?.creation;
       let creationMarker:typeof initialRaceHud.creationMarker=null;
-      if(creation&&Math.hypot(creation.position[0]-x,creation.position[1]-y,creation.position[2]-z)<=400){
+      if(creation&&eventState?.phase==='collectible'&&Math.hypot(creation.position[0]-x,creation.position[1]-y,creation.position[2]-z)<=400){
         const point=new Vector3(creation.position[0],creation.position[1]-y,creation.position[2]);
         const behind=point.clone().applyMatrix4(camera.matrixWorldInverse).z>=0;
         const projected=point.project(camera);

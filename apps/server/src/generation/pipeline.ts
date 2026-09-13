@@ -1,4 +1,4 @@
-import { legacyFormat, eventFormat, type GenerationFormat, type GenerationProgress, type VoiceProgress } from './generation-formats.js';
+import { legacyFormat, eventFormat, drillFormat, type GenerationFormat, type GenerationProgress, type VoiceProgress } from './generation-formats.js';
 import { randomUUID } from 'node:crypto';
 import { LiveAttempts, type LivePolicy } from './live-attempts.js';
 import {
@@ -6,6 +6,7 @@ import {
   type PipelineRequest, type PipelineStage, type StageConfig, type StageMetric,
   VoiceRequestSchema, type VoiceRequest, type VoiceEvent, type TranscriptResult,
   type RaceEventCreation, type RaceEventPipelineEvent, type RaceEventVoiceEvent,
+  type SafetyDrillSpec, type SafetyDrillPipelineEvent, type SafetyDrillVoiceEvent,
 } from '@sky/shared';
 import { GEOMETRY_INSTRUCTIONS, GEOMETRY_JSON_SCHEMA, RECIPE_INSTRUCTIONS, RECIPE_JSON_SCHEMA } from './model-schemas.js';
 import { validateVisualOutput } from './visual-output.js';
@@ -49,6 +50,9 @@ export class CreationPipeline {
   runEvent(request:PipelineRequest,options:GenerationOptions<RaceEventPipelineEvent>={}):Promise<RaceEventCreation> {
     return this.runFormat(request,options,eventFormat);
   }
+  runDrill(request:PipelineRequest,options:GenerationOptions<SafetyDrillPipelineEvent>={}):Promise<SafetyDrillSpec> {
+    return this.runFormat(request,options,drillFormat);
+  }
   private async runFormat<D extends {visualBrief:string},S>(request:PipelineRequest,
     options:GenerationOptions<GenerationProgress<D,S>>,format:GenerationFormat<D,S>):Promise<S> {
     let started=false;
@@ -70,6 +74,9 @@ export class CreationPipeline {
   }
   runVoiceEvent(audio:AudioClip,request:VoiceRequest,options:VoiceOptions<RaceEventVoiceEvent>={}):Promise<{result:TranscriptResult;spec?:RaceEventCreation}> {
     return this.runVoiceFormat(audio,request,options,eventFormat);
+  }
+  runVoiceDrill(audio:AudioClip,request:VoiceRequest,options:VoiceOptions<SafetyDrillVoiceEvent>={}):Promise<{result:TranscriptResult;spec?:SafetyDrillSpec}> {
+    return this.runVoiceFormat(audio,request,options,drillFormat);
   }
   private async runVoiceFormat<D extends {visualBrief:string},S>(audio:AudioClip,request:VoiceRequest,
     options:VoiceOptions<VoiceProgress<D,S>>&{transcribeOnly?:boolean},format:GenerationFormat<D,S>):Promise<{result:TranscriptResult;spec?:S}> {
@@ -174,7 +181,7 @@ export class CreationPipeline {
       onInputApproved?.();
       const designed = await call(profile.design,format.instructions(geometryMode),parsedRequest.data.text,format.schema);
       const design = format.readDesign(designed.response.data);
-      if (!design) throw new PipelineFailure('INVALID_DESIGN','Design did not contain a valid visual brief and one supported effect.');
+      if (!design) throw new PipelineFailure('INVALID_DESIGN','Design did not contain a valid visual brief and supported gameplay recipe.');
       await screenContent(guard,format.contentTexts(design),overall.signal);
       ensureActive();
       emit({type:'design',design,metric:designed.metric});

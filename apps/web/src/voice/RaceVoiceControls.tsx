@@ -1,18 +1,18 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { raceEventFixtures, type VoiceRequest } from '@sky/shared';
+import { safetyDrillFixtures, type VoiceRequest } from '@sky/shared';
 import { RaceEventHost } from '../game/race-event-host';
 import { RACE_VOICE_ATTEMPTS } from '../game/race-event-config';
 import type { PracticeRace } from '../game/practice-race';
 import { loadPipelineProfiles } from '../generation/pipeline-client';
 import { MicrophoneRecorder } from './recorder';
-import { createAudioRaceEventClient } from './race-event-voice-client';
+import { createAudioSafetyDrillClient } from './safety-drill-voice-client';
 import { RecorderControls } from './RecorderControls';
 import { paidVoiceAvailable, raceVoiceReadiness } from './race-voice-readiness';
 
 type Configuration=Omit<VoiceRequest,'captureMs'>;
 export function useRaceVoice(race:PracticeRace) {
   const [recorder]=useState(()=>new MicrophoneRecorder());
-  const [profileId,setSelectedProfileId]=useState('mock'),[mockText,setSelectedMockText]=useState(raceEventFixtures[0].prompt);
+  const [profileId,setSelectedProfileId]=useState('mock'),[mockText,setSelectedMockText]=useState(safetyDrillFixtures[0].prompt);
   const [enabled,setEnabled]=useState(true);
   const [paidAttemptsRemaining,setPaidAttemptsRemaining]=useState(0),[refresh,setRefresh]=useState(0);
   const paidRemaining=useRef(0);
@@ -24,7 +24,7 @@ export function useRaceVoice(race:PracticeRace) {
   const [profiles,setProfiles]=useState<Awaited<ReturnType<typeof loadPipelineProfiles>>>();
   const [error,setError]=useState('');
   const attempt=useRef<Configuration>({profileId:'mock',geometryMode:'primitives',mockText});
-  const [host]=useState(()=>new RaceEventHost(race,recorder,createAudioRaceEventClient(()=>attempt.current)));
+  const [host]=useState(()=>new RaceEventHost(race,recorder,createAudioSafetyDrillClient(()=>attempt.current)));
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
   const microphone=useSyncExternalStore(recorder.subscribe,recorder.getSnapshot);
   const profile=profiles?.profiles.find(item=>item.id===profileId);
@@ -64,13 +64,13 @@ export function RaceVoiceControls({voice,paused}:{voice:RaceVoiceController;paus
   const canHold=!paused&&(['recording','preparing'].includes(voice.state.phase)||
     (voice.state.phase==='prompted'&&voice.getReadiness().ready));
   return <section className="race-voice">
-    <h2>Voice creation</h2>
-    <p>Up to two yellow stars per run; one speaking attempt per star, 10 words maximum. Hold Space after collecting it. Release submits automatically. Any racer can activate your creation; its effect can reach everyone.</p>
+    <h2>Hazard reporting</h2>
+    <p>Collect an Inspection Request (yellow star), then report a hazard in ten words or fewer. Describe what it does, or let the department infer it. Hold Space; release submits. Any racer can start the shared drill. Up to two fresh requests per run.</p>
     <label>Voice profile<select aria-label="Race voice profile" value={voice.profileId} disabled={!configuring} onChange={event=>voice.setProfileId(event.target.value)}>
       {voice.profiles?.profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.label}{profile.available?'':' · unavailable'}</option>)}
     </select></label>
     {!voice.live&&<label>Simulated transcript<select aria-label="Race simulated transcript" disabled={!configuring} value={voice.mockText} onChange={event=>voice.setMockText(event.target.value)}>
-      {raceEventFixtures.map(({prompt})=><option key={prompt}>{prompt}</option>)}
+      {safetyDrillFixtures.map(({prompt})=><option key={prompt}>{prompt}</option>)}
     </select></label>}
     {voice.live?<p>Live: speech → design → geometry. Up to 2 voice attempts / 6 paid API calls per run.</p>:<div className="voice-mode-notice" role="note">
       <strong>Mock mode · speech recognition is off</strong>
@@ -98,7 +98,7 @@ export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
   const liveEnabled = Boolean(liveProfile && voice.profiles?.transcription?.available && voice.profiles.liveUsage.enabled);
   const preparing = microphone.phase === 'preparing';
   return <section className="race-voice-setup" aria-labelledby="voice-setup-title">
-    <h2 id="voice-setup-title">Voice creation</h2>
+    <h2 id="voice-setup-title">Hazard reporting</h2>
     <div className="race-microphone-check">
       <button disabled={preparing} onClick={() => {void voice.recorder.prepare();}}>
         {preparing ? 'Checking microphone…' : microphone.ready && microphone.phase !== 'error' ? 'Check microphone again' : 'Enable microphone'}
@@ -115,7 +115,7 @@ export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
       </select>
     </label>
     {voice.live ? <>
-      <p>AI interprets your speech to create an object and its effect.</p>
+      <p>Report a hazard and what it does. AI creates its appearance and a playable drill for everyone. Example: “Nervous hippos scatter when approached.”</p>
       <label className="voice-consent">
         <input type="checkbox" checked={voice.armed} disabled={!voice.paidAvailable || !voice.profile?.available}
           onChange={event => voice.setArmed(event.target.checked)}/>
@@ -128,7 +128,7 @@ export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
         Uses the prepared prompt below, regardless of what you say. No AI calls.</p>
       <label>Prepared prompt
         <select aria-label="Prepared prompt" value={voice.mockText} disabled={preparing} onChange={event => voice.setMockText(event.target.value)}>
-          {raceEventFixtures.map(({prompt}) => <option key={prompt}>{prompt}</option>)}
+          {safetyDrillFixtures.map(({prompt}) => <option key={prompt}>{prompt}</option>)}
         </select>
       </label>
       {!liveEnabled && <small>Live AI is unavailable for this session.</small>}

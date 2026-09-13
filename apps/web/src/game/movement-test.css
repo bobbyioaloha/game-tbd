@@ -172,3 +172,10 @@
 .training-title summary{cursor:pointer;font-size:13px;letter-spacing:.06em}.training-title details p{max-width:640px;font-size:14px;line-height:1.7}.training-title details[open]{padding-bottom:16px}
 .training-home{font-weight:800;color:#ffe39a!important}
 @media(prefers-reduced-motion:reduce){.commence-training:hover{transform:none}}
+
+/* Generated safety drills share the existing readable encounter banner. */
+.race-event-status.stampede { border-color: #ffc35c; }
+.race-event-status.rapids { border-color: #62e9eb; }
+.race-event-status.drill-assessment { border-color: var(--safety-yellow, #f5cd45); }
+.event-screen-cue.stampede { box-shadow: inset 0 0 65px #ffb64d45; }
+.event-screen-cue.rapids { box-shadow: inset 0 0 55px #62e9eb30; }

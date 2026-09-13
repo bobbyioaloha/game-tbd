@@ -16,11 +16,15 @@ export const TranscriptionMetricSchema = z.object({model:z.string().min(1).max(8
 export type TranscriptionMetric = z.infer<typeof TranscriptionMetricSchema>;
 export const TranscriptResultSchema = z.object({text:GenerationRequestSchema.shape.text,metric:TranscriptionMetricSchema}).strict();
 export type TranscriptResult = z.infer<typeof TranscriptResultSchema>;
-export const VoiceEventSchema = z.discriminatedUnion('type',[
-  z.object({type:z.literal('transcribing')}).strict(),
-  z.object({type:z.literal('transcript'),result:TranscriptResultSchema}).strict(),
-  z.object({type:z.literal('generation'),event:PipelineEventSchema}).strict(),
-  z.object({type:z.literal('complete'),result:TranscriptResultSchema,spec:GeneratedCreationSchema,elapsedMs:z.number().nonnegative()}).strict(),
-  z.object({type:z.literal('failed'),error:PipelineErrorSchema,elapsedMs:z.number().nonnegative()}).strict(),
-]);
+/** Text and voice share the same version-specific generation envelope. */
+export function createVoiceEventSchema<E extends z.ZodTypeAny, S extends z.ZodTypeAny>(event: E, spec: S) {
+  return z.discriminatedUnion('type',[
+    z.object({type:z.literal('transcribing')}).strict(),
+    z.object({type:z.literal('transcript'),result:TranscriptResultSchema}).strict(),
+    z.object({type:z.literal('generation'),event}).strict(),
+    z.object({type:z.literal('complete'),result:TranscriptResultSchema,spec,elapsedMs:z.number().nonnegative()}).strict(),
+    z.object({type:z.literal('failed'),error:PipelineErrorSchema,elapsedMs:z.number().nonnegative()}).strict(),
+  ]);
+}
+export const VoiceEventSchema = createVoiceEventSchema(PipelineEventSchema, GeneratedCreationSchema);
 export type VoiceEvent = z.infer<typeof VoiceEventSchema>;

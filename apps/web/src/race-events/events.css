@@ -17,3 +17,7 @@
 
 .event-sandbox,.event-generation{min-width:0}.event-stage{width:100%}.event-racers>div{min-width:0;overflow-wrap:anywhere}
 @media(max-width:1000px){.event-layout{grid-template-columns:minmax(0,1fr)}}
+
+.event-legacy{margin:0 0 24px;color:#b9cae0}.event-legacy summary{cursor:pointer;font-size:13px}.drill-instruction{border-left:3px solid #f0cf56;padding:10px 14px;background:#1a2d38;color:#f2ebcd}.event-lab>.event-fixtures{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:750px){.event-lab>.event-fixtures{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:450px){.event-lab>.event-fixtures{grid-template-columns:1fr}}

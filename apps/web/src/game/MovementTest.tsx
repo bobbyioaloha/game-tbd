@@ -2,7 +2,7 @@ import { GameMusic } from './GameMusic';
 import { Preview } from '../pages/CharacterPage';
 import { CHARACTERS, DEFAULT_CHARACTER_ANGLE } from './characters';
 import type { DinosaurCharacter, GregPose } from './GregModel';
-import { raceEventFixtures } from '@sky/shared';
+import { raceEventFixtures, safetyDrillFixtures } from '@sky/shared';
 import { RaceEventRuntime } from '../race-events/runtime';
 import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
 import { RaceEventReport } from './RaceEventReport';
@@ -125,7 +125,7 @@ export function MovementTest() {
         if (!runtime.paused&&!event.repeat) {
           const phase=voiceActions.current.host.loop.getSnapshot().phase;
           const reason=!voiceActions.current.enabled?'Voice creation is off for this run.'
-            :phase==='available'?'Collect the yellow star first.'
+            :phase==='available'?'Collect an Inspection Request (yellow star) first.'
             :phase==='prompted'?voiceBlocked.current
             :['failed','missed','ended','activated'].includes(phase)?voiceActions.current.host.nextOpportunityMessage:'';
           setVoiceInputNotice(current=>({id:current.id+1,text:reason,phase}));
@@ -221,7 +221,7 @@ export function MovementTest() {
         {!paused && hud.finish !== null && <div className="race-result"><strong>EXERCISE COMPLETE · {hud.place} / 4</strong><span>{hud.incidents===0?'Safety inspection: exemplary preparedness.':'Safety inspection: '+hud.incidents+(hud.incidents===1?' incident.':' incidents.')+' Refresher training assigned.'}</span><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={prepareRun}>Race again</button></div>}
         <RaceCreationHud enabled={voice.enabled} key={voice.host.runId} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && !settings && <div className="movement-pause"><span className="safety-caution">⚠ CAUTION</span><h2>Mandatory fall protection training</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
-          <p>{voice.enabled?'Collect ★, then hold Space to create.':'Voice creation is off for this run.'}<br/>Pausing during a voice attempt cancels it.</p>
+          <p>{voice.enabled?'Collect ★, then hold Space to report a hazard.':'Voice creation is off for this run.'}<br/>Pausing during a voice attempt cancels it.</p>
           <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); if(runtime.race.elapsed===0)startCountdown();else pause(false);}}>Begin / resume exercise</button>
           <small>Escape resumes · leaving this window pauses</small></div>}
         </>}
@@ -237,10 +237,10 @@ export function MovementTest() {
           <RaceVoiceControls voice={voice} paused={paused}/>
         </details>}
         {import.meta.env.DEV&&<details className="race-detail">
-          <summary>Event fixtures <small>Local gameplay test · no API calls</small></summary>
+          <summary>Safety drills & legacy fixtures <small>Local gameplay test · no API calls</small></summary>
           <p>Restart and choose an event while paused. Any racer can activate it.</p>
           <label><input type="checkbox" checked={quickFixture} disabled={!paused||race.elapsed!==0||!!voice.host.creation} onChange={event=>setQuickFixture(event.target.checked)}/>Quick encounter · spawn 30 m ahead</label>
-          <div className="event-fixture-buttons">{raceEventFixtures.map(fixture=><button key={fixture.prompt}
+          <div className="event-fixture-buttons">{[...safetyDrillFixtures,...raceEventFixtures].map(fixture=><button key={fixture.prompt}
             disabled={!paused||race.elapsed!==0||!!voice.host.creation}
             onClick={()=>{try{voice.host.loadFixture(fixture.spec,quickFixture);setScreen('race');setFixtureNotice(fixture.spec.displayName+(quickFixture?' is 30 m ahead.':' is waiting ahead in the course.')+' Resume to race.');}
               catch(error){setFixtureNotice(error instanceof Error?error.message:'Could not place fixture.');}}}>

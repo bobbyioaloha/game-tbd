@@ -1,5 +1,7 @@
 # Voice: setup, testing, and troubleshooting
 
+Main-race voice now produces [v4 safety drills](safety-drills.md): the request chooses appearance and supported behavior. The v3 `/api/voice/events` endpoint remains compatible.
+
 Use this guide to try the microphone in the game or Generation lab. For the code's overall structure, start with [how the game works](architecture.md). Voice is implemented in the main race; the older creation demo remains simulated regression code.
 
 ## Choose how you want to play
@@ -23,7 +25,9 @@ Run `bun install` and `bun run dev` from the repository root, then open [the loc
 5. After collecting it, hold Space, speak, and release. The HUD shows the simulated transcript and creation progress.
 6. Keep racing and follow the radar to the generated object. It appears later in the course, not immediately beside you. Fly through its glowing halo; the first racer to reach it activates the effect.
 
-You have 10 gameplay seconds after collection to start speaking. Recording auto-submits after 8 seconds. Each run offers up to two stars, with one fresh attempt per star; failure, cancellation, or missing a star consumes that opportunity. After the first creation activates/expires or the first attempt ends, a second star can appear after four gameplay seconds, 120 m ahead, provided enough race remains. Restart returns to setup and clears consent. **Play without voice** lets you skip all microphone setup.
+You have 10 gameplay seconds after collection to start speaking. Recording auto-submits after 8 seconds. Each run offers up to two stars, with one fresh attempt per star; failure, cancellation, or missing a star consumes that opportunity. Restart returns to setup and clears consent. **Play without voice** lets you skip all microphone setup.
+
+The second yellow star waits until the first generated object and its effect have fully expired, then gives you four gameplay seconds to recover. A failed attempt or missed star also has a four-second delay. The star appears in your current lane and stays there, at least 120 m ahead and farther away when needed to allow four seconds of approach at your current fall speed. It appears only if enough race remains for another attempt; a slow first generation can leave no second opportunity. Rivals can activate generated objects, but cannot collect your yellow voice stars.
 
 Main-race objects have a 10 m collection radius and a fitted 12 m model diameter. Normal v3 placement is roughly eight seconds ahead of the player (240 m at normal fall speed), with room left for collection and the effect before the finish. A completed result waits two gameplay seconds before appearing, and longer if the current shared event is still active; it is not announced as spawned until placed. Contact size comes from the game, independently of the generated mesh. See [placement details](race-events-handoff.md#placement-and-lifecycle).
 
@@ -127,7 +131,8 @@ Live options also require `paidAttempt: {id: <new UUID>, confirmed: true}`. No k
 
 | Route | Result |
 | --- | --- |
-| `POST /api/voice/events` | Main-race v3 event workflow, streamed as `RaceEventVoiceEventSchema`. |
+| `POST /api/voice/drills` | Main-race v4 drill workflow, streamed as `SafetyDrillVoiceEventSchema`. |
+| `POST /api/voice/events` | Retained v3 event workflow, streamed as `RaceEventVoiceEventSchema`. |
 | `POST /api/voice/creations` | Asset lab's v2 workflow, streamed as `VoiceEventSchema`. |
 | `POST /api/voice/transcriptions` | JSON `{text, metric}` only; no design or geometry. |
 

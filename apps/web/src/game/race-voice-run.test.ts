@@ -4,7 +4,7 @@ import { raceEventFixtures, type RaceEventCreation } from '@sky/shared';
 import { FreefallController } from './freefall-controller';
 import { PracticeRace } from './practice-race';
 import { RaceEventHost } from './race-event-host';
-import { RACE_CREATION_PICKUP_RADIUS, raceEventSpawnPosition } from './race-event-config';
+import { RACE_CREATION_PICKUP_RADIUS, raceEventSpawnPosition, raceVoiceStarLeadMeters } from './race-event-config';
 import { RaceEventRuntime } from '../race-events/runtime';
 
 const dt=1/120,flush=()=>new Promise<void>(resolve=>setImmediate(resolve));
@@ -49,34 +49,74 @@ function setup() {
   };
   return {host,race,requests,step,collect,submit,position,trigger,captures:()=>captures};
 }
-async function secondOpportunity() {
+async function firstCreation() {
   const game=setup();game.collect();
   const first=await game.submit();first.request.resolve(vortex);await first.pending;game.step(2.1);
-  const instance=game.race.events!.getSnapshot().instance!;
-  game.trigger(1);game.step(4.1);
+  return {...game,firstInstance:game.race.events!.getSnapshot().instance!};
+}
+function expireEvent(game:ReturnType<typeof setup>) {
+  for(let tick=0;tick<1200&&game.race.events!.getSnapshot().phase==='active';tick++)game.step();
+  assert.equal(game.race.events!.getSnapshot().phase,'expired');
+}
+async function secondOpportunity() {
+  const game=await firstCreation();game.trigger(1);expireEvent(game);game.step(4.1);
   assert.equal(game.host.attemptNumber,2);assert.ok(game.host.voice);
-  assert.equal(game.race.events!.getSnapshot().instance!.instanceId,instance.instanceId);
-  return {...game,firstInstance:instance};
+  assert.equal(game.race.events!.getSnapshot().instance!.instanceId,game.firstInstance.instanceId);
+  assert.equal(game.race.events!.getSnapshot().phase,'expired');
+  return game;
+}
+async function occupiedSecondOpportunity() {
+  const game=await secondOpportunity();
+  // Deliberately fill the shared slot after the star is offered to keep the
+  // ready-result safeguard covered independently of normal star scheduling.
+  game.host.spawn(vortex,'occupied-shared-slot');game.trigger(1);
+  return {...game,occupiedInstance:game.race.events!.getSnapshot().instance!};
 }
 
-test('two creations in one run keep the first shared event alive and queue only the second result',async()=>{
-  const game=await secondOpportunity();
-  game.collect();const second=await game.submit();
-  second.request.resolve(sun);await second.pending;
-  assert.equal(game.host.loop.getSnapshot().phase,'ready');
-  assert.equal(game.race.events!.getSnapshot().phase,'active');
-  assert.equal(game.host.creation!.instanceId,game.firstInstance.instanceId);
-  assert.equal(game.host.creation!.spec.id,vortex.id);
-  game.step(6);
+test('a rival-triggered first event stays intact and the next star waits four full seconds after expiry',async()=>{
+  const game=await firstCreation();game.trigger(1);game.step(4.1);
+  const active=game.race.events!.getSnapshot();
+  assert.equal(active.phase,'active');assert.equal(active.triggererId,'1');
+  assert.equal(active.instance!.instanceId,game.firstInstance.instanceId);
+  assert.equal(active.instance!.seed,game.firstInstance.seed);
+  assert.equal(game.host.attemptNumber,1);assert.equal(game.host.voice,undefined);
+  expireEvent(game);
+  assert.equal(game.host.voice,undefined);game.step(4-dt);
+  assert.equal(game.host.voice,undefined);assert.equal(game.host.attemptNumber,1);
+  game.step(2*dt);assert.ok(game.host.voice);assert.equal(game.host.attemptNumber,2);
+  assert.equal(game.race.events!.getSnapshot().phase,'expired');
+  assert.equal(game.race.events!.getSnapshot().instance!.instanceId,game.firstInstance.instanceId);
+  assert.equal(game.requests.length,1);assert.equal(game.captures(),1);game.host.dispose();
+});
+
+test('two ordinary creations use separate attempts after the first event has finished',async()=>{
+  const game=await secondOpportunity();game.collect();const second=await game.submit();
+  second.request.resolve(sun);await second.pending;game.step(2.1);
   assert.equal(game.host.loop.getSnapshot().phase,'spawned');
   const next=game.race.events!.getSnapshot().instance!;
   assert.equal(next.spec.id,sun.id);assert.notEqual(next.instanceId,game.firstInstance.instanceId);
   assert.notEqual(next.seed,game.firstInstance.seed);
+  game.trigger();game.step(12);
+  assert.equal(game.requests.length,2);assert.equal(game.captures(),2);
+  assert.equal(game.host.voice,undefined);assert.equal(game.host.opportunitiesRemaining,0);game.host.dispose();
+});
+
+test('a second result waits for an occupied shared slot without replacing its event',async()=>{
+  const game=await occupiedSecondOpportunity();game.collect();const second=await game.submit();
+  second.request.resolve(sun);await second.pending;game.step(2.1);
+  assert.equal(game.host.loop.getSnapshot().phase,'ready');
+  assert.equal(game.race.events!.getSnapshot().phase,'active');
+  assert.equal(game.host.creation!.instanceId,game.occupiedInstance.instanceId);
+  assert.equal(game.host.creation!.spec.id,vortex.id);
+  game.step(6.1);
+  assert.equal(game.host.loop.getSnapshot().phase,'spawned');
+  const next=game.race.events!.getSnapshot().instance!;
+  assert.equal(next.spec.id,sun.id);assert.notEqual(next.instanceId,game.occupiedInstance.instanceId);
+  assert.notEqual(next.seed,game.occupiedInstance.seed);
   game.host.loop.placeReadyCreation();assert.equal(game.host.creation!.instanceId,next.instanceId);
   game.trigger();game.step(12);
   assert.equal(game.requests.length,2);assert.equal(game.captures(),2);
-  assert.equal(game.host.voice,undefined);assert.equal(game.host.opportunitiesRemaining,0);
-  game.host.dispose();
+  assert.equal(game.host.voice,undefined);assert.equal(game.host.opportunitiesRemaining,0);game.host.dispose();
 });
 
 test('a failed first request consumes its star but allows a separate second opportunity',async()=>{
@@ -98,16 +138,16 @@ test('missing a star consumes only that opportunity; no recording or request sta
   assert.equal(game.requests.length,0);assert.equal(game.captures(),0);game.host.dispose();
 });
 
-for(const action of ['pause','reset','finish','dispose'] as const)test(action+' discards a queued second creation without replacing the first',async()=>{
-  const game=await secondOpportunity();game.collect();const second=await game.submit();
-  second.request.resolve(sun);await second.pending;assert.equal(game.host.loop.getSnapshot().phase,'ready');
+for(const action of ['pause','reset','finish','dispose'] as const)test(action+' discards a queued second creation without replacing the occupied event',async()=>{
+  const game=await occupiedSecondOpportunity();game.collect();const second=await game.submit();
+  second.request.resolve(sun);await second.pending;game.step(2.1);assert.equal(game.host.loop.getSnapshot().phase,'ready');
   if(action==='pause')game.host.pause();
   if(action==='reset'){game.race.reset();game.host.reset();}
   if(action==='finish'){game.race.racers[0].finishTime=game.race.elapsed;game.step();}
   if(action==='dispose')game.host.dispose();
   game.host.loop.placeReadyCreation();
   assert.notEqual(game.host.creation?.spec.id,sun.id);
-  if(action==='pause'||action==='finish')assert.equal(game.host.creation?.instanceId,game.firstInstance.instanceId);
+  if(action==='pause'||action==='finish')assert.equal(game.host.creation?.instanceId,game.occupiedInstance.instanceId);
   else assert.equal(game.host.creation,undefined);
   assert.ok(second.request.signal.aborted);game.host.dispose();
 });
@@ -131,6 +171,16 @@ test('a late star is not offered and braking cannot extend the admission estimat
   assert.equal(game.requests.length,0);game.host.dispose();
 });
 
+test('late expiry of the first event safely closes the second opportunity',async()=>{
+  const game=await firstCreation();game.trigger(1);game.position(0,0,2500);expireEvent(game);
+  assert.equal(game.host.voice,undefined);game.step(4.1);
+  assert.equal(game.host.attemptNumber,1);assert.equal(game.host.opportunitiesRemaining,0);
+  assert.equal(game.host.voice,undefined);assert.match(game.host.nextOpportunityMessage,/Not enough race/);
+  assert.equal(game.race.events!.getSnapshot().instance!.instanceId,game.firstInstance.instanceId);
+  assert.equal(game.race.events!.getSnapshot().phase,'expired');
+  assert.equal(game.requests.length,1);assert.equal(game.captures(),1);game.host.dispose();
+});
+
 test('time checks reject recording before capture and recheck before audio dispatch',async()=>{
   for(const stage of ['recording','submission'] as const) {
     const game=setup();game.collect();
@@ -145,12 +195,12 @@ test('time checks reject recording before capture and recheck before audio dispa
 });
 
 test('a speed change near the finish discards a ready result while preserving the active event',async()=>{
-  const game=await secondOpportunity();game.collect();const second=await game.submit();
+  const game=await occupiedSecondOpportunity();game.collect();const second=await game.submit();
   second.request.resolve(sun);await second.pending;
   game.position(0,0,3450);game.race.racers[0].controller.setFallSpeed(60);game.step();
   assert.equal(game.host.loop.getSnapshot().phase,'failed');
   assert.match(game.host.loop.getSnapshot().message,/finish is too close/);
-  assert.equal(game.host.creation!.instanceId,game.firstInstance.instanceId);game.host.dispose();
+  assert.equal(game.host.creation!.instanceId,game.occupiedInstance.instanceId);game.host.dispose();
 });
 
 test('v3 placement starts early, allows reaction time at speed, and reserves room for the effect',()=>{
@@ -167,6 +217,32 @@ test('the next star waits four seconds and appears with a longer approach',async
   const lead=game.race.snapshot(game.race.racers[0]).position[1]-game.host.voice.position[1];
   assert.ok(lead>115&&lead<=120,'the star starts 120 m ahead and stays fixed as racers approach');
   assert.equal(game.requests.length,1);game.host.dispose();
+});
+
+test('the second star uses the current lane and keeps a four-second approach at a higher speed',()=>{
+  const game=setup();game.collect();game.host.pause();game.step(3.9);
+  game.position(0,12,150,-8);game.race.racers[0].controller.setFallSpeed(40);
+  const player=game.race.snapshot(game.race.racers[0]);
+  // Advance the host clock without normal movement clamping this instantaneous
+  // faster snapshot; the host must use the speed and lane at the moment of offer.
+  game.race.elapsed+=.2;game.host.step(.2,player.position,player.position);
+  assert.ok(game.host.voice);assert.deepEqual(game.host.voice.position,[12,-310,-8]);
+  const offered=[...game.host.voice.position];game.step(.5);
+  assert.deepEqual(game.host.voice!.position,offered,'the offered star stays fixed during approach');
+  assert.equal(game.requests.length,0);assert.equal(game.captures(),0);game.host.dispose();
+});
+
+test('voice star approach scales at boosted speed but keeps the full request admission budget',()=>{
+  assert.equal(raceVoiceStarLeadMeters(8),120);
+  assert.equal(raceVoiceStarLeadMeters(30),120);
+  assert.equal(raceVoiceStarLeadMeters(60),240);
+  const game=setup();game.collect();game.host.pause();game.step(3.9);
+  game.position(0,0,0);game.race.racers[0].controller.setFallSpeed(60);
+  const player=game.race.snapshot(game.race.racers[0]);
+  game.race.elapsed+=.2;game.host.step(.2,player.position,player.position);
+  assert.equal(game.host.voice,undefined);assert.equal(game.host.opportunitiesRemaining,0);
+  assert.match(game.host.nextOpportunityMessage,/Not enough race/);
+  assert.equal(game.requests.length,0);assert.equal(game.captures(),0);game.host.dispose();
 });
 
 test('a completed creation has a two-second reveal buffer even when the event slot is empty',async()=>{

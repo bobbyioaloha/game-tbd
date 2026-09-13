@@ -2,7 +2,8 @@ import type { RecorderSnapshot } from '../voice/recorder';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Box3, DoubleSide, Shape, Vector3, type Group } from 'three';
-import { raceEventPreset, type RaceEventCreation } from '@sky/shared';
+import { encounterLabel, encounterKind, encounterInstruction, type RaceEncounter } from '@sky/shared';
+import { drillAssessment } from './drill-feedback';
 import { RaceEventRenderer } from '../race-events/RaceEventRenderer';
 import { RACE_CREATION_MODEL_DIAMETER, RACE_CREATION_PICKUP_RADIUS, RACE_VOICE_ATTEMPTS } from './race-event-config';
 import { PowerUpModel } from '../components/PowerUpModel';
@@ -39,7 +40,7 @@ export function RaceCreations({host}:{host:RaceEventHost}) {
   </group>;
 }
 
-function TrophyModel({spec}:{spec:RaceEventCreation}) {
+function TrophyModel({spec}:{spec:RaceEncounter}) {
   const frame=useRef<Group>(null),content=useRef<Group>(null);
   useLayoutEffect(()=>{
     if(!content.current)return;
@@ -55,11 +56,13 @@ function TrophyModel({spec}:{spec:RaceEventCreation}) {
 export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockText,blockedReason,inputNotice,microphone}:{enabled:boolean;host:RaceEventHost;paused:boolean;finished:boolean;marker:typeof initialRaceHud.creationMarker;live:boolean;mockText:string;blockedReason:string;inputNotice:{id:number;text:string;phase:string};microphone:RecorderSnapshot}) {
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
   const event=host.race.events!.getSnapshot();
-  const effectLabel=event.instance?raceEventPreset(event.instance.spec.effect.type).label:'';
-  const playerHit=Boolean(event.impact?.affectedRacerIds.includes('0'));
+  const effectLabel=event.instance?encounterLabel(event.instance.spec):'';
+  const playerHit=event.affectedRacerIds?.includes('0') ?? false;
+  const kind=event.instance?encounterKind(event.instance.spec):'';
+  const assessment=drillAssessment(host.report);
   const playerImpulses=event.impact?.impulseCounts['0']??0;
   const triggerer=host.race.racers.find(racer=>String(racer.id)===event.triggererId)?.name;
-  const [spec,setSpec]=useState<RaceEventCreation>();
+  const [spec,setSpec]=useState<RaceEncounter>();
   const [announcement,setAnnouncement]=useState<{name:string;distance:number}>();
   const [notice,setNotice]=useState(true);
   const [collectedAt,setCollectedAt]=useState<number|null>(null);
@@ -86,28 +89,29 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
   const recording=microphone.phase==='recording';
   const inputHint=notice&&!busy&&inputNotice.phase===state.phase?inputNotice.text:'';
   const showNotice=enabled&&!finished&&(Boolean(inputHint)||(notice||busy||state.phase==='prompted')&&!['activated','spawned','ended'].includes(state.phase));
-  const hint=state.phase==='available'?'Collect the yellow star to create something.'
+  const hint=state.phase==='available'?'Collect an Inspection Request (yellow star).'
     :state.phase==='preparing'?'Opening microphone…'
     :state.phase==='transcribing'?(live?'Understanding your request—keep racing.':'Loading the prepared prompt—keep racing.')
-    :state.phase==='generating'?'Creating your object—keep racing.'
+    :state.phase==='generating'?'The department is reproducing your concern. Keep racing.'
     :state.phase==='missed'?host.nextOpportunityMessage
     :state.message;
   return <>
     {event.phase==='active'&&event.instance&&<>
-      {playerHit&&<div className={'event-screen-cue '+event.instance.spec.effect.type} aria-hidden="true"/>}
-      <div className={'race-event-status active '+event.instance.spec.effect.type} role="status">
-        <strong>{effectLabel.toUpperCase()} · {event.remainingSeconds.toFixed(1)} s</strong>
+      {playerHit&&<div className={'event-screen-cue '+kind} aria-hidden="true"/>}
+      <div className={'race-event-status active '+kind} role="status">
+        <strong>{event.instance.spec.version===4?'MANDATORY · ':''}{effectLabel.toUpperCase()} · {event.remainingSeconds.toFixed(1)} s</strong>
         <span>{event.instance.spec.displayName} · {triggerer==='You'?'You activated it':triggerer+' activated it'}</span>
-        <span>{event.impact?.affectedRacerIds.length??0}/{event.impact?.participants.length??0} racers affected · {playerHit?'YOU ARE AFFECTED':'Dodge the incoming effect'}</span>
-        <small>{event.instance.spec.description}</small>
+        <span>{event.impact?.affectedRacerIds.length??0}/{event.impact?.participants.length??0} racers affected · {playerHit?'CONTACT WITH HAZARD':'Choose your route'}</span>
+        <small>{encounterInstruction(event.instance.spec)}</small>
       </div>
       {playerImpulses>0&&<div key={event.instance.instanceId+'-'+playerImpulses} className="event-hit-callout" aria-hidden="true">
-        {event.instance.spec.effect.type==='debrisShower'?'DEBRIS HIT!':'SHOCKWAVE!'}
+        {kind==='stampede'?'EQUIPMENT CONTACT!':kind==='debrisShower'?'DEBRIS HIT!':'SHOCKWAVE!'}
       </div>}
     </>}
     {event.phase==='collectible'&&event.instance&&<div className="race-event-status waiting" role="status">
       <strong>{event.instance.spec.displayName} → {effectLabel}</strong>
       <span>CREATED · Fly through the glowing halo to activate. Brake to line up. Any racer can trigger it.</span>
+      <small>{encounterInstruction(event.instance.spec)}</small>
     </div>}
     {marker&&<div className={'creation-radar '+(marker.edge?'at-edge ':'')+(marker.left>50?'label-left':'')} style={{left:marker.left+'%',top:marker.top+'%'}}>
       <span className="creation-radar-symbol" style={marker.edge?{transform:'rotate('+marker.angle+'deg)'}:undefined}>{marker.edge?'↑':''}</span>
@@ -117,15 +121,18 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
       <strong>{announcement.name} created!</strong><span>AHEAD IN {announcement.distance} METERS!</span>
     </div>}
     {showNotice&&<div className={'creation-notice '+(recording?'is-recording':'')}>
-      <small>VOICE STAR {host.attemptNumber} / {RACE_VOICE_ATTEMPTS}</small>
-      <strong role='status'>{recording?'● Recording · release Space to submit':inputHint||(state.phase==='prompted'?(blockedReason?'★ Voice unavailable':'★ Hold Space · 10 words or fewer'):hint)}</strong>
+      <small>INSPECTION REQUEST {host.attemptNumber} / {RACE_VOICE_ATTEMPTS}</small>
+      <strong role='status'>{recording?'● Recording · release Space to submit':inputHint||(state.phase==='prompted'?(blockedReason?'★ Voice unavailable':'★ Hold Space · report a hazard in 10 words'):hint)}</strong>
       {recording&&<div className="race-recording-meter">
         <div><span>MIC INPUT</span><span>{(microphone.elapsedMs/1000).toFixed(1)} / 8 s</span></div>
         <meter aria-label="Recording microphone input level" min={0} max={1} value={microphone.level}/>
         <span>{microphone.level>0.025?'Picking up sound':'Listening · no sound detected'}</span>
         {!live&&<small>Mock mode uses the selected transcript.</small>}
       </div>}
-      {state.phase==='prompted'&&<span>{blockedReason?'Voice attempt unavailable.':'Release to create · one attempt for this star'}<br/>{blockedReason|| (live?'Live speech':'Mock: '+mockText)}</span>}
+      {state.phase==='prompted'&&<span>{blockedReason?'Voice attempt unavailable.':'Describe what it does · release to submit'}<br/>{blockedReason|| (live?'Live speech':'Mock: '+mockText)}</span>}
+    </div>}
+    {assessment&&trophyAge>=10&&trophyAge<16&&<div className="race-event-status drill-assessment" role="status">
+      <strong>YOUR INSPECTION FINDINGS</strong><span>{assessment}</span>
     </div>}
     {event.triggererId&&spec&&trophyAge<10&&<div className="creation-trophy" role="status" style={{opacity:Math.min(1,(10-trophyAge)/0.5)}}>
       <div className="creation-trophy-model" aria-hidden="true"><Canvas camera={{position:[0,1,4.5],fov:42}} dpr={[1,1.5]} fallback={<span>★</span>}>

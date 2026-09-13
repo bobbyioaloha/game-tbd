@@ -1,4 +1,4 @@
-import type { EventRacer, EventVector, RaceEventCreation, RacerEventInput } from '@sky/shared';
+import type { EventRacer, EventVector, RaceEncounter, RacerEventInput } from '@sky/shared';
 import { RaceEventBridge } from './bridge';
 import { RaceEventRuntime } from './runtime';
 import { add, scale, contactTime, length } from './math';
@@ -14,10 +14,10 @@ export class EventSandboxModel {
   elapsed=0;
   obstacleHits=0;
   readonly impulseCounts:Record<string,number>=Object.create(null);
-  constructor(spec:RaceEventCreation,triggerer:string,seed:number) {
+  constructor(spec:RaceEncounter,triggerer:string,seed:number) {
     let lane=0;
     this.racers=SANDBOX_RACERS.map(item=>({id:item.id,finished:false,
-      position:item.id===triggerer?[0,10,0]:[[-8,7,14][lane++],16,0],velocity:[0,-10,0]}));
+      position:item.id===triggerer?[0,10,0]:[[-8,7,14][lane++],16,0],velocity:[0,spec.version===4?-30:-10,0]}));
     this.obstacles=[-8,0,7,14].flatMap(x=>[-15,-35].map(y=>({position:[x,y,0] as EventVector,hit:false})));
     this.events.spawn({instanceId:'sandbox-'+seed,creatorId:'creator',spec,position:[0,0,0],seed});
   }

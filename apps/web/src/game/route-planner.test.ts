@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { makeCourse,makeDucts,obstacleHit } from './race-course';
 import { PracticeRace } from './practice-race';
 import { planRival } from './rival-planner';
+import { createNoopRaceEvents, type DrillSnapshot } from '@sky/shared';
 import { FreefallController } from './freefall-controller';
 test('ducts have open centers, solid walls and an offset exit',()=>{
   const ducts=makeDucts(),first=ducts[0],last=ducts[2];
@@ -46,4 +47,29 @@ test('rivals acquire a lock before using umbrellas',()=>{
   assert.equal(racer.item,'umbrella');
   for(let i=0;i<60;i++)race.step(1/120,{x:0,z:0},false);
   assert.equal(racer.item,null);
+});
+
+function drillRace(drill:DrillSnapshot) {
+  const events=createNoopRaceEvents(),empty=events.getSnapshot();
+  events.getSnapshot=()=>({...empty,phase:'active',drill});
+  const race=new PracticeRace(false,()=>0.42,events);
+  for(const racer of race.racers)racer.controller.setFallSpeed(30);
+  return race;
+}
+test('rivals avoid visible herd bodies and seek reachable current routes',()=>{
+  const drill:DrillSnapshot={actors:[{id:0,position:[-2.5,-16,0],velocity:[0,0,0],radius:2.2,state:'warning'}],currents:[],warningSeconds:1};
+  const race=drillRace(drill),racer=race.racers[1];
+  assert.equal(planRival(race,racer),true);
+  assert.notDeepEqual(racer.target,[-2.5,0]);
+  drill.actors=[];drill.currents=[{id:0,bandId:0,pathId:0,from:[5,-5,0],to:[5,-40,0],position:[5,-22.5,0],radius:7,direction:[0,-1,0],strength:20,kind:'flow'}];
+  assert.equal(planRival(race,racer),false);assert.deepEqual(racer.target,[5,0]);
+});
+test('rival risk preference changes wide-current versus fast-shortcut choice',()=>{
+  const drill:DrillSnapshot={actors:[],currents:[
+    {id:0,bandId:0,pathId:0,from:[0,-5,0],to:[0,-40,0],position:[0,-22.5,0],radius:7,direction:[0,-1,0],strength:20,kind:'flow'},
+    {id:1,bandId:0,pathId:1,from:[9,-5,0],to:[9,-40,0],position:[9,-22.5,0],radius:4,direction:[0,-1,0],strength:28,kind:'fast'},
+  ],warningSeconds:0};
+  const race=drillRace(drill);
+  planRival(race,race.racers[1]);planRival(race,race.racers[3]);
+  assert.deepEqual(race.racers[1].target,[0,0]);assert.deepEqual(race.racers[3].target,[9,0]);
 });

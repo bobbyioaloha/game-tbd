@@ -11,10 +11,10 @@ export function RaceBriefing({steeringHelp, actionHelp}: {steeringHelp: string; 
   return <>
     <p>Race three rivals to the finish. Steer around obstacles.</p>
     <ol className="race-briefing-steps">
-      <li><strong>Collect the yellow star.</strong> Each star grants one attempt; up to two stars can appear per run.</li>
-      <li><strong>Hold Space and speak.</strong> Describe something in 10 words or fewer. Release to submit; recording stops after 8 seconds.</li>
+      <li><strong>Collect an Inspection Request (yellow star).</strong> Each star grants one attempt; up to two stars can appear per run.</li>
+      <li><strong>Hold Space and speak.</strong> Report a hazard and what it does in 10 words or fewer. Release to submit; recording stops after 8 seconds.</li>
       <li><strong>Keep racing.</strong> Your object appears ahead when it is ready.</li>
-      <li><strong>Fly through its glowing halo.</strong> The first racer to reach it activates the effect. It can help or hurt anyone, including you.</li>
+      <li><strong>Fly through its glowing halo.</strong> The first racer to reach it starts a shared safety drill. Bait charges, find gaps, or ride currents; everyone participates, including you.</li>
     </ol>
     <p className="race-essential-controls">{steeringHelp}</p>
     <details><summary>All controls</summary><p>{actionHelp}</p></details>
@@ -47,7 +47,7 @@ export function RaceSetup({voice, steeringHelp, actionHelp, onStart, onSkipVoice
           <summary>How to play</summary>
           <RaceBriefing steeringHelp={steeringHelp} actionHelp={actionHelp}/>
         </details>
-        {!briefingOpen && <p>{steeringHelp}<br/>Collect ★ → hold Space → fly through your creation.</p>}
+        {!briefingOpen && <p>{steeringHelp}<br/>Collect ★ → report a hazard → activate the drill.</p>}
       </div>
       <RaceVoiceSetup voice={voice}/>
     </div>
