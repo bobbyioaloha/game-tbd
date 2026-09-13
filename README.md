@@ -2,7 +2,7 @@
 
 A 3D browser racing game about dinosaurs completing a compulsory workplace skydiving exercise. Dodge obstacles, race your coworkers, and use your voice to create objects that can change the race for everyone.
 
-Built by two frontend developers making their first game during the 100-hour TAI x OpenAI Hackathon in September 2026, with Codex assisting development. The repository and some internal package names still use `game-tbd` and `skyfall`.
+Built during the 100-hour TAI x OpenAI Hackathon in September 2026, with Codex assisting development. 
 
 ## Play the game
 
