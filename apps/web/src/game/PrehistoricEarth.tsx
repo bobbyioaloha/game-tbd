@@ -13,8 +13,8 @@ function land(x:number,z:number){
   const coast=sceneryNoise(x/3800+40,z/3800)-.14;
   const height=Math.max(-24,(broad*.55+ridge*.45)*560-65-channel*260);
   // Low central basin leaves the actual landing mat unobstructed.
-  const basin=Math.min(1,Math.max(0,Math.hypot(x,z)-180)/1400);
-  return {height:Math.hypot(x,z)<180?-.2:coast<0?-28:height*basin,river,coast,broad};
+  const basin=Math.min(1,Math.max(0,Math.hypot(x,z)-400)/1400);
+  return {height:Math.hypot(x,z)<400?-12:coast<0?-28:height*basin,river,coast,broad};
 }
 export function PrehistoricEarth({snapshot}:{snapshot:()=>PlayerSnapshot}){
   const root=useRef<Group>(null);
@@ -27,7 +27,7 @@ export function PrehistoricEarth({snapshot}:{snapshot:()=>PlayerSnapshot}){
       position.setY(i,sample.height);
       const color=forest.clone().lerp(upland,Math.max(0,(sample.height-40)/400));
       if(sample.river<360)color.lerp(wetland,1-sample.river/360);
-      if(Math.hypot(x,z)>180&&(sample.height<0||sample.coast<0))color.copy(water);
+      if(Math.hypot(x,z)>400&&(sample.height<0||sample.coast<0))color.copy(water);
       const slope=(land(x-70,z-90).height-sample.height)/160;
       color.multiplyScalar(Math.max(.66,Math.min(1.15,.9+slope*.3))*(.86+sceneryNoise(x/85,z/85)*.25));
       color.lerp(haze,.05+Math.min(.22,Math.hypot(x,z)/35000));

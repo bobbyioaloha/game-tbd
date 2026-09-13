@@ -73,7 +73,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
     if(camera instanceof PerspectiveCamera) {
       const extra=affected?(eventState.instance?.spec.effect.type==='protectiveZone'?13:8):0;
       if(!runtime.paused)camera.fov+=((landed?55:65)+extra-camera.fov)*(1-Math.exp(-dt*7));
-      camera.far=30000;
+      camera.near=landed?1:2;camera.far=30000;
       camera.updateProjectionMatrix();
     }
     // A/D reverses in look-up mode to keep horizontal steering screen-relative.
