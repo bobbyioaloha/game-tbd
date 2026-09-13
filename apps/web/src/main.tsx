@@ -1,5 +1,6 @@
 import { lazy, StrictMode, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Analytics } from '@vercel/analytics/react';
 import './styles.css';
 
 const GamePage = lazy(() => import('./pages/GamePage').then(module => ({default: module.GamePage})));
@@ -24,6 +25,7 @@ function App() {
     <Suspense key={lab ? 'lab' : 'game'} fallback={<p className="page-loading" role="status">Loading {lab ? 'generation lab' : 'game'}…</p>}>
       {lab && GenerationLabPage ? <GenerationLabPage/> : <GamePage/>}
     </Suspense>
+    <Analytics mode={import.meta.env.DEV ? 'development' : 'production'}/>
   </>;
 }
 createRoot(document.getElementById('root')!).render(<StrictMode><App/></StrictMode>);
