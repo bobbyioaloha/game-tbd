@@ -159,7 +159,7 @@ test('a pre-pickup Space warning cannot override the collected-star prompt', () 
   const modules:Record<string,unknown>={
     react:{useState:(initial:unknown)=>[initial,()=>{}],useEffect:()=>{},useSyncExternalStore:(_:unknown,get:()=>unknown)=>get()},
     'react/jsx-runtime':{jsx,jsxs:jsx},'@react-three/fiber':{},three:{},'@sky/shared':{},
-    '../race-events/RaceEventRenderer':{},'./drill-feedback':{drillAssessment},'./race-event-config':{},'../components/PowerUpModel':{},
+    '../race-events/RaceEventRenderer':{},'./drill-feedback':{drillAssessment},'./EffectCue':{},'./race-event-config':{},'../components/PowerUpModel':{},
   };
   const sandbox={exports:{} as {RaceCreationHud:(props:unknown)=>unknown},
     require:(id:string)=>{assert.ok(id in modules,'Unexpected import: '+id);return modules[id];},

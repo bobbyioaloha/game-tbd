@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Color, DoubleSide, Object3D, Vector3, type Group, type InstancedMesh } from 'three';
+import { Color, DoubleSide, Object3D, Quaternion, Vector3, type Group, type InstancedMesh } from 'three';
 import { SAFETY_DRILL_LIMITS, type EventVector, type RaceEventPort, type SafetyDrillSpec } from '@sky/shared';
 import { PowerUpInstances } from '../components/PowerUpModel';
 
@@ -8,13 +8,15 @@ const {maxTethers:TETHERS,maxOrbits:ORBITS,maxObservers:OBSERVERS}=SAFETY_DRILL_
 /** Extra spatial cues only. Physics and visibility state come from the shared runtime snapshot. */
 export function MechanicRenderer({events,appearance,debug}:{events:RaceEventPort;appearance:SafetyDrillSpec['appearance'];debug:boolean}) {
   const root=useRef<Group>(null),models=useRef<InstancedMesh>(null),links=useRef<InstancedMesh>(null);
-  const fields=useRef<InstancedMesh>(null),rings=useRef<InstancedMesh>(null),arrows=useRef<InstancedMesh>(null),cones=useRef<InstancedMesh>(null);
-  const {scratch,color,axis,up,front}=useMemo(()=>({scratch:new Object3D(),color:new Color(),axis:new Vector3(),up:new Vector3(0,1,0),front:new Vector3(0,0,1)}),[]);
+  const fields=useRef<InstancedMesh>(null),rings=useRef<InstancedMesh>(null),arrows=useRef<InstancedMesh>(null);
+  const watchingCones=useRef<InstancedMesh>(null),warningCones=useRef<InstancedMesh>(null),restingCones=useRef<InstancedMesh>(null);
+  const coneRims=useRef<InstancedMesh>(null),coneRails=useRef<InstancedMesh>(null);
+  const {scratch,color,axis,up,front,coneOrientation,railOrientation}=useMemo(()=>({scratch:new Object3D(),color:new Color(),axis:new Vector3(),up:new Vector3(0,1,0),front:new Vector3(0,0,1),coneOrientation:new Quaternion(),railOrientation:new Quaternion()}),[]);
   useFrame(()=>{
     const state=events.getSnapshot(),drill=state.drill;
     if(root.current)root.current.visible=state.phase==='active'&&Boolean(drill);
-    if(!drill||!models.current||!links.current||!fields.current||!rings.current||!arrows.current||!cones.current)return;
-    let modelCount=0;
+    if(!drill||!models.current||!links.current||!fields.current||!rings.current||!arrows.current||!watchingCones.current||!warningCones.current||!restingCones.current||!coneRims.current||!coneRails.current)return;
+    let modelCount=0,watchingCount=0,warningCount=0,restingCount=0,railCount=0;
     const place=(mesh:InstancedMesh,index:number,position:EventVector,size:EventVector,tint:string)=>{
       scratch.position.set(...position);scratch.scale.set(...size);scratch.updateMatrix();
       mesh.setMatrixAt(index,scratch.matrix);mesh.setColorAt(index,color.set(tint));
@@ -44,15 +46,31 @@ export function MechanicRenderer({events,appearance,debug}:{events:RaceEventPort
       axis.set(...observer.direction);scratch.quaternion.setFromUnitVectors(front,axis);
       place(models.current,modelCount++,observer.position,[6,6,6],'#ffffff');
       const radius=observer.range*Math.sqrt(1/(observer.cosHalfAngle**2)-1);
+      const tint=observer.warning?'#ffe08a':observer.watching?'#ff776d':'#72bddf';
       // A Three cone points along +Y; its apex is at the observer and its base lies down the viewing direction.
       axis.negate();scratch.quaternion.setFromUnitVectors(up,axis);
+      coneOrientation.copy(scratch.quaternion);
       const center:EventVector=observer.position.map((value,i)=>value+observer.direction[i]*observer.range/2) as [number,number,number];
-      place(cones.current,index,center,[radius,observer.range,radius],observer.warning?'#ffd36a':observer.watching?'#ff665d':'#518ba6');
+      const cone=observer.warning?warningCones.current:observer.watching?watchingCones.current:restingCones.current;
+      const coneIndex=observer.warning?warningCount++:observer.watching?watchingCount++:restingCount++;
+      place(cone,coneIndex,center,[radius,observer.range,radius],tint);
+      // The rim ends exactly at the finite cone cap; rails lie on its surface, never beyond its contact bounds.
+      const end:EventVector=observer.position.map((value,i)=>value+observer.direction[i]*observer.range) as [number,number,number];
+      axis.set(...observer.direction);scratch.quaternion.setFromUnitVectors(front,axis);
+      place(coneRims.current,index,end,[radius,radius,radius],tint);
+      // A resting inspector has an open silhouette; warning adds two rails, watching closes it with four.
+      const rails=observer.warning?2:observer.watching?4:0;
+      for(let rail=0;rail<rails;rail++) {
+        railOrientation.setFromAxisAngle(up,rail*Math.PI*2/rails);
+        scratch.quaternion.copy(coneOrientation).multiply(railOrientation);
+        place(coneRails.current,railCount++,center,[radius,observer.range,radius],tint);
+      }
     }
     models.current.count=modelCount;links.current.count=drill.tethers?.length??0;
     fields.current.count=drill.orbits?.length??0;rings.current.count=fields.current.count*3;arrows.current.count=fields.current.count;
-    cones.current.count=drill.observers?.length??0;
-    for(const mesh of [models.current,links.current,fields.current,rings.current,arrows.current,cones.current]){
+    watchingCones.current.count=watchingCount;warningCones.current.count=warningCount;restingCones.current.count=restingCount;
+    coneRims.current.count=drill.observers?.length??0;coneRails.current.count=railCount;
+    for(const mesh of [models.current,links.current,fields.current,rings.current,arrows.current,watchingCones.current,warningCones.current,restingCones.current,coneRims.current,coneRails.current]){
       mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
     }
   });
@@ -70,8 +88,20 @@ export function MechanicRenderer({events,appearance,debug}:{events:RaceEventPort
     <instancedMesh ref={arrows} args={[undefined,undefined,ORBITS]} count={0} frustumCulled={false}>
       <coneGeometry args={[1,1,8]}/><meshBasicMaterial/>
     </instancedMesh>
-    <instancedMesh ref={cones} args={[undefined,undefined,OBSERVERS]} count={0} frustumCulled={false}>
-      <coneGeometry args={[1,1,32,1,true]}/><meshBasicMaterial wireframe={debug} transparent opacity={0.12} side={DoubleSide} depthWrite={false}/>
+    <instancedMesh ref={watchingCones} args={[undefined,undefined,OBSERVERS]} count={0} frustumCulled={false}>
+      <coneGeometry args={[1,1,32,1,true]}/><meshBasicMaterial wireframe={debug} transparent opacity={0.22} side={DoubleSide} depthWrite={false}/>
+    </instancedMesh>
+    <instancedMesh ref={warningCones} args={[undefined,undefined,OBSERVERS]} count={0} frustumCulled={false}>
+      <coneGeometry args={[1,1,32,1,true]}/><meshBasicMaterial wireframe={debug} transparent opacity={0.18} side={DoubleSide} depthWrite={false}/>
+    </instancedMesh>
+    <instancedMesh ref={restingCones} args={[undefined,undefined,OBSERVERS]} count={0} frustumCulled={false}>
+      <coneGeometry args={[1,1,32,1,true]}/><meshBasicMaterial wireframe={debug} transparent opacity={0.07} side={DoubleSide} depthWrite={false}/>
+    </instancedMesh>
+    <instancedMesh ref={coneRims} args={[undefined,undefined,OBSERVERS]} count={0} frustumCulled={false}>
+      <ringGeometry args={[0.987,1,64]}/><meshBasicMaterial transparent opacity={0.85} side={DoubleSide} depthWrite={false}/>
+    </instancedMesh>
+    <instancedMesh ref={coneRails} args={[undefined,undefined,OBSERVERS*4]} count={0} frustumCulled={false}>
+      <coneGeometry args={[1,1,1,1,true,-0.008,0.016]}/><meshBasicMaterial transparent opacity={0.85} side={DoubleSide} depthWrite={false}/>
     </instancedMesh>
   </group>;
 }
