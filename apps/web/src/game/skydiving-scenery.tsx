@@ -1,6 +1,6 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Shape, type Group, type Mesh, type MeshStandardMaterial } from 'three';
+import { Shape, ShaderMaterial, type Group, type Mesh } from 'three';
 import type { PlayerSnapshot } from './player-controller';
 
 // An authored placeholder, independent of generated collectible visuals.
@@ -44,39 +44,55 @@ export function StarfishDiver({color = '#ff9875',motion}: {color?: string;motion
   </group>;
 }
 
-const clouds = Array.from({length: 24}, (_, index) => ({
-  x: index%2===0 ? (index%4===0?65:-65) : ((index*31)%100)-50,
-  z: index%2===1 ? (index%4===1?65:-65) : ((index*47)%100)-50,
-  depth: ((index * 31) % 180),
-  scale: 0.8 + (index % 5) * 0.3,
-}));
-const puffs: [number, number, number, number][] = [
-  [0,0,0,3.5], [-3,0.1,0.6,2.7], [3,0,0,2.9], [-0.8,0.6,-2,2.8], [1.8,0.3,2,2.5],
-];
-const wrap = (value: number, span: number) => ((value % span) + span) % span;
 
-// All scenery follows world distance, not wall-clock time: pause freezes clouds,
-// and braking makes their approach visibly slower. Recycling bounds scene size.
-export function CloudField({snapshot}: {snapshot: () => PlayerSnapshot}) {
-  const field = useRef<Group>(null);
-  useFrame(() => {
-    const {position: [x,y,z]} = snapshot();
-    field.current?.children.forEach((cloud, index) => {
-      const seed = clouds[index];
-      const relativeY = wrap(-y - seed.depth, 180) - 170;
-      cloud.position.set(seed.x, relativeY, seed.z);
-      const opacity = Math.min(0.5, Math.max(0, (-relativeY - 2) / 14));
-      cloud.children.forEach(child => {
-        ((child as Mesh).material as MeshStandardMaterial).opacity = opacity;
-      });
+const clouds=Array.from({length:32},(_,i)=>({
+  x:Math.sin(i*2.4)*(65+i%5*24),z:Math.cos(i*2.4)*(65+i%5*24),
+  depth:i*47%600,scale:38+i%6*9,
+}));
+const wrap=(value:number,span:number)=>((value%span)+span)%span;
+const cloudVertex=`varying vec2 vUv;
+void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`;
+const cloudFragment=`
+varying vec2 vUv;
+uniform float opacity;
+uniform float seed;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float n=0.;float a=.5;for(int i=0;i<5;i++){n+=a*noise(p);p=p*2.07+13.1;a*=.5;}return n;}
+void main(){
+vec2 p=vUv*5.0+seed;
+float n=fbm(p);
+float edge=1.0-smoothstep(.22,.51,length((vUv-.5)*vec2(1.,1.15)));
+float density=smoothstep(.28,.70,n)*edge;
+float light=clamp(.70+fbm(p+vec2(-.25,.4))*.30,0.,1.);
+vec3 color=mix(vec3(.54,.60,.66),vec3(.96,.96,.91),light);
+gl_FragColor=vec4(color,density*opacity);
+#include <tonemapping_fragment>
+#include <colorspace_fragment>
+}
+`;
+
+// Distance-driven layers freeze with the race. Transparent feathered density
+// replaces the old opaque clusters of spheres; there is no extra simulation.
+export function CloudField({snapshot}:{snapshot:()=>PlayerSnapshot}){
+  const field=useRef<Group>(null);
+  const materials=useMemo(()=>clouds.map((_,i)=>new ShaderMaterial({
+    vertexShader:cloudVertex,fragmentShader:cloudFragment,
+    uniforms:{opacity:{value:.65},seed:{value:i*7.13}},transparent:true,depthWrite:false,side:2,
+  })),[]);
+  useEffect(()=>()=>materials.forEach(material=>material.dispose()),[materials]);
+  useFrame(()=>{
+    const y=snapshot().position[1];
+    field.current?.children.forEach((cloud,i)=>{
+      const relative=wrap(-y-clouds[i].depth,600)-560;
+      cloud.position.set(clouds[i].x,relative,clouds[i].z);
+      materials[i].uniforms.opacity.value=.76*Math.min(1,Math.max(0,(-relative-8)/65))*Math.min(1,(relative+560)/70);
     });
   });
-  return <group ref={field}>{clouds.map((cloud,index) =>
-    <group key={index} scale={cloud.scale}>
-      {puffs.map(([x,y,z,radius], puff) => <mesh key={puff} position={[x,y,z]} scale={[1,0.45,0.8]}>
-        <sphereGeometry args={[radius,10,7]}/>
-        <meshStandardMaterial color="#f4f9ff" roughness={1} transparent opacity={0.8} depthWrite={false}/>
-      </mesh>)}
-    </group>
-  )}</group>;
+  return <group ref={field}>{clouds.map((cloud,i)=><group key={i}>
+    {[0,1].map(layer=><mesh key={layer} position={[layer*9,layer*7,layer*-8]} rotation={[-Math.PI/2,0,i*1.7]} scale={[cloud.scale,cloud.scale*.8,1]} material={materials[i]}>
+      <planeGeometry args={[1,1]}/>
+    </mesh>)}
+  </group>)}</group>;
 }

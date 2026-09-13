@@ -34,3 +34,5 @@ Inspect front, rear and exported Dive animation in Blender, then check the game 
 Each character needs a distinct rhythm and prop interaction, not simply the same idle on a different mesh. Linda's paper is physically attached to a foreleg bone and her intro returns to the rest pose before the loop pause. The roster previews all equipped characters; the start button names the selected player.
 
 Facial forms use explicit bevelled cheek/nasal/jaw planes and narrow mouth seams. Keep the tiny eyes and deadpan expressions; avoid spherical muzzles or globally forcing flat shading on equipment and bodies.
+
+Arms and legs use tapered eight-sided muscle sections, angular elbow/knee transitions, narrow wrists/ankles and bevelled wedge feet/claws. Preserve the comical proportions, joint origins and prop attachments. The broad authored planes match the angular faces without changing loader shading or animation tracks.

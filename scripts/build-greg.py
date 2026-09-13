@@ -238,6 +238,49 @@ def face_piece(name,center,scale,color,joint,boxy=None,taper=.82):
                 uv.extend(texture_uv(color,.5+(z if abs(normal[0])>.5 else x)*.45,.5+y*.55))
     emit_piece(name,vertices,normals,uv,joint)
 
+
+def limb_piece(name,center,scale,color,joint,segments=None,rings=None,boxy=None):
+    """Tapered eight-sided muscle sections with knee/elbow breaks.
+
+    Preserve joint origins, prop attachments and overall reach. Long vertical
+    sections narrow at the wrist/ankle; hands and feet use flat bevelled wedges.
+    """
+    if scale[1]<max(scale[0],scale[2]):
+        face_piece(name,center,scale,color,joint,taper=.78)
+        return
+    origin=origins[joints.index(joint)]
+    upper='thigh' in name or 'shoulder' in name or 'upper' in name
+    profile=([(-1,.56,.04),(-.48,.78,.10),(.12,1,0),(.65,.87,-.04),(1,.62,0)] if upper else
+             [(-1,.60,.08),(-.60,.60,.12),(.30,.82,-.03),(.70,1,-.06),(1,.70,0)])
+    section=[(-.70,-1),(.70,-1),(1,-.50),(1,.50),(.70,1),(-.70,1),(-1,.50),(-1,-.50)]
+    points=[]
+    for y,width,bend in profile:
+        for x,z in section:
+            points.append((origin[0]+center[0]+x*scale[0]*width,
+                           origin[1]+center[1]+y*scale[1],
+                           origin[2]+center[2]+(z*width+bend)*scale[2]))
+    faces=[]
+    for ring in range(len(profile)-1):
+        for side in range(8):
+            a=ring*8+side;b=ring*8+(side+1)%8
+            faces.append((a,b,b+8,a+8))
+    faces.extend([tuple(range(8)),tuple(range(32,40))])
+    vertices=[];normals=[];uv=[]
+    for face in faces:
+        a,b,c=[points[i] for i in face[:3]]
+        u=[b[k]-a[k] for k in range(3)];v=[c[k]-a[k] for k in range(3)]
+        normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+        outward=[sum(points[i][k] for i in face)/len(face)-origin[k]-center[k] for k in range(3)]
+        if sum(normal[k]*outward[k] for k in range(3))<0:
+            face=tuple(reversed(face));normal=[-n for n in normal]
+        length=math.sqrt(sum(n*n for n in normal));normal=[n/length for n in normal]
+        for i in range(1,len(face)-1):
+            for index in (face[0],face[i],face[i+1]):
+                point=points[index];vertices.extend(point);normals.extend(normal)
+                x,y,z=[point[k]-origin[k]-center[k] for k in range(3)]
+                uv.extend(texture_uv(color,.5+(z if abs(normal[0])>.5 else x)*.65,.5+y*.65))
+    emit_piece(name,vertices,normals,uv,joint)
+
 def patch(name,center,size,color,joint=root):
     origin=origins[joints.index(joint)]
     x,y,z=[center[i]+origin[i] for i in range(3)]
@@ -378,16 +421,16 @@ if character=='greg':
         piece('heavy brow',(side*.438,.25,.33),(.028,.027,.115),0,head)
         piece('nostril',(side*.22,.104,1.025),(.024,.018,.024),5,head,12,8)
         leg=bone('leg '+str(side),(side*.43,-.23,-.07),root)
-        piece('thigh',(0,-.16,0),(.32,.50,.35),0,leg)
-        piece('shin',(0,-.64,.04),(.175,.38,.19),0,leg)
-        piece('foot',(0,-1.01,.23),(.23,.145,.38),0,leg,boxy=.85)
+        limb_piece('thigh',(0,-.16,0),(.32,.50,.35),0,leg)
+        limb_piece('shin',(0,-.64,.04),(.175,.38,.19),0,leg)
+        limb_piece('foot',(0,-1.01,.23),(.23,.145,.38),0,leg,boxy=.85)
         for toe in [-1,0,1]:
             swept_piece('tapered toe claw',[(toe*.12,-1.015,.51,.048),(toe*.12,-1.025,.63,.036),(toe*.12,-1.065,.75,.003)],5,leg,segments=10,steps=3)
         arm=bone('arm '+str(side),(side*.44,.56,.3),root)
-        piece('upper arm',(side*.06,-.12,.06),(.125,.22,.13),0,arm)
-        piece('forearm',(side*.07,-.25,.19),(.08,.09,.19),0,arm)
+        limb_piece('upper arm',(side*.06,-.12,.06),(.125,.22,.13),0,arm)
+        limb_piece('forearm',(side*.07,-.25,.19),(.08,.09,.19),0,arm)
         for finger in [-1,1]:
-            piece('two fingers',(side*.07+finger*.042,-.25,.37),(.035,.037,.095),0,arm)
+            limb_piece('two fingers',(side*.07+finger*.042,-.25,.37),(.035,.037,.095),0,arm)
             swept_piece('finger claw',[(side*.07+finger*.042,-.25,.43,.024),(side*.07+finger*.045,-.26,.49,.018),(side*.07+finger*.048,-.29,.54,.003)],5,arm,segments=8,steps=3)
         piece('shoulder webbing',(side*.29,.49,.04),(.065,.72,.605),2,root,32,24,boxy=.65)
         piece('metal adjuster',(side*.29,.54,.565),(.082,.10,.035),3,root,16,12,boxy=.3)
@@ -423,15 +466,15 @@ elif character=='linda':
     swept_piece('nose horn',[(0,.015,.82,.09),(0,.13,.91,.068),(0,.30,1.04,.003)],6,head,segments=16)
     for side in [-1,1]:
         leg=bone('leg '+str(side),(side*.46,-.12,-.76),root)
-        piece('hind thigh',(0,-.27,0),(.28,.40,.32),0,leg)
-        piece('hind shin',(0,-.77,.035),(.205,.35,.215),0,leg)
-        piece('hind foot',(0,-1.09,.14),(.255,.145,.30),0,leg,boxy=.8)
+        limb_piece('hind thigh',(0,-.27,0),(.28,.40,.32),0,leg)
+        limb_piece('hind shin',(0,-.77,.035),(.205,.35,.215),0,leg)
+        limb_piece('hind foot',(0,-1.09,.14),(.255,.145,.30),0,leg,boxy=.8)
         arm=bone('arm '+str(side),(side*.48,-.10,.61),root)
-        piece('front shoulder',(0,-.22,0),(.28,.37,.30),0,arm)
-        piece('front shin',(0,-.76,.025),(.20,.38,.21),0,arm)
-        piece('front foot',(0,-1.11,.14),(.25,.145,.30),0,arm,boxy=.8)
+        limb_piece('front shoulder',(0,-.22,0),(.28,.37,.30),0,arm)
+        limb_piece('front shin',(0,-.76,.025),(.20,.38,.21),0,arm)
+        limb_piece('front foot',(0,-1.11,.14),(.25,.145,.30),0,arm,boxy=.8)
         for limb,y in [(leg,-1.10),(arm,-1.12)]:
-            for toe in [-1,0,1]:piece('ivory toenail',(toe*.14,y,.405),(.062,.06,.08),6,limb,16,10,boxy=.7)
+            for toe in [-1,0,1]:limb_piece('ivory toenail',(toe*.14,y,.405),(.062,.06,.08),6,limb,16,10,boxy=.7)
     # The board is strapped to the outside of the right foreleg, so it follows
     # the hoof lift instead of floating or requiring a fifth limb.
     clipboard=bone('clipboard',(.30,-.65,.10),arm)
@@ -459,15 +502,15 @@ elif character=='steve':
         piece('heavy eyelid',(side*.270,.135,.20),(.038,.032,.10),0,head)
         piece('nostril',(side*.12,.025,.68),(.018,.017,.014),5,head,12,8)
         leg=bone('leg '+str(side),(side*.46,.03,-.82),root)
-        piece('powerful hind thigh',(0,-.27,0),(.31,.44,.34),0,leg)
-        piece('long hind shin',(0,-.85,.02),(.20,.39,.22),0,leg)
-        piece('hind foot',(0,-1.23,.15),(.25,.145,.30),0,leg,boxy=.8)
+        limb_piece('powerful hind thigh',(0,-.27,0),(.31,.44,.34),0,leg)
+        limb_piece('long hind shin',(0,-.85,.02),(.20,.39,.22),0,leg)
+        limb_piece('hind foot',(0,-1.23,.15),(.25,.145,.30),0,leg,boxy=.8)
         arm=bone('arm '+str(side),(side*.43,-.27,.61),root)
-        piece('front shoulder',(0,-.19,0),(.24,.30,.27),0,arm)
-        piece('short front shin',(0,-.61,.02),(.18,.29,.20),0,arm)
-        piece('front foot',(0,-.93,.13),(.225,.145,.28),0,arm,boxy=.8)
+        limb_piece('front shoulder',(0,-.19,0),(.24,.30,.27),0,arm)
+        limb_piece('short front shin',(0,-.61,.02),(.18,.29,.20),0,arm)
+        limb_piece('front foot',(0,-.93,.13),(.225,.145,.28),0,arm,boxy=.8)
         for limb,y,z in [(leg,-1.24,.42),(arm,-.94,.39)]:
-            for toe in (-1,0,1):piece('blunt toenail',(toe*.13,y,z),(.06,.06,.085),6,limb,16,10,boxy=.7)
+            for toe in (-1,0,1):limb_piece('blunt toenail',(toe*.13,y,z),(.06,.06,.085),6,limb,16,10,boxy=.7)
     for side in (-1,1):
         for index,(z,y,height,width) in enumerate([(.65,.35,.35,.34),(.24,.52,.65,.44),(-.22,.58,.83,.52),(-.70,.48,.72,.48),(-1.12,.23,.43,.36)]):
             back_plate('back plate '+str(side)+' '+str(index),(side*.20,y,z+side*.08),width,height,side)
@@ -500,14 +543,14 @@ else:
         piece('decisive brow',(side*.27,.24,.30),(.04,.03,.10),0,head)
         piece('nostril',(side*.20,.035,.70),(.018,.015,.022),5,head,12,8)
         leg=bone('leg '+str(side),(side*.38,-.20,-.14),root)
-        piece('strong thigh',(0,-.20,0),(.27,.40,.30),0,leg)
-        piece('shin',(0,-.70,.08),(.15,.30,.17),0,leg)
-        piece('planted foot',(0,-1.01,.22),(.22,.14,.30),0,leg,boxy=.8)
-        for toe in (-1,0,1):piece('blunt hoof',(toe*.12,-1.02,.48),(.055,.055,.075),6,leg,16,10)
+        limb_piece('strong thigh',(0,-.20,0),(.27,.40,.30),0,leg)
+        limb_piece('shin',(0,-.70,.08),(.15,.30,.17),0,leg)
+        limb_piece('planted foot',(0,-1.01,.22),(.22,.14,.30),0,leg,boxy=.8)
+        for toe in (-1,0,1):limb_piece('blunt hoof',(toe*.12,-1.02,.48),(.055,.055,.075),6,leg,16,10)
         arm=bone('arm '+str(side),(side*.40,.55,.14),root)
-        piece('upper forearm',(side*.05,-.20,.04),(.12,.27,.13),0,arm)
-        piece('lower forearm',(side*.04,-.40,.18),(.095,.12,.22),0,arm)
-        piece('capable hand',(side*.04,-.40,.36),(.12,.09,.12),0,arm)
+        limb_piece('upper forearm',(side*.05,-.20,.04),(.12,.27,.13),0,arm)
+        limb_piece('lower forearm',(side*.04,-.40,.18),(.095,.12,.22),0,arm)
+        limb_piece('capable hand',(side*.04,-.40,.36),(.12,.09,.12),0,arm)
         piece('shoulder strap',(side*.27,.40,.02),(.06,.60,.57),2,root,32,24,boxy=.65)
     tail=bone('tail',(0,-.12,-.44),root)
     swept_piece('balanced tapered tail',[(0,0,.10,.30),(0,-.08,-.40,.25),(0,-.10,-.85,.17),(0,-.04,-1.30,.08),(0,.06,-1.70,.004)],0,tail)

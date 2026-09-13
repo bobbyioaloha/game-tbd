@@ -1,9 +1,11 @@
+import { LandingClearing } from './LandingClearing';
+import { PrehistoricEarth } from './PrehistoricEarth';
 import { DinosaurModel } from './GregModel';
 import { followCameraAxis } from './camera-follow';
 import { projectRivalMarker } from './rival-marker';
 import { RaceCreations } from './RaceCreationVisuals';
 import type { RaceEventHost } from './race-event-host';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { TargetLock } from './target-lock';
 import type { Item } from './race-course';
 import { RaceObjects } from './RaceObjects';
@@ -21,15 +23,12 @@ export type RaceRuntime = {race:PracticeRace;voice?:RaceEventHost;keys:Set<strin
 export type Marker = {id:number;name:string;color:string;left:number;top:number;angle:number;edge:boolean;gap:string;locked:boolean;selected:boolean;progress:number};
 export const initialRaceHud = {incidents:0,creationMarker:null as {left:number;top:number;angle:number;edge:boolean;name:string;gap:string}|null,speed:0,depth:0,x:-7.5,z:0,brake:false,look:false,time:0,place:1,finish:null as number|null,remaining:FINISH_DEPTH,markers:[] as Marker[],allFinished:false,item:'Empty',effects:'',targetName:'',itemKey:null as Item|null,feedback:'',boost:false,fuel:0,dodgeCooldown:0,threat:'',threatAngle:0,threatDistance:'',standings:new PracticeRace(false).standings()};
 
-function CrashMat() {
-  return <group>
-    <mesh position={[0,-1.8,0]}><boxGeometry args={[88,3.5,88]}/><meshStandardMaterial color="#ffc650" roughness={0.65}/></mesh>
-    <mesh position={[0,-0.04,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[84,84]}/><meshStandardMaterial color="#f4efd9"/></mesh>
-    {[14,10,6].map((radius,index) => <mesh key={radius} position={[0,0.01+index*0.01,0]} rotation={[-Math.PI/2,0,0]}>
-      <ringGeometry args={[radius-2,radius,64]}/><meshStandardMaterial color={index%2 ? '#ffffff' : '#e25c61'}/>
-    </mesh>)}
-    {[-43,43].map(x => <mesh key={x} position={[x,0,0]}><boxGeometry args={[2,2,88]}/><meshStandardMaterial color="#f28e42"/></mesh>)}
-  </group>;
+function RacerDinosaur({racer,race}:{racer:PracticeRace['racers'][number];race:PracticeRace}){
+  const [landed,setLanded]=useState(racer.finishTime!==undefined);
+  useFrame(()=>{const next=racer.finishTime!==undefined;if(next!==landed)setLanded(next);});
+  return racer.model?<group position={[0,landed?0:-1.35,0]} rotation={[0,Math.PI,0]}>
+    <DinosaurModel character={racer.model} pose={landed?'Stand':'Dive'} time={()=>landed?0:race.elapsed} wind={landed?undefined:()=>({time:race.elapsed,speed:race.snapshot(racer).fallSpeed})}/>
+  </group>:null;
 }
 
 export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:typeof initialRaceHud)=>void}) {
@@ -73,13 +72,14 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
     const affected=eventState?.phase==='active'&&eventState.impact?.affectedRacerIds.includes('0');
     if(camera instanceof PerspectiveCamera) {
       const extra=affected?(eventState.instance?.spec.effect.type==='protectiveZone'?13:8):0;
-      if(!runtime.paused)camera.fov+=(65+extra-camera.fov)*(1-Math.exp(-dt*7));
+      if(!runtime.paused)camera.fov+=((landed?55:65)+extra-camera.fov)*(1-Math.exp(-dt*7));
+      camera.far=30000;
       camera.updateProjectionMatrix();
     }
     // A/D reverses in look-up mode to keep horizontal steering screen-relative.
     camera.up.set(0,0,-1);
-    camera.position.set(follow.current.x,look ? -16 : landed ? 80 : 16,follow.current.z);
-    camera.lookAt(follow.current.x,0,follow.current.z);
+    if(landed){camera.up.set(0,1,0);camera.position.set(x+10,7.5,z+13);camera.lookAt(x,1.8,z-2);}
+    else{camera.position.set(follow.current.x,look?-16:16,follow.current.z);camera.lookAt(follow.current.x,0,follow.current.z);}
     camera.updateMatrixWorld();
     let aimScore=Infinity;
     let candidateId:number|undefined;
@@ -105,8 +105,8 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       const racer=race.racers[index], [rx,ry,rz]=race.snapshot(racer).position;
       const t=racer.finishTime===undefined ? -1 : runtime.clock-racer.finishTime;
       const bounce=t>0.15&&t<1.15 ? Math.sin((t-0.15)*Math.PI)*2.5 : 0;
-      const squash=t>=0&&t<0.15 ? 0.2 : t>=1.15 ? 0.35 : 1;
-      const flail=race.elapsed<racer.flailUntil;
+      const squash=t>=0&&t<0.15 ? 0.2 : 1;
+      const flail=racer.finishTime===undefined&&race.elapsed<racer.flailUntil;
       group.rotation.set(flail?race.elapsed*15:racer.id===0&&!runtime.paused?input.z*0.16:0,0,flail?race.elapsed*12:racer.id===0&&!runtime.paused?-input.x*0.16:0);
       if(race.elapsed<racer.dodgeUntil){
         const roll=(1-(racer.dodgeUntil-race.elapsed)/0.35)*Math.PI*2;
@@ -122,8 +122,8 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         if(eventState?.instance)(aura.material as MeshBasicMaterial).color.set(eventAuraColors[eventState.instance.spec.effect.type]);
       }
       if(eventOnRacer&&eventState?.instance?.spec.effect.type==='gravityWell')group.rotation.z+=Math.sin(race.elapsed*8+racer.id)*0.28;
-      group.position.set(rx,ry-y+bounce+0.3,rz);
-      group.scale.set(t>=0 ? 1.25 : 1,squash,t>=0 ? 1.25 : 1);
+      group.position.set(rx,ry-y+bounce+(racer.finishTime!==undefined?0:.3),rz);
+      group.scale.set(1,squash,1);
     });
     if(mat.current) mat.current.position.y=-FINISH_DEPTH-y;
     if(rails.current) rails.current.position.y=0;
@@ -171,18 +171,19 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
     }
   });
   return <>
-    <color attach="background" args={['#75b8df']}/><fog attach="fog" args={['#b8ddef',80,250]}/>
-    <ambientLight intensity={2}/><directionalLight position={[15,30,-10]} intensity={2.5}/>
+    <color attach="background" args={['#79bbed']}/><fog attach="fog" args={['#b3d4f1',180,850]}/>
+    <hemisphereLight args={['#e0f1ff','#8c9952',1.9]}/><directionalLight position={[15,30,-10]} intensity={2.1}/>
     <group ref={racers}>{runtime.race.racers.map((racer,index)=><group key={index}>
       {racer.model
-        ?<group position={[0,-1.35,0]} rotation={[0,Math.PI,0]}><DinosaurModel key={racer.model} character={racer.model} pose="Dive" time={()=>runtime.race.elapsed} wind={()=>({time:runtime.race.elapsed,speed:runtime.race.racers[index].finishTime===undefined?runtime.race.snapshot(runtime.race.racers[index]).fallSpeed:0})}/></group>
+        ?<RacerDinosaur racer={racer} race={runtime.race}/>
         :<StarfishDiver color={racer.color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/>}
       <mesh name="event-aura" visible={false}><sphereGeometry args={[2.2,16,12]}/><meshBasicMaterial color="#7ee9f1" wireframe transparent opacity={0.5} depthWrite={false}/></mesh>
     </group>)}</group>
     <RaceObjects race={runtime.race}/>
     {runtime.voice&&<RaceCreations host={runtime.voice}/>}
+    <PrehistoricEarth snapshot={()=>runtime.race.snapshot(runtime.race.racers[0])}/>
     <CloudField snapshot={()=>runtime.race.snapshot(runtime.race.racers[0])}/>
-    <group ref={mat}><CrashMat/></group>
+    <group ref={mat}><LandingClearing race={runtime.race} paused={runtime.paused}/></group>
     <group ref={rails}>{[-LANE_HALF_WIDTH,LANE_HALF_WIDTH].flatMap(x=>[-LANE_HALF_WIDTH,LANE_HALF_WIDTH].map(z=><mesh key={x+','+z} position={[x,0,z]}>
       <cylinderGeometry args={[0.08,0.08,300,6]}/><meshBasicMaterial color="#d5eafb" transparent opacity={0.3}/>
     </mesh>))}</group>
