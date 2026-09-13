@@ -1,4 +1,4 @@
-# Mandatory Safety Exercise
+# Mandatory Safety Exercise 🦖☁️👷
 
 A 3D browser racing game about dinosaurs completing a compulsory workplace skydiving exercise. Dodge obstacles, race your coworkers, and use your voice to create objects that can change the race for everyone.
 
