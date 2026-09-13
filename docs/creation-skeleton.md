@@ -4,7 +4,7 @@ The main race and lab now support recorded speech with opt-in live generation: s
 
 ## When to use this reference
 
-Use this guide when maintaining `CreationSpec` v2, `/api/creations`, or the retained simulated demo. For the current race, read [the architecture guide](architecture.md) and [v3 shared effects](race-events-handoff.md). The standalone Fixtures page and old demo navigation are no longer routed by the main app.
+Use this guide when maintaining `CreationSpec` v2, `/api/creations`, or the retained simulated demo. For the current race, read [the architecture guide](architecture.md) and [v4 safety drills](safety-drills.md). The standalone Fixtures page and old demo navigation are no longer routed by the main app.
 
 To inspect v2 generation today, run `bun run dev`, open [the local Generation lab](http://localhost:5173/#/dev/generation), and select **Asset generation**. See [the pipeline guide](prompt-to-mesh-pipeline.md) for its setup and testing workflow.
 
@@ -53,8 +53,8 @@ Effect classes currently map to: movement → reduceFallSpeed, protection → in
 
 The route invokes its provider exactly once, enforces a 30-second deadline, aborts on disconnect, and validates unknown provider output. The HTTP client validates again and uses a 35-second deadline. The in-game controller guards long transcription/generation phases separately. Provider errors are not forwarded to the client.
 
-The main race uses `/api/voice/events` with v3 shared events. The Asset generation lab uses `/api/voice/creations` for v2 voice results; `/api/creations` remains the compatible mocked raw-spec endpoint. See [voice contracts](voice-input-plan.md#http-and-adapter-reference).
+The main race uses `/api/voice/drills` with v4 safety drills; `/api/voice/events` retains v3 compatibility. The Asset generation lab uses `/api/voice/creations` for v2 voice results; `/api/creations` remains the compatible mocked raw-spec endpoint. See [voice contracts](voice-input-plan.md#http-and-adapter-reference).
 
 ## Verification
 `bun run build`, `bun run typecheck`, and `bun run test`.
-Tests cover v1 compatibility, invalid mesh data, one-attempt semantics, current-position spawning, stale results, missed creations, and structured server failures/timeouts. For browser testing, use the current lab and game paths described in [the voice guide](voice-input-plan.md), keeping their v3 behavior separate from this legacy demo.
+Tests cover v1 compatibility, invalid mesh data, one-attempt semantics, current-position spawning, stale results, missed creations, and structured server failures/timeouts. For browser testing, use the current lab and game paths described in [the voice guide](voice-input-plan.md), keeping their v4/v3 behavior separate from this legacy demo.

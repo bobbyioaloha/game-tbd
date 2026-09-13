@@ -104,3 +104,58 @@ test('shared stream envelopes preserve all three API payload boundaries and stri
     assert.equal(target.voice.safeParse({type: 'transcript', result, audio: 'unexpected'}).success, false);
   }
 });
+
+test('five new drill families keep appearance separate, variant choices strict, and authored limits finite', () => {
+  const newFixtures = safetyDrillFixtures.slice(6);
+  assert.deepEqual(newFixtures.map(item => item.spec.drill.family), ['pinball', 'buddy', 'orbit', 'reconstruction', 'observation']);
+  assert.equal(new Set(newFixtures.map(item => encounterLabel(item.spec))).size, 5);
+  assert.equal(SAFETY_DRILL_LIMITS.maxTethers, 8);
+  assert.equal(SAFETY_DRILL_LIMITS.maxOrbits, 4);
+  assert.equal(SAFETY_DRILL_LIMITS.maxObservers, 8);
+  for (const item of newFixtures) {
+    assert.ok(item.prompt.split(/\s+/u).length <= 10);
+    const compiled = compileSafetyDrill(item.spec.drill);
+    for (const [key, value] of Object.entries(compiled)) {
+      if (key !== 'recipe') assert.ok(typeof value === 'number' && Number.isFinite(value) && value > 0);
+    }
+    for (const extra of [{target: 'opponents'}, {strength: 100}, {durationSeconds: 100}, {code: 'launch()'}, {modifier: 'draft'}]) {
+      assert.equal(SafetyDrillRecipeSchema.safeParse({...item.spec.drill, ...extra}).success, false);
+    }
+    assert.equal(SafetyDrillSpecSchema.safeParse({...item.spec, appearance: {...item.spec.appearance, collider: 50}}).success, false);
+  }
+});
+
+test('free new-family mock traits and explicit behaviors select the intended mechanics and variants', () => {
+  const cases = [
+    ['springy avocado', {family: 'pinball', layout: 'staggered', bounce: 'springy'}],
+    ['angry avocado', {family: 'pinball', layout: 'staggered', bounce: 'springy'}],
+    ['nervous avocado', {family: 'pinball', layout: 'staggered', bounce: 'springy'}],
+    ['avocado ricochets through a narrow funnel', {family: 'pinball', layout: 'funnel', bounce: 'ricochet'}],
+    ['clingy stapler', {family: 'buddy', pairing: 'nearest', tether: 'elastic'}],
+    ['stapler tethers distant buddies in pulses', {family: 'buddy', pairing: 'crossfield', tether: 'pulsing'}],
+    ['gentle planet', {family: 'orbit', direction: 'clockwise', pull: 'gentle'}],
+    ['clingy planet', {family: 'orbit', direction: 'clockwise', pull: 'clingy'}],
+    ['hippos orbit counterclockwise with clingy gravity', {family: 'orbit', direction: 'counterclockwise', pull: 'clingy'}],
+    ['haunted photocopier', {family: 'reconstruction', pattern: 'trail', cadence: 'steady'}],
+    ['ducks replay mirrored paths in bursts', {family: 'reconstruction', pattern: 'mirror', cadence: 'bursts'}],
+    ['watchful goose', {family: 'observation', scan: 'sweep', temperament: 'strict'}],
+    ['friendly goose', {family: 'observation', scan: 'sweep', temperament: 'patient'}],
+    ['patient avocado inspects everyone with alternating scans', {family: 'observation', scan: 'alternating', temperament: 'patient'}],
+  ] as const;
+  for (const [prompt, expected] of cases) {
+    const result = mockSafetyDrillForText(prompt);
+    assert.ok(result, prompt);
+    assert.deepEqual(result.spec.drill, expected, prompt);
+    SafetyDrillSpecSchema.parse(result.spec);
+  }
+  const charging = mockSafetyDrillForText('bouncy avocado charges when approached')!;
+  assert.equal(charging.spec.drill.family, 'stampede', 'an explicit charge beats inferred bounciness');
+  assert.deepEqual(charging.spec.appearance, safetyDrillFixtures[6].spec.appearance);
+  const river = mockSafetyDrillForText('suspicious goose in pulsing rapids')!;
+  assert.equal(river.spec.drill.family, 'rapids', 'explicit currents beat inferred inspection');
+  const bouncing = mockSafetyDrillForText('clingy stapler bounces between racers')!;
+  assert.equal(bouncing.spec.drill.family, 'pinball', 'an explicit bounce beats inferred tethering');
+  const tethered = mockSafetyDrillForText('clingy planet tethers everyone')!;
+  assert.equal(tethered.spec.drill.family, 'buddy', 'explicit tethering beats a planet association');
+  assert.equal(mockSafetyDrillForText('bouncing unknown bicycle'), undefined, 'unknown geometry never becomes a known fixture');
+});

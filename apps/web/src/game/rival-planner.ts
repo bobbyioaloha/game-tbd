@@ -1,6 +1,7 @@
 import type { PracticeRace, Racer } from './practice-race';
 import { obstacleHit } from './race-course';
 import { contactTime, subtract } from '../race-events/math';
+import { insideObservationCone } from '../race-events/drill-mechanics';
 import type { EventVector } from '@sky/shared';
 import { STEER_SPEED } from './freefall-controller';
 import type { Position } from './player-controller';
@@ -20,6 +21,7 @@ export function planRival(race:PracticeRace,racer:Racer){
   const event = race.events?.getSnapshot();
   const drill = event?.phase === 'active' ? event.drill : undefined;
   const actors = drill?.actors.filter(actor => Math.abs(p[1]-actor.position[1])<75) ?? [];
+  const hazards=actors.filter(actor=>actor.kind!=='bumper');
   // Use the same visible volumes as players. Decisions still run at the normal
   // rival cadence; no knowledge of future reactions or hidden escape routes.
   const opportunity = (from:EventVector,to:EventVector,reward:number) => {
@@ -32,6 +34,18 @@ export function planRival(race:PracticeRace,racer:Racer){
   for(const actor of actors)if(actor.wake)opportunity(actor.wake.from,actor.wake.to,8+4*risk);
   for(const current of drill?.currents ?? []) {
     if(current.kind!=='eddy')opportunity(current.from,current.to,current.kind==='fast'?14*risk:8);
+  }
+  for(const actor of actors)if(actor.kind==='bumper'&&actor.state!=='warning') {
+    const x=actor.position[0]+actor.radius*0.75;
+    opportunity([x,actor.position[1]+actor.radius,actor.position[2]],[x,actor.position[1]-actor.radius,actor.position[2]],10*risk);
+  }
+  for(const link of drill?.tethers??[])if(link.active&&link.racerIds.includes(String(racer.id))) {
+    const buddy=link.racerIds[0]===String(racer.id)?link.to:link.from;
+    options.push([Math.max(-36,Math.min(36,buddy[0])),Math.max(-36,Math.min(36,buddy[2])),18*Math.min(1,link.tension)]);
+  }
+  for(const orbit of drill?.orbits??[])if(orbit.active) {
+    const x=orbit.position[0]+orbit.radius*0.65;
+    opportunity([x,orbit.position[1]+orbit.height/2,orbit.position[2]],[x,orbit.position[1]-orbit.height/2,orbit.position[2]],8*risk);
   }
   for(const item of [...race.boxes.filter(b=>b.active&&!racer.item),...race.rings.filter(r=>racer.boostFuel<4&&!r.used.has(racer.id))]){
     const vertical=p[1]-item.position[1],travel=Math.hypot(item.position[0]-p[0],item.position[2]-p[2])/STEER_SPEED;
@@ -60,15 +74,18 @@ export function planRival(race:PracticeRace,racer:Racer){
     const distance=Math.hypot(x-p[0],z-p[2]),fraction=Math.min(1,STEER_SPEED*duration/(distance||1));
     const end:Position=[p[0]+(x-p[0])*fraction,p[1]-speed*duration,p[2]+(z-p[2])*fraction];
     const collisions=nearby.reduce((n,o)=>n+Number(obstacleHit(p,end,o,race.elapsed+duration/2)!==null),0);
-    const equipmentContacts=actors.reduce((count,actor)=>{
+    const equipmentContacts=hazards.reduce((count,actor)=>{
       const future:EventVector=[actor.position[0]+actor.velocity[0]*Math.min(duration,0.4),actor.position[1]+actor.velocity[1]*Math.min(duration,0.4),actor.position[2]+actor.velocity[2]*Math.min(duration,0.4)];
       return count+Number(contactTime(subtract(p,actor.position),subtract(end,future),[0,0,0],actor.radius+1)!==undefined);
     },0);
-    const score=reward-collisions*(34-risk*10)-equipmentContacts*(26-risk*8)-Math.hypot(x-p[0],z-p[2])*0.06;
+    const moving=Math.hypot(end[0]-p[0],end[2]-p[2])>1;
+    const inspected=moving&&(drill?.observers??[]).some(observer=>(observer.watching||observer.warning)&&[0,0.35,0.7].some(t=>
+      insideObservationCone([p[0]+(end[0]-p[0])*t,p[1]+(end[1]-p[1])*t,p[2]+(end[2]-p[2])*t],observer)));
+    const score=reward-collisions*(34-risk*10)-equipmentContacts*(26-risk*8)-(inspected?22:0)-Math.hypot(x-p[0],z-p[2])*0.06;
     if(score>bestScore){best=option;bestScore=score;}
   }
   racer.target=[best[0],best[1]];
-  const threat=nearby.some(o=>obstacleHit(p,[p[0],p[1]-speed*0.7,p[2]],o,race.elapsed+0.35)!==null)||actors.some(actor=>contactTime(p,[p[0],p[1]-speed*0.7,p[2]],actor.position,actor.radius+1)!==undefined);
+  const threat=nearby.some(o=>obstacleHit(p,[p[0],p[1]-speed*0.7,p[2]],o,race.elapsed+0.35)!==null)||hazards.some(actor=>contactTime(p,[p[0],p[1]-speed*0.7,p[2]],actor.position,actor.radius+1)!==undefined);
   const remaining=Math.hypot(best[0]-p[0],best[1]-p[2]);
   racer.brakeUntil=threat&&remaining>5?race.elapsed+0.3:0;
   return threat;

@@ -6,6 +6,7 @@ import { PerspectiveCamera, type Group } from 'three';
 import { PowerUpModel } from '../components/PowerUpModel';
 import { fitModelToDiameter } from '../race-events/model-presentation';
 import { drillAssessment } from './drill-feedback';
+import { drillMetricSummary } from '../race-events/drill-metrics';
 import type { RaceCreationRecord } from './race-creation-history';
 import './race-creations.css';
 
@@ -70,13 +71,9 @@ function CreationOutcome({creation, racers}: {creation: RaceCreationRecord; race
   const metrics: {label: string; value: string | number}[] = [];
   if (triggered && impact) {
     if (spec.version === 4 && impact.drill) {
-      if (spec.drill.family === 'stampede') {
-        metrics.push({label: 'Equipment contacts', value: total(impact.drill.collisions)});
-        metrics.push({label: 'Contacts blocked', value: total(impact.drill.blockedCollisions)});
-        if (spec.drill.modifier === 'draft') metrics.push({label: 'Time drafting', value: total(impact.drill.draftSeconds).toFixed(1) + ' s'});
-        if (spec.drill.reaction !== 'steady') metrics.push({label: 'Herd reactions', value: impact.drill.reactions});
-      } else {
-        metrics.push({label: 'Time in currents', value: total(impact.drill.currentSeconds).toFixed(1) + ' s'});
+      metrics.push({label: 'Drill results', value: drillMetricSummary(spec.drill.family, impact.drill)});
+      if (spec.drill.family === 'stampede' && spec.drill.reaction !== 'steady') {
+        metrics.push({label: 'Herd reactions', value: impact.drill.reactions});
       }
     } else if (spec.version === 3) {
       if (spec.effect.type === 'repulsionBurst') metrics.push({label: 'Pushes delivered', value: total(impact.impulseCounts)});

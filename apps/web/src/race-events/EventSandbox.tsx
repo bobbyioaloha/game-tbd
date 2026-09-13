@@ -5,6 +5,7 @@ import { encounterLabel, encounterInstruction, type RaceEncounter } from '@sky/s
 import { EventSandboxModel, SANDBOX_RACERS } from './sandbox-model';
 import { RaceEventRenderer } from './RaceEventRenderer';
 import { length } from './math';
+import { drillMetricSummary } from './drill-metrics';
 function Racer({model,index,debug}:{model:EventSandboxModel;index:number;debug:boolean}) {
   const group=useRef<Group>(null),shield=useRef<Mesh>(null),arrow=useRef<ArrowHelper>(null),vector=useRef(new Vector3());
   const item=SANDBOX_RACERS[index];
@@ -66,14 +67,13 @@ export function EventSandbox({spec}:{spec:RaceEncounter}) {
     </div>
     <p role="status">{state.triggererId?'Triggered by '+(SANDBOX_RACERS.find(item=>item.id===state.triggererId)?.label??state.triggererId)+'. Shared event; no ownership exemption.':'Choose Run simulation. The first collision activates the event.'}</p>
     <p className="drill-instruction">{encounterInstruction(spec)}</p>
-    {state.drill&&<p role="status">{state.drill.warningSeconds>0?`Mandatory drill starts in ${state.drill.warningSeconds.toFixed(1)} s. Prepare for the reported hazard.`:`${state.drill.actors.length} herd actors · ${state.drill.currents.length} current segments`}</p>}
+    {state.drill&&<p role="status">{state.drill.warningSeconds>0?`Mandatory drill starts in ${state.drill.warningSeconds.toFixed(1)} s. Prepare for the reported hazard.`:`${state.drill.actors.length} objects · ${state.drill.currents.length} currents · ${state.drill.tethers?.length??0} buddy links · ${state.drill.orbits?.length??0} orbit fields · ${state.drill.observers?.length??0} inspectors`}</p>}
     <div className="event-racers">{SANDBOX_RACERS.map(item=><div key={item.id} style={{borderColor:item.color}}>
       <strong>{item.label}</strong><span>{state.affectedRacerIds.includes(item.id)?'Affected this tick':'Outside / no current contact'}</span>
       <small>{model.impulseCounts[item.id]??0} impulses received</small>
-      {state.impact?.drill&&<><small>{state.impact.drill.collisions[item.id]??0} herd collisions</small>
-        <small>{(state.impact.drill.draftSeconds[item.id]??0).toFixed(1)} s drafting · {(state.impact.drill.currentSeconds[item.id]??0).toFixed(1)} s in currents</small></>}
+      {state.impact?.drill&&spec.version===4&&<small>{drillMetricSummary(spec.drill.family,state.impact.drill,item.id)}</small>}
       <small>{model.inputs[item.id]?.obstacleProtection?'Protected':(length(model.inputs[item.id]?.acceleration??[0,0,0])).toFixed(1)+' m/s² force'}</small>
     </div>)}</div>
-    <small>Local sandbox · scripted racers · {model.elapsed.toFixed(1)} / 15 s · {model.obstacleHits} obstacle hits. {spec.version===4?'Amber tracks warn of committed charges; red spheres show herd contact bounds. Cyan wakes accelerate, gold currents are fast, green eddies slow your fall. Bank markers are visual only.':'Gold debris collides; small blue fragments are visual only.'} Replay, pause and inspection make no API calls.</small>
+    <small>Local sandbox · scripted racers · {model.elapsed.toFixed(1)} / 15 s · {model.obstacleHits} obstacle hits. {spec.version===4?'Amber marks warnings; solid bounds mark contacts. Gold bumpers bounce, purple ghosts replay paths, buddy lines show tension, orbital arrows show spin, and red cones inspect movement. Cyan wakes and gold currents accelerate; green eddies slow descent.':'Gold debris collides; small blue fragments are visual only.'} Replay, pause and inspection make no API calls.</small>
   </section>;
 }

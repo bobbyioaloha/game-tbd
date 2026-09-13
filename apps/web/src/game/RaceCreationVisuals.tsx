@@ -10,6 +10,12 @@ import { PowerUpModel } from '../components/PowerUpModel';
 import type { RaceEventHost } from './race-event-host';
 import type { initialRaceHud } from './RaceScene';
 
+const impulseLabels:Record<ReturnType<typeof encounterKind>,string>={
+  gravityWell:'GRAVITY SHIFT!',debrisShower:'DEBRIS HIT!',repulsionBurst:'SHOCKWAVE!',protectiveZone:'PROTECTION ACTIVE!',
+  stampede:'EQUIPMENT CONTACT!',rapids:'CURRENT BOOST!',pinball:'BOUNCE!',buddy:'BUDDY ASSIST!',
+  orbit:'SLINGSHOT!',reconstruction:'ECHO CONTACT!',observation:'MOVEMENT FLAG!',
+};
+
 // Presentation only: model transforms never change the host's pickup/collision bounds.
 export function RaceCreations({host}:{host:RaceEventHost}) {
   useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
@@ -99,13 +105,13 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
     {event.phase==='active'&&event.instance&&<>
       {playerHit&&<div className={'event-screen-cue '+kind} aria-hidden="true"/>}
       <div className={'race-event-status active '+kind} role="status">
-        <strong>{event.instance.spec.version===4?'MANDATORY · ':''}{effectLabel.toUpperCase()} · {event.remainingSeconds.toFixed(1)} s</strong>
+        <strong>{event.instance.spec.version===4&&!effectLabel.startsWith('Mandatory ')?'MANDATORY · ':''}{effectLabel.toUpperCase()} · {event.remainingSeconds.toFixed(1)} s</strong>
         <span>{event.instance.spec.displayName} · {triggerer==='You'?'You activated it':triggerer+' activated it'}</span>
-        <span>{event.impact?.affectedRacerIds.length??0}/{event.impact?.participants.length??0} racers affected · {playerHit?'CONTACT WITH HAZARD':'Choose your route'}</span>
+        <span>{event.impact?.affectedRacerIds.length??0}/{event.impact?.participants.length??0} racers affected · {playerHit?'DRILL INTERACTION RECORDED':'Choose your route'}</span>
         <small>{encounterInstruction(event.instance.spec)}</small>
       </div>
       {playerImpulses>0&&<div key={event.instance.instanceId+'-'+playerImpulses} className="event-hit-callout" aria-hidden="true">
-        {kind==='stampede'?'EQUIPMENT CONTACT!':kind==='debrisShower'?'DEBRIS HIT!':'SHOCKWAVE!'}
+        {kind&&impulseLabels[kind]}
       </div>}
     </>}
     {event.phase==='collectible'&&event.instance&&<div className="race-event-status waiting" role="status">

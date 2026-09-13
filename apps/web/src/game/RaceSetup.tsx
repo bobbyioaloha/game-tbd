@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { RaceVoiceSetup, type RaceVoiceController } from '../voice/RaceVoiceControls';
 
-const BRIEFING_SEEN_KEY = 'mandatory-safety-exercise.briefing-seen.v1';
+const BRIEFING_SEEN_KEY = 'falling-standards.briefing-seen.v1';
+// Keep returning players' preference across the product rename.
+const LEGACY_BRIEFING_SEEN_KEY = 'mandatory-safety-exercise.briefing-seen.v1';
 function hasSeenBriefing() {
-  try { return localStorage.getItem(BRIEFING_SEEN_KEY) === 'true'; }
+  try {
+    const current = localStorage.getItem(BRIEFING_SEEN_KEY);
+    return (current ?? localStorage.getItem(LEGACY_BRIEFING_SEEN_KEY)) === 'true';
+  }
   catch { return false; }
 }
 
