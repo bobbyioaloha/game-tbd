@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { CHARACTERS, raceLineup } from './characters';
 import { PracticeRace } from './practice-race';
 
-for(const player of ['greg','linda','steve'] as const){
+for(const player of ['greg','linda','steve','susan'] as const){
   test(`${player}: selection, race and restart preserve a unique roster and player identity`,()=>{
     const race=new PracticeRace(false,()=>.5);
     const controllers=race.racers.map(racer=>racer.controller);
@@ -30,10 +30,9 @@ for(const player of ['greg','linda','steve'] as const){
     assert.equal(race.elapsed,0);
     assert.equal(race.racers[0].model,player);
     assert.deepEqual(race.racers.map(racer=>racer.name),expected.map(person=>person.name));
-    assert.equal(race.racers[3].name,'Susan');
-    assert.equal(race.racers[3].model,null);
+    assert.ok(race.racers.every(racer=>racer.model));
   });
 }
-test('all completed dinosaurs are playable and Susan remains unavailable',()=>{
-  assert.deepEqual(CHARACTERS.filter(character=>character.ready).map(character=>character.id),['greg','linda','steve']);
+test('all four dinosaurs are equipped and playable',()=>{
+  assert.deepEqual(CHARACTERS.filter(character=>character.ready).map(character=>character.id),['greg','linda','steve','susan']);
 });

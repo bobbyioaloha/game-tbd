@@ -51,3 +51,15 @@ test('Greg spreads all four limbs during freefall and banking',()=>{
       assert.ok(clip.channels.some(channel=>model.nodes[channel.target.node].name===limb),`${name}: ${limb}`);
   }
 });
+
+
+test('Susan checks her attached carabiner and plants a foot before waiting',()=>{
+  const model=asset('susan');
+  const clip=model.animations.find(clip=>clip.name==='Equipment check')!;
+  assert.ok(clip);
+  for(const name of ['arm -1','arm 1','head','carabiner','leg 1'])
+    assert.ok(clip.channels.some(channel=>model.nodes[channel.target.node].name===name),name);
+  const pelvis=model.nodes.find(node=>node.name==='pelvis')!;
+  const carabiner=model.nodes.findIndex(node=>node.name==='carabiner');
+  assert.ok(pelvis.children?.includes(carabiner));
+});

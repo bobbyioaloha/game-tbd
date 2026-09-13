@@ -173,7 +173,7 @@ export function MovementTest() {
         </div>
         <div className="in-game-display">
         <Canvas camera={{position: [0,32,0], up: [0,0,-1], fov: 65, far: 5000}} fallback={<p>WebGL is unavailable. Enable hardware acceleration to run this test.</p>}>
-          {screen==='race'||screen==='countdown'?<RaceScene runtime={runtime} report={setHud}/>:<Preview character={inspected} key={screen+inspected+take} angle={screen==='selection'?DEFAULT_CHARACTER_ANGLE:angle} zoom={zoom} pose={screen==='selection'?(person.introPose??'Stand'):pose} paused={screen==='selection'?false:previewPaused} loop={screen==='selection'||pose==='Checklist'||pose==='Diagnostics'} chase={false} inGame/>}
+          {screen==='race'||screen==='countdown'?<RaceScene runtime={runtime} report={setHud}/>:<Preview character={inspected} key={screen+inspected+take} angle={screen==='selection'?DEFAULT_CHARACTER_ANGLE:angle} zoom={zoom} pose={screen==='selection'?(person.introPose??'Stand'):pose} paused={screen==='selection'?false:previewPaused} loop={screen==='selection'||pose==='Checklist'||pose==='Diagnostics'||pose==='Equipment check'} chase={false} inGame/>}
         </Canvas>
         {(screen==='selection'||screen==='viewer')&&!settings&&<div className="in-game-personnel">
           <span className="safety-label">{screen==='viewer'?'EQUIPMENT INSPECTION':'MANDATORY ATTENDANCE'}</span>
@@ -187,7 +187,7 @@ export function MovementTest() {
             <label>Rotate<input aria-label="Rotate character" type="range" min="-180" max="180" value={angle} onChange={event=>setAngle(Number(event.target.value))}/></label>
             {screen==='viewer'&&<label>Zoom<input aria-label="Character preview zoom" type="range" min="5" max="12" step=".1" value={zoom} onChange={event=>setZoom(Number(event.target.value))}/></label>}
             <label>Procedure<select aria-label="Character procedure" value={pose} onChange={event=>{setPose(event.target.value as GregPose);setPreviewPaused(false);setTake(value=>value+1);}}>
-              {(screen==='viewer'?['Stand','Dive','Reach','Brake','Bank left','Bank right','Impact',...(inspected==='linda'?['Checklist']:inspected==='steve'?['Diagnostics']:[])]:['Stand','Reach']).map(value=><option key={value}>{value}</option>)}
+              {(screen==='viewer'?['Stand','Dive','Reach','Brake','Bank left','Bank right','Impact',...(inspected==='linda'?['Checklist']:inspected==='steve'?['Diagnostics']:inspected==='susan'?['Equipment check']:[])]:['Stand','Reach']).map(value=><option key={value}>{value}</option>)}
             </select></label>
             {screen==='viewer'&&<div><button aria-pressed={previewPaused} onClick={()=>setPreviewPaused(value=>!value)}>{previewPaused?'Play':'Pause preview'}</button><button onClick={()=>{setPreviewPaused(false);setTake(value=>value+1);}}>Replay</button></div>}
           </div>}

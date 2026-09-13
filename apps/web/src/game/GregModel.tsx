@@ -5,8 +5,8 @@ import { AnimationMixer, LoopOnce, LoopRepeat, Mesh, MeshLambertMaterial, Quater
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
-export type DinosaurCharacter = 'greg' | 'linda' | 'steve';
-export type GregPose = 'Stand' | 'Dive' | 'Reach' | 'Brake' | 'Bank left' | 'Bank right' | 'Impact' | 'Checklist' | 'Diagnostics';
+export type DinosaurCharacter = 'greg' | 'linda' | 'steve' | 'susan';
+export type GregPose = 'Stand' | 'Dive' | 'Reach' | 'Brake' | 'Bank left' | 'Bank right' | 'Impact' | 'Checklist' | 'Diagnostics' | 'Equipment check';
 type GregProps={loop?:boolean;pose?:GregPose;paused?:boolean;time?:()=>number;wind?:()=>{time:number;speed:number}};
 function LoadedDinosaur({character,pose='Stand',paused=false,time,wind,loop=false}:GregProps & {character:DinosaurCharacter}) {
   const gltf=useLoader(GLTFLoader,`/models/${character}.glb`);
