@@ -1,4 +1,8 @@
-# Personnel selection and Greg first pass
+# Historical reference: personnel selection and Greg first pass
+
+This records the initial Greg-only implementation. Character counts, model geometry, camera settings, and UI details below are historical, not the current game. Greg, Linda, and Steve are now playable. Use [the current character art guide](dinosaur-art-direction.md) for rebuild commands and contribution guidance.
+
+## Original handoff
 
 Game opens Personnel selection as a HUD overlay within MovementTest’s persistent game viewport and Canvas. Greg is the only enabled participant. Linda (Triceratops), Steve (Stegosaurus), and Susan (Parasaurolophus) are roster placeholders; opponents still use the existing placeholder visuals.
 

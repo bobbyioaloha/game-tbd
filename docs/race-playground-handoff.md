@@ -1,55 +1,44 @@
-# Race playground handoff
+# Race mechanics and playtesting
 
-## Scope and entry points
+The main game is a four-racer skydiving race: one human and three simulated rivals. Character selection, voice setup, the race, and results all run through `MovementTest.tsx`, despite its prototype-era name. Voice-generated shared effects are connected through `RaceEventHost`.
 
-Game → Movement test is a local four-racer prototype: one human and three simulated opponents. It is separate from the CreationDemoPage and generation lab. Race items use existing fixture visuals; voice generation is not connected to this race.
+Read [the README](../README.md#controls) for player controls and [the architecture guide](architecture.md) for a broader tour. This guide helps contributors find race mechanics and test a change.
 
-- MovementTest.tsx owns keyboard events, rebinding, pause/reset, and the React HUD.
-- RaceScene.tsx advances PracticeRace at 120 fixed steps per second and owns the camera and screen-space target selection.
-- practice-race.ts owns standings, combat, pickups, boost fuel, dodge, and finish state.
-- freefall-controller.ts owns movement integration; rival-planner.ts chooses AI routes.
-- race-course.ts defines authored obstacles and colliders independently from their visuals.
-- RaceObjects.tsx and skydiving-scenery.tsx render the world; RaceOverlay.tsx renders HUD graphics.
-- target-lock.ts owns the pure lock acquisition state.
+## Find the relevant code
 
-Do not wire generation into the race by modifying creation-loop.ts to update player motion. Coordinate integration through the existing controller/creation-host boundaries in controls-handoff.md.
+| File under `apps/web/src/game` | What it owns |
+| --- | --- |
+| `MovementTest.tsx` | Selection/setup/countdown, keyboard events, rebinding, pause/reset, and HUD composition. |
+| `RaceScene.tsx` | The sole 120 Hz simulation clock, camera, and screen-space target selection. |
+| `practice-race.ts` | Standings, ordinary items/combat, pickups, boost fuel, dodge, and finish state. |
+| `freefall-controller.ts` | Movement integration and bounded external event forces. |
+| `rival-planner.ts` | Computer-controlled rivals' routes. |
+| `race-course.ts` | Course obstacles and colliders. |
+| `RaceObjects.tsx`, `skydiving-scenery.tsx`, `RaceOverlay.tsx` | World scenery and HUD rendering. |
+| `target-lock.ts` | Item target acquisition. |
+| `race-event-host.ts`, `race-event-config.ts` | Voice pickup, generated-object placement, and game-owned contact/presentation sizes. |
 
-## Defaults
+Keep microphone/provider work out of movement integration. Shared effects enter through the event bridge during the existing race step; see [controls boundaries](controls-handoff.md) and [event integration](race-events-handoff.md#gameplay-integration).
 
-WASD steers; I looks upward with reversed horizontal steering; J uses an item; K brakes; U spends boost fuel; L dodges; Escape pauses. Letter controls are rebindable for the session. Blur or hiding the tab pauses and clears pending actions. Space remains reserved for voice.
+## Ordinary items versus generated events
 
-The arena is 72 × 72 m and the finish is 3,600 m below the start. Normal terminal speed is 30 m/s, boost speed is 60 m/s, and lateral steering is 20 m/s. Three rings each add two seconds of boost fuel, capped at four seconds. Dodge lasts 0.35 seconds with 0.25 seconds of protection and a 2.5-second cooldown.
+Ordinary boxes can grant the jellyfish umbrella, ghost cloak, or angry sun. These are authored inventory mechanics: a homing slow projectile, temporary protection, and a stationary blast. Their behavior is implemented in `practice-race.ts`; sharing names with original fixtures does not make them generated v3 effects.
 
-Boxes grant jellyfish umbrella (homing slow projectile after lock), ghost cloak (five seconds of protection), or angry sun (a stationary 3D blast lasting 2.5 seconds). Sun protection is temporary: lingering in the blast after protection ends can cause damage, but each explosion damages each opponent at most once.
+The yellow star grants one speaking attempt. A successfully generated object waits ahead for any racer to collect it, then activates a shared event. Generated events do not replace inventory or its timers. Their four effect types and current presets are in [the event reference](race-events-handoff.md#contract).
 
-## Audit fixes
+Movement speeds, cooldowns, and course parameters are defined in the source. When tuning them, check the corresponding HUD text and tests rather than relying on numbers from an older handoff.
 
-Boost accelerates at 30 m/s per second toward its cap and only applies for the duration paid by fuel. Release, braking, or fuel exhaustion removes speed above the normal 30 m/s cap. Impacts reduce current speed even during boost; recovery uses acceleration instead of an immediate speed reset.
+## Playtest a change
 
-- On-screen key instructions reflect rebound controls.
-- Touching a sun blast while protected no longer grants immunity to that blast for its entire lifetime.
-- Expired projectiles are skipped before movement and damage processing.
-- Regression coverage includes these combat cases as well as existing movement, targeting, pickups, AI, finish, boost, dodge, and progress-tracker tests.
+Run `bun run dev` and open [the local game](http://localhost:5173). Choose a character, then begin a race without voice for basic mechanics or with a prepared mock prompt for voice work.
 
-## Verification and manual smoke test
+1. Steer to each boundary, brake, pause/resume, and restart.
+2. Rebind an action in Settings and check both the displayed hint and actual key.
+3. Collect an item, acquire a target, fire while looking down/up, and try dodging a projectile.
+4. Use the sun near a rival, checking that the blast expires and protection behaves as expected.
+5. Collect boost fuel and check acceleration, fuel use, and braking.
+6. Check standings, progress, finish results, and HUD readability at a narrower desktop window.
+7. For generated effects, use [free fixtures/replay](race-events-handoff.md#free-gameplay-check), then try the [mock microphone flow](voice-input-plan.md#try-the-game-without-spending-credits). Restart during a request to check that stale results cannot enter the next race.
+8. If you changed shared generation/rendering code, also inspect the local Generation lab.
 
-Run from the repository root with the installed Bun and supported Node runtime:
-
-    bun run build
-    bun run typecheck
-    bun run test
-    git diff --check
-
-Before pushing, manually check Game → Movement test:
-
-1. Start, steer to each boundary, brake, pause/resume, and restart.
-2. Rebind use/boost/dodge/look and confirm the displayed help and actions agree.
-3. Collect a box, acquire a target, fire up/down, and dodge a jellyfish.
-4. Trigger sun near a rival; confirm the sphere remains visible and hazardous, then expires.
-5. Collect fuel, boost, and confirm braking preserves remaining fuel.
-6. Confirm the left tracker, live rank/gaps, and finish results; check at a narrow window size.
-7. Switch back to the creation demo and generation lab to confirm their views still work.
-
-Browser testing is left to the user. Automated checks do not establish visual quality or browser performance. Vite reports a large bundle warning; this prototype still mounts all course models and uses visibility culling, so lower-end device performance needs a manual check.
-
-Include the new gameplay modules and test files when staging; tracked-file-only staging would omit required imports. The unrelated untracked .vscode directory is outside this gameplay change. No shared contracts, server generation code, dependencies, or lockfiles were changed by this audit.
+Follow [the contributor checks](../CONTRIBUTING.md#check-your-work) before handing off code. Automated movement and event tests do not establish visual quality, camera feel, or low-end device performance; report the browser and the manual path you actually tested.

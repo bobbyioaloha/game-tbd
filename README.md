@@ -1,159 +1,93 @@
-# game-tbd
-TAI x OpenAI Hackathon September 2026
+# Mandatory Safety Exercise
 
-## Controls handoff
-Controls and movement are isolated from voice/generation. Start with [the partner handoff guide](docs/controls-handoff.md).
+A 3D browser racing game about dinosaurs completing a compulsory workplace skydiving exercise. Dodge obstacles, race your coworkers, and use your voice to create objects that can change the race for everyone.
 
-## Prompt-to-mesh lab
-The Generation lab compares **procedural parts** with **raw mesh generation**, using a configurable design → visuals pipeline and a shared 30-second deadline. Try the duck, toaster, and shield in mock mode immediately; live OpenAI profiles need a server API key and explicit paid-mode startup. Twelve comparison prompts, distance previews, ratings, timing, and JSON export help evaluate the two approaches. See [setup and API details](docs/prompt-to-mesh-pipeline.md). Voice input is available in both the lab and main race; see [voice setup and API details](docs/voice-input-plan.md).
+Built by two frontend developers making their first game during the 100-hour TAI x OpenAI Hackathon in September 2026, with Codex assisting development. The repository and some internal package names still use `game-tbd` and `skyfall`.
 
-## Current skeleton
-The app opens directly into the **Game**. Choose **Play as Greg** to review the briefing and microphone setup, then **Start with voice** or **Play without voice**. Collect the yellow star, hold Space, release to transcribe and generate, then any racer can collect the creation to activate its shared effect. Restart and Race again return to setup and clear paid consent. Only the briefing-seen preference is remembered.
+## Play the game
 
-The **Generation lab** is available at `/#/dev/generation` (also linked from the game toolbar in development). It supports typed or recorded prompts, visual methods, pipeline profiles, a 3D preview, cancellation, and exportable comparison history. The standalone Fixtures tab/viewer has been removed; fixture data, tests, and the v1 API remain compatible.
+Choose Greg the Tyrannosaurus, Linda the Triceratops, or Steve the Stegosaurus, then race three computer-controlled opponents to the finish. Susan is on the roster but still uses a placeholder and cannot be selected. The game currently targets desktop Chrome and Edge with a keyboard.
 
-Everything defaults to mock mode. Real speech recognition and generation require a server key, explicit `bun run dev:live` startup, and consent for each attempt. See [voice testing](docs/voice-input-plan.md) and [the creation contract](docs/creation-skeleton.md).
+Ordinary items help you compete. The yellow **Voice Power Up** gives you one chance to create something:
 
-The v1 contract and fixture API remain available for compatibility alongside the v2 creation pipeline.
+1. Fly into the yellow star.
+2. Hold **Space** and describe an object in ten words or fewer.
+3. Release to submit. Keep racing while it generates.
+4. Follow the radar to the object ahead and fly through its glowing halo.
+5. The first racer to reach it activates its effect. That can help or hurt everyone, including you.
 
-## Start
-Use Node 22.12+ and Bun 1.4.2+ (the package manager is pinned to bun@1.4.2). Install Bun using [its official instructions](https://bun.sh/docs/installation). On Windows with this repository in WSL, run these commands in a WSL terminal.
+Creations can pull racers into a vortex, launch debris, send out a shockwave, or provide a protective slipstream. Their appearance comes from the prompt; their effect comes from a supported set of game mechanics.
 
-Copy the example environment file only if `apps/server/.env` does not already exist.
+### Controls
+
+| Key | Action |
+| --- | --- |
+| W / A / S / D | Steer |
+| Hold K | Air brake |
+| U | Boost, when you have fuel |
+| L | Dodge |
+| J | Use an ordinary item |
+| Hold I | Look up |
+| Hold Space | Speak after collecting the star; release to submit |
+| Esc | Pause / resume |
+
+Letter controls can be rebound in **Settings**. Choose **Play without voice** during setup to race without a microphone. Pausing or switching away from the game cancels a pending voice attempt.
+
+## Run locally
+
+Clone this repository, install Node.js 22 (22.12 or newer) and Bun 1.4.2+, then run these commands from the repository root. If your checkout is in WSL, use a WSL terminal.
 
 ```sh
 bun install
-cp -n .env.example apps/server/.env
-chmod 600 apps/server/.env
 bun run dev
 ```
 
-Commit bun.lock for reproducible installs; use bun install --frozen-lockfile in CI. Bun manages dependencies and scripts; the backend and existing tests still run on Node. Use bun run test to run the project test script.
+Open [the local game](http://localhost:5173). This starts the browser app and API together; Ctrl+C stops them.
 
-Open http://localhost:5173 for the game, or http://localhost:5173/#/dev/generation for the Generation lab. One command builds shared types first and starts the shared watcher, Vite, and Fastify. Ctrl+C stops all three. The server defaults to http://127.0.0.1:3001; GET /api/health reports mock mode. No credentials are needed. Vite proxies /api to port 3001; if you change PORT, also update the proxy target in apps/web/vite.config.ts.
+**No API key is needed.** Everything starts in mock mode, which uses prepared transcripts and objects. Mock mode lets you test the microphone and game flow, but does not recognize what you say. For real speech and custom creations, follow [the optional live AI setup](docs/voice-input-plan.md#enable-live-ai-locally). Paid calls require explicit opt-in.
 
-```sh
-bun run build
-bun run typecheck
-bun run test
-```
+## Explore the project
 
-Build output lives in each workspace's dist directory. After building, `bun run --filter @sky/server start` runs the server. Deploy the web dist separately with a same-origin /api reverse proxy. The development servers are not a production deployment.
+The game has three TypeScript workspaces:
 
-## Secure, opt-in API keys
+| Folder | What it does |
+| --- | --- |
+| [`apps/web`](apps/web) | The React interface, Three.js / React Three Fiber game, controls, and microphone recorder. Vite runs and builds the frontend. |
+| [`apps/server`](apps/server) | The Fastify API that transcribes speech and requests AI-generated designs and geometry. API keys stay here. |
+| [`packages/shared`](packages/shared) | The Zod schemas, TypeScript types, example creations, and effect presets both sides agree on. |
 
-Save `OPENAI_API_KEY` only in `apps/server/.env`, using your editor. The file is ignored by Git; commit only the empty `.env.example`. Do not paste keys into chat, terminal commands/history, `VITE_` variables, or frontend files. One standard project API key serves transcription and both generation stages. Each developer uses their own local key.
+For a guided tour, read [how the game works](docs/architecture.md). To experiment without racing, open the local [Generation lab](http://localhost:5173/#/dev/generation). It includes a shared-effect sandbox and a text/voice-to-3D viewer. The lab is excluded from production builds.
 
-- `bun run dev` and the normal server `start` command keep paid calls disabled, even with a key or inherited enable environment variables.
-- Stop the default server, then run `bun run dev:live` to explicitly enable local paid speech and generation. Its server does **not** watch/restart on edits; restarting deliberately resets the allowance. Vite still supports frontend hot reload.
-- The lab always starts on **Mock two-stage pipeline**. For live work select a live profile, check **Allow this paid attempt**, then click **Generate · up to 2 API calls**. Changing the prompt, method, or profile clears consent; each attempt clears it too.
-- `LIVE_MAX_ATTEMPTS=3` allows three dispatched live attempts per server start, shared across typed/voice lab tests, gameplay, profiles, and browser tabs. Configure an integer from 1 to 100. Failed and cancelled dispatched attempts count. Only one live attempt runs at a time; repeated attempt IDs never dispatch again. Restarting resets the allowance, so it is not a monthly dollar cap.
-- The browser sees availability, models, token budgets and remaining attempts, never credentials. Refreshing profiles is local-only and does not validate the key against OpenAI. Startup, builds, tests, previews, game mocks, and changing a prompt do not call OpenAI.
-- Keep this unauthenticated development lab on localhost. Both dev servers bind to loopback by default; live server startup rejects non-loopback HOST settings. Vite refuses to serve `.env` and server source files. Public deployment needs a separate access-control design.
+## Contribute
 
-Set a small project **hard spend limit** in the OpenAI dashboard as an additional limit; spend alerts alone do not stop traffic, and hard-limit enforcement can slightly overshoot. See [OpenAI spend limits](https://developers.openai.com/api/docs/guides/spend-limits). Cancel/timeout does not guarantee already-dispatched work is free. No automatic retries or paid connectivity checks are made.
+[The contributor guide](CONTRIBUTING.md) explains where to make changes, how to test them, and what to include in a pull request or bug report.
 
-For a deployed backend, inject the key through the host's secret manager, never into the web build. See [API key handling](https://developers.openai.com/api/reference/overview#authentication) and [the lab contract](docs/prompt-to-mesh-pipeline.md).
+| Command | Purpose |
+| --- | --- |
+| `bun run dev` | Start local development with free mocks. |
+| `bun run build` | Build all workspaces. |
+| `bun run typecheck` | Check TypeScript across the repo. |
+| `bun run test` | Run the automated test suite with mocks and intercepted providers. |
+| `bun run build:deploy` | Build the backend and game-only frontend for hosting; does not upload or enable AI. |
 
-## Test voice input
+## People and credits
 
-- **Mock lab:** Input source → Voice, select a comparison prompt, Enable microphone, then hold/release the button. Mock mode uses that simulated transcript; it does not recognize audio. Transcribe only returns text without generating.
-- **Mock race:** Play as Greg → Mock mode → choose a prepared prompt → Enable microphone → Start with voice. Mock mode does not interpret speech. Stay at the starting X/Z for the gold pickup at 180 m, then hold Space and release. Falling continues, and the creation spawns ahead for collection.
-- **Without voice:** Play as Greg → Play without voice. No microphone or generation service is needed; the star is removed for that run.
-- **Paid:** start `bun run dev:live`, select a live profile, and allow that voice attempt (or arm one attempt before a race). Speech-only makes up to 1 API call; speech-to-creation up to 3. Reuse the existing key. `TRANSCRIPTION_MODEL` defaults to `gpt-transcribe`.
+- [elizabeth-oda](https://github.com/elizabeth-oda): AI pipeline, geometry generation principles, deployment, and a bit of codebase sanity.
+- [bobbyioaloha](https://github.com/bobbyioaloha): gameplay, character and environment design, and overall silliness.
 
-Desktop Chrome/Edge, English first. Limits: 8 s recording, 10 s upload/transcription, then 30 s generation. Empty or over-ten-word transcripts stop the attempt. Pause/focus loss/reset/navigation cancels active work. Audio is held in memory for the request and never saved in lab history or exports. See [voice architecture and contracts](docs/voice-input-plan.md).
+Codex assisted with planning, implementation, debugging, and documentation. The dinosaur assets are built with the repository's [procedural character script](scripts/build-greg.py); [the art guide](docs/dinosaur-art-direction.md) explains how to rebuild and change them.
 
-## Layout and parallel ownership
-- `packages/shared/src/schema.ts`: versioned Zod contract and inferred types; no React or server dependencies.
-- `packages/shared/src/fixtures.ts`: three validated models.
-- `apps/web/src/components/PowerUpModel.tsx`: appearance-only renderer.
-- `apps/web/src/game/RaceSetup.tsx`: player briefing, microphone setup, and explicit no-voice start.
-- `apps/web/src/pages/GamePage.tsx` and `apps/web/src/game`: falling demo, injectable controls, world integration, and the separate creation lifecycle.
-- `apps/web/src/pages/GenerationLabPage.tsx`: isolated prompt-to-mesh testing.
-- `apps/server/src/generation`: two-stage pipeline, model transport, configuration, and HTTP routes.
-- `apps/web/src/generation/client.ts`: mock and HTTP implementations of shared GenerationClient.
-- `apps/web/src/voice`: recorder, typed voice client, shared controls, lab UI, and race setup.
-- `apps/server/src/voice`: bounded uploads and replaceable transcription providers.
-- `packages/shared/src/voice.ts`: strict audio metadata, transcript, and event contracts.
-- `apps/server/src/app.ts`: injectable Fastify API; legacy endpoints default to mocks and the lab exposes explicit live profiles.
+The project uses React, Vite, Three.js, React Three Fiber, Fastify, Zod, and Bun. Live speech and generation use the OpenAI API.
 
-Developer A can implement gameplay within the web game modules while Developer B implements generation, server provider integration, and voice. Both consume the shared contract. Coordinate shared schema and root configuration changes.
+## Status and further reading
 
-## PowerUpSpec v1
-The strict schema is the source of truth. Unknown properties, primitive kinds, effects, and versions are rejected. A spec has version:1, an ASCII alphanumeric/underscore/hyphen id (1–64 characters), displayName (1–48 characters), description (1–160 characters), appearance.primitives (1–24), and effects (1–3, no repeated effect types). Names and descriptions are trimmed and must be nonempty.
+The current prototype includes a complete race flow, three playable characters, ordinary items, voice-triggered shared effects, and a local generation lab. Races have one human player and simulated rivals. Mobile play, online multiplayer, and Susan's finished model are outside the current implementation. AI quality and response time vary; invalid or late results end the attempt.
 
-Coordinates use a right-handed system: +X right, +Y up, +Z toward the model's face/viewer; fall direction is -Y. Distances are meters and time is seconds. Positions are local to the collectible center, each axis in [-3,3]. Rotation is XYZ Euler radians, each axis in [-π,π]. Scale is each primitive's final local width/height/depth in meters, each in [0.05,4]. Scale applies before rotation and translation. All numbers must be finite.
+- [Architecture and repository tour](docs/architecture.md)
+- [Voice setup, testing, and troubleshooting](docs/voice-input-plan.md)
+- [Generation lab and model configuration](docs/prompt-to-mesh-pipeline.md)
+- [Shared effects and gameplay integration](docs/race-events-handoff.md)
+- [Characters and art contributions](docs/dinosaur-art-direction.md)
+- [Deploy to Vercel, update variables, and redeploy](docs/deployment.md)
 
-Base box is 1×1×1; sphere has diameter 1; cylinder and cone have diameter 1 and height 1 along Y (cone tip at +Y). All geometries are centered on their origins. Nonuniform scale is allowed. Color is exactly #RRGGBB. Geometry segments are fixed by the renderer, never generated. These limits bound each primitive dimension to 4 m and all translated/rotated vertices within a conservative radius of 9 m of the model center.
-
-Appearance has no collision authority. Gameplay uses the independent COLLECTIBLE_RADIUS_METERS constant (1 m) for a spherical pickup volume centered at the collectible origin; never derive it from a visual bounding box.
-
-Supported effect payloads:
-| type | Parameters | Gameplay meaning |
-| --- | --- | --- |
-| reduceFallSpeed | multiplier 0.2–0.9; durationSeconds 1–15 | Multiply base downward speed for the duration. |
-| invulnerability | durationSeconds 1–10 | Ignore obstacle damage for the duration. |
-| clearNearbyObstacles | radiusMeters 1–20 | Once on pickup, remove obstacles whose centers lie within this distance of the player. |
-
-Timers begin on pickup, using elapsed gameplay seconds (paused time excluded). On repeated pickups, refresh the same effect's duration; do not multiply slow effects together. Use the most recently collected slow multiplier. Invulnerability does not prevent collection. Effects are data only; the current skeleton's typed handlers implement these semantics.
-
-## Generation API contract
-The foundation implements the future endpoint with a deterministic mock. Replace fixture selection with a provider adapter without changing the wire contract.
-
-`POST /api/powerups`, Content-Type: application/json
-```json
-{"text":"give me a jellyfish umbrella"}
-```
-
-Input is trimmed, 1–200 characters and 1–10 whitespace-separated words. This is a simple deterministic word-count rule, not a linguistic tokenizer. Unknown request fields are rejected. Body limit: 4 KiB.
-
-200 returns a raw validated PowerUpSpec (no wrapper). Example:
-```json
-{
-  "version": 1,
-  "id": "sample-umbrella",
-  "displayName": "Umbrella",
-  "description": "Slow your fall for eight seconds.",
-  "appearance": {
-    "primitives": [
-      {"type":"sphere","position":[0,0,0],"rotation":[0,0,0],"scale":[2,0.5,2],"color":"#b99aff"}
-    ]
-  },
-  "effects": [{"type":"reduceFallSpeed","multiplier":0.5,"durationSeconds":8}]
-}
-```
-
-Errors return `{"error":{"code":"INVALID_REQUEST","message":"..."}}`.
-- 400 INVALID_REQUEST: invalid JSON, input, content type, or oversized body.
-- 502 INVALID_SPEC: provider output does not pass PowerUpSpecSchema.
-- 500 GENERATION_FAILED: internal/provider failure. Future provider timeouts should also use this structured error contract.
-
-Messages must be safe, 1–200 characters; never expose credentials or provider internals. The typed GenerationClient converts HTTP success/error responses into an ok-discriminated result and validates the response again. The legacy mockGenerationClient and httpGenerationClient remain available to exercise this contract. Both choose ghost for text containing “ghost”, sun for “sun”, “angry”, or “clear”, otherwise jellyfish; they do not interpret arbitrary ideas. Fixture ids are reusable templates, not unique world-instance ids. Gameplay must allocate separate instance ids.
-
-Keep OPENAI_API_KEY in apps/server/.env; never put secrets in VITE_ variables. The legacy AI_API_KEY is a fallback when OPENAI_API_KEY is unset or blank. Parse and validate AI output as declarative JSON; never evaluate it as JavaScript.
-
-## Next tasks
-1. Gameplay: refine pickup placement, HUD, controls, and effect feedback through the race modules. Preserve the single movement loop and semantic voice actions; see the controls handoff.
-2. Generation: deliberately test real English speech and evaluate recognition, latency, and mesh quality in the lab. Extend effects by changing the shared schema and typed race handlers together.
-
-The v1 fixture data and simulated creation demo remain in the codebase for regression coverage; the standalone fixture viewer is no longer routed.
-
-
-## Shared race-event sandbox
-
-Generation lab now opens **Race events**: choose Gravity well, Debris shower, Repulsion burst or Protective zone, then Run simulation. Any scripted racer can trigger the shared effect. Replay same seed, pause, step by 0.5 seconds, and inspect collision bounds/forces without API calls. **Asset generation** retains the earlier v2 lab.
-
-The new panel also supports mock or explicitly opted-in live text/voice generation through `/api/lab/events` and `/api/voice/events`. Ordinary `bun run dev` stays mock-only. Live mode uses the existing consent, allowance and deadlines, with no extra model call.
-
-The main race now uses v3 shared events through its existing microphone controls. Gravity, debris, repulsion, and protection affect all racers in range, including the creator and triggerer. The old creation demo and Asset generation lab retain v2 compatibility.
-
-For a free gameplay check: run `bun run dev`, open **Game → Settings → Event fixtures**, choose an object while paused before the first fall, and resume. This bypasses microphone/API calls. Quick encounter defaults to 30 m ahead; uncheck it to test the normal later-course placement (last 40%, normally 300 m ahead). Event result in Settings retains the selected effect, activation and impact counters. Pause and use the free replay button to reuse the exact creation nearby in a new race. Normal voice-generated placement is unchanged. The fixture panel is development-only.
-
-For the real microphone path, select one of the four event mock transcripts or explicitly opt into a live profile before starting. Collect the yellow star and hold/release Space as before. Mock speech uses the selected transcript; paid calls remain disabled under ordinary `bun run dev`. See [the implementation and gameplay handoff](docs/race-events-handoff.md) for ownership, units, exact hooks, lifecycle rules, and verification.
-
-## Vercel deployment
-
-Run `bun run build:deploy` to build the hosted backend and game-only frontend. The Generation lab stays available under `bun run dev` and is excluded from production bundles. Building does not deploy or enable paid calls.
-
-See [deployment setup](docs/deployment.md) for the Vercel Services configuration, production secrets, protected tester access, and the **100-attempt per-instance allowance**. No database is required. Cold starts and redeployments can reset the allowance; it is not a global spending cap. Local `dev:live` keeps its default of 3 attempts per start.
+Older v1/v2 contracts remain for compatibility and regression coverage. They are described separately in the [legacy power-up reference](docs/legacy-powerups.md) and [creation demo reference](docs/creation-skeleton.md). Agent-specific working rules live in [AGENTS.md](AGENTS.md).

@@ -1,4 +1,8 @@
-# Dinosaur character assets
+# Characters and art contributions
+
+The dinosaurs are coworkers taking a compulsory safety exercise far too seriously. The art uses readable silhouettes, awkward equipment, and dry workplace humor. This guide describes the current assets and how to contribute; the longer [art direction document](mandatory-safety-exercise-art-direction.md) contains the broader vision and future ideas.
+
+## Current roster
 
 Greg, Linda and Steve share rounded mid-poly forms, authored smooth normals, block-mottled skin, a pale underside, dark woven safety harnesses, ivory or dark claws, a yellow ripcord handle with exposed cable, and readable employee-number / FALL RISK patches. Keep their awkward office-worker personalities and distinct species silhouettes.
 
@@ -6,6 +10,12 @@ Greg, Linda and Steve share rounded mid-poly forms, authored smooth normals, blo
 - Linda: purple Triceratops, broad scalloped frill, two brow horns and one nose horn, four planted feet, horizontal torso, dorsal parachute pack, short tail, HR badge and foreleg-mounted checklist, employee 002.
 - Steve: teal quadrupedal Stegosaurus, shorter forelegs, taller hips, small low head, two staggered rows of plates, four tail spikes, side-mounted pack clearing the plates, IT badge and foreleg diagnostic device, employee 003.
 - Next: Susan (ochre Parasaurolophus, 004).
+
+## Make an art change
+
+Start by inspecting the character in the game's **Inspect personnel** view and during a race. Changes need to read both close up and from the falling camera. For a small contribution, focus on a silhouette, equipment detail, color contrast, or one animation.
+
+The Python builder is the reproducible source of the checked-in GLBs. Make the source change there, regenerate the affected character, and include both source and asset in the PR. Blender files can help review a pose, but an unrecorded manual export would be overwritten by the next build. Character rendering must not move the player or change collision sizes.
 
 ## Rebuild
 

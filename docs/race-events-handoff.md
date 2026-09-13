@@ -1,4 +1,6 @@
-# Shared race events: implementation and gameplay handoff
+# Shared race effects: testing and technical reference
+
+A generated object waits in the course until a racer reaches it. That contact activates one shared effect: a gravity vortex, debris storm, shockwave, or protective slipstream. This guide covers free testing and the detailed implementation. For a first look at the project, start with [the architecture tour](architecture.md).
 
 ## Status and ownership
 
@@ -10,7 +12,7 @@ The v3 event runtime, renderer, fixtures and typed/voice API paths are integrate
 | Gameplay | `MovementTest.tsx`, `RaceScene.tsx`, `PracticeRace`, `FreefallController`, input, inventory, obstacles and rival planning |
 | Small agreed boundary | `RaceEventPort`, `EventRacer`, `EventStepInputs`, `RaceEventBridge` |
 
-Merge the contract and no-op port first. Both sides can work from that interface; use separate branches/worktrees rather than switching the same working directory while the other developer is editing. Do not refactor the other owner's files as part of integration.
+The integration is already implemented. Coordinate changes to its shared interface so gameplay and generation can continue independently. Keep a contribution focused on its feature and avoid unrelated refactors in another area.
 
 ## Try it without credits
 
@@ -55,7 +57,7 @@ Protection is a per-tick `eventObstacleProtection` flag used only by normal obst
 
 ## Free gameplay check
 
-Run `bun run dev`, open Game → Settings, expand Event fixtures, select a fixture before starting, then resume. **Quick encounter** defaults to spawning 30 m ahead so a check takes seconds; uncheck it to test normal later-course placement. Follow the object radar and fly through the glowing pickup halo; braking gives more time to line up. Restart to select another. This development-only panel never records or calls a provider. For voice mocks, choose Play as Greg, select one of the four prepared prompts in Mock mode, enable the microphone, and Start with voice. Restart returns to setup and clears paid consent. Play without voice removes the star for that run. The lab remains available for quick replay and inspection.
+Run `bun run dev`, open Game → Settings, expand Event fixtures, select a fixture before starting, then resume. **Quick encounter** defaults to spawning 30 m ahead so a check takes seconds; uncheck it to test normal later-course placement. Follow the object radar and fly through the glowing pickup halo; braking gives more time to line up. Restart to select another. This development-only panel never records or calls a provider. For voice mocks, choose a character and Begin as [name], select one of the four prepared prompts in Mock mode, enable the microphone, and Start with voice. Restart returns to setup and clears paid consent. Play without voice removes the star for that run. The lab remains available for quick replay and inspection.
 
 The **Event result** panel in Setup retains the last creation, selected effect, triggerer, cumulative affected racers, impulse counts, actual debris hits, blocked debris and unique obstacle blocks after the effect expires. Pause (or finish), then choose **Restart & replay this creation nearby · free** to reuse its exact mesh/effect in a new race. Only the last result is held in memory; it survives a race restart, not page navigation, and contains no audio. Replay never calls transcription or generation. Normal voice placement is unchanged.
 
@@ -83,7 +85,9 @@ Run `bun run typecheck`, `bun run test`, `bun run build`. Tests use fixtures, fa
 
 Gameplay acceptance checks: a rival triggers first; the creator is affected; both left/right racers respond; mesh scale does not change pickup bounds; finished racers do not trigger; pausing freezes event time; resetting during generation prevents stale spawn; protected racers ignore ordinary obstacle hits while inside the zone; all effects/debris disappear at expiration; widely separated racers are reached; the vortex and shockwave produce more than 10 m of lateral movement; the slipstream measurably accelerates descent; and seeded debris can hit all racers while remaining dodgeable.
 
-### Verification on this integration
+### Historical integration measurements
+
+These notes record earlier integration checks; they are not a fresh browser verification of the current branch. For a new change, run the checks above and report your own results.
 
 Automated coverage includes unchanged no-event movement/inventory RNG, all four effects through real racer controllers, rival-first activation, finish-fraction contacts, exclusion of teleport knockback, protection versus weapons, bounded seeded debris, cancellation/late results, safe spawn placement, and completed full-course runs. The game UI accepted a local fixture in the in-app browser. That browser reports WebGL unavailable, so visual effect readability and feel still need a Chrome/Edge gameplay pass. No paid provider calls were made.
 

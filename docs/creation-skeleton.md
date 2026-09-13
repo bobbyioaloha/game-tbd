@@ -1,15 +1,14 @@
-# Voice-to-creation skeleton
+# Legacy creation demo and v2 API
 
 The main race and lab now support recorded speech with opt-in live generation: see [voice implementation](voice-input-plan.md). This guide describes the separate simulated regression demo and the compatible CreationSpec v2 / legacy API.
 
-## Try it
-Run `bun run dev` from the repository, then open http://localhost:5173.
+## When to use this reference
 
-**Generation lab** now selects a two-stage server profile. See the pipeline guide above for current behavior, configuration, history, and streaming details.
+Use this guide when maintaining `CreationSpec` v2, `/api/creations`, or the retained simulated demo. For the current race, read [the architecture guide](architecture.md) and [v3 shared effects](race-events-handoff.md). The standalone Fixtures page and old demo navigation are no longer routed by the main app.
 
-**Game → Voice / creation demo** is a small integration scene. Before starting, set the simulated transcript. Start a run and remain centered to collect the gold Voice Power Up after about 2.4 seconds. Hold Space (or the hold-to-speak button) and release to submit. WASD moves on X/Z while falling on -Y. The creation spawns ahead and is collected automatically on collision if you remain in its path. Red cubes end the run unless protection is active. Try “ghost cloak” or “angry sun” for the other effects. Start a new run to obtain another Voice Power Up.
+To inspect v2 generation today, run `bun run dev`, open [the local Generation lab](http://localhost:5173/#/dev/generation), and select **Asset generation**. See [the pipeline guide](prompt-to-mesh-pipeline.md) for its setup and testing workflow.
 
-The separate Voice / creation demo makes no microphone or paid API calls. The transcription adapter returns the text field value; it is explicitly a simulation. The original Fixtures page and v1 API remain available.
+`CreationDemoPage` remains a small integration example in the source. If explicitly mounted for development, it uses a text field as simulated speech, a gold Voice Power Up, continuously falling movement, and collection-triggered effects. It makes no microphone or paid API calls. The v1 fixture data and compatible API remain available; see [the v1 reference](legacy-powerups.md).
 
 ## Architecture
 - `packages/shared/src/creation.ts`: CreationSpec v2, bounded mesh validation, v1 adapter, typed client and distinct VoicePickup / CreationPickup.
@@ -26,7 +25,7 @@ See [the controls handoff](controls-handoff.md) before replacing movement.
 - `apps/server/src/generation/routes.ts`: provider boundary, deadlines, input/output validation.
 - `apps/web/src/pages/GenerationLabPage.tsx`: independent text-to-preview test bench.
 
-Voice pickups are authored opportunities, not generated content. They are consumed on collision. A creation contains appearance and effects; collection activates those effects. There is only one Voice Power Up per skeleton run, so overlapping grants are impossible.
+Voice pickups are authored opportunities, not generated content. They are consumed on collision. A creation contains appearance and effects; collection activates those effects. There is only one Voice Power Up per demo run, so overlapping grants are impossible.
 
 State flow: available → prompted → recording → transcribing → generating → spawned → activated or missed. Failures consume the attempt and do not refund the pickup. The prompt expires after 10 seconds; simulated recording auto-submits after 8 seconds. Losing focus cancels an unsubmitted attempt. End/reset/navigation cancels pending work and rejects stale completions. No automatic generation retries.
 
@@ -42,9 +41,9 @@ Appearance is either `{type:"primitives", primitives:[...]}` or `{type:"mesh", v
 - v1 right-handed axes are unchanged: X right, Y up, Z toward the model face. Mesh positions are local; no generated code, external URLs, textures, or collision metadata.
 - Name, description, identity, and bounded effect rules remain from v1. `adaptPowerUpV1` explicitly converts legacy specs; the new endpoint accepts only v2 output.
 
-Effect classes currently map to: movement → reduceFallSpeed, protection → invulnerability, environment → clearNearbyObstacles. The exhaustive handler map uses concrete effect types. Extend schema and handler together when adding an effect. Slow/protection refresh rather than stack; obstacle clearing applies once. Timers use simulated gameplay seconds. The skeleton clamps each simulation step to 100 ms; browser background throttling is not real-time multiplayer behavior.
+Effect classes currently map to: movement → reduceFallSpeed, protection → invulnerability, environment → clearNearbyObstacles. The exhaustive handler map uses concrete effect types. Extend schema and handler together when adding an effect. Slow/protection refresh rather than stack; obstacle clearing applies once. Timers use simulated gameplay seconds. The demo clamps each simulation step to 100 ms; browser background throttling is not real-time multiplayer behavior.
 
-## Server contract and next implementation
+## Compatible server contract
 `POST /api/creations` accepts `{"text":"a wind crystal"}` (1–10 whitespace-separated words; 200 characters; 4 KiB request limit).
 - 200: raw validated CreationSpec v2 with server-assigned UUID.
 - 400: `{"error":{"code":"INVALID_REQUEST","message":"..."}}`.
@@ -54,8 +53,8 @@ Effect classes currently map to: movement → reduceFallSpeed, protection → in
 
 The route invokes its provider exactly once, enforces a 30-second deadline, aborts on disconnect, and validates unknown provider output. The HTTP client validates again and uses a 35-second deadline. The in-game controller guards long transcription/generation phases separately. Provider errors are not forwarded to the client.
 
-The main race uses the new /api/voice/creations workflow; /api/creations remains the compatible mocked raw-spec endpoint. See the voice implementation guide above.
+The main race uses `/api/voice/events` with v3 shared events. The Asset generation lab uses `/api/voice/creations` for v2 voice results; `/api/creations` remains the compatible mocked raw-spec endpoint. See [voice contracts](voice-input-plan.md#http-and-adapter-reference).
 
 ## Verification
 `bun run build`, `bun run typecheck`, and `bun run test`.
-Tests cover v1 compatibility, invalid mesh data, one-attempt semantics, current-position spawning, stale results, missed creations, and structured server failures/timeouts. Browser verification covers server generation and the in-game pickup-to-activation flow.
+Tests cover v1 compatibility, invalid mesh data, one-attempt semantics, current-position spawning, stale results, missed creations, and structured server failures/timeouts. For browser testing, use the current lab and game paths described in [the voice guide](voice-input-plan.md), keeping their v3 behavior separate from this legacy demo.
