@@ -1,4 +1,4 @@
-import { GregModel } from './GregModel';
+import { DinosaurModel } from './GregModel';
 import { followCameraAxis } from './camera-follow';
 import { projectRivalMarker } from './rival-marker';
 import { RaceCreations } from './RaceCreationVisuals';
@@ -174,8 +174,8 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
     <color attach="background" args={['#75b8df']}/><fog attach="fog" args={['#b8ddef',80,250]}/>
     <ambientLight intensity={2}/><directionalLight position={[15,30,-10]} intensity={2.5}/>
     <group ref={racers}>{RACER_COLORS.map((color,index)=><group key={index}>
-      {index===0
-        ?<group position={[0,-1.35,0]} rotation={[0,Math.PI,0]}><GregModel pose="Dive" time={()=>runtime.race.elapsed} wind={()=>({time:runtime.race.elapsed,speed:runtime.race.racers[0].finishTime===undefined?runtime.race.snapshot(runtime.race.racers[0]).fallSpeed:0})}/></group>
+      {index<2
+        ?<group position={[0,-1.35,0]} rotation={[0,Math.PI,0]}><DinosaurModel character={index===0?'greg':'linda'} pose="Dive" time={()=>runtime.race.elapsed} wind={()=>({time:runtime.race.elapsed,speed:runtime.race.racers[index].finishTime===undefined?runtime.race.snapshot(runtime.race.racers[index]).fallSpeed:0})}/></group>
         :<StarfishDiver color={color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/>}
       <mesh name="event-aura" visible={false}><sphereGeometry args={[2.2,16,12]}/><meshBasicMaterial color="#7ee9f1" wireframe transparent opacity={0.5} depthWrite={false}/></mesh>
     </group>)}</group>

@@ -5,17 +5,19 @@ import { AnimationMixer, LoopOnce, LoopRepeat, Mesh, MeshLambertMaterial, Quater
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
-export type GregPose = 'Stand' | 'Dive' | 'Reach' | 'Brake' | 'Bank left' | 'Bank right' | 'Impact';
+export type DinosaurCharacter = 'greg' | 'linda';
+export type GregPose = 'Stand' | 'Dive' | 'Reach' | 'Brake' | 'Bank left' | 'Bank right' | 'Impact' | 'Checklist';
 type GregProps={loop?:boolean;pose?:GregPose;paused?:boolean;time?:()=>number;wind?:()=>{time:number;speed:number}};
-function LoadedGreg({pose='Stand',paused=false,time,wind,loop=false}:GregProps) {
-  const gltf=useLoader(GLTFLoader,'/models/greg.glb');
+function LoadedDinosaur({character,pose='Stand',paused=false,time,wind,loop=false}:GregProps & {character:DinosaurCharacter}) {
+  const gltf=useLoader(GLTFLoader,`/models/${character}.glb`);
   const {model,materials}=useMemo(()=>{
     const model=clone(gltf.scene);
     const materials:MeshLambertMaterial[]=[];
     model.traverse(object=>{
       if(object instanceof Mesh) {
         const source=Array.isArray(object.material)?object.material[0]:object.material;
-        const material=new MeshLambertMaterial({map:source.map,color:source.color,flatShading:true});
+        // Respect the consistent authored skin and equipment normals.
+        const material=new MeshLambertMaterial({map:source.map,color:source.color,flatShading:false});
         materials.push(material);object.material=material;
       }
     });
@@ -50,6 +52,9 @@ function LoadedGreg({pose='Stand',paused=false,time,wind,loop=false}:GregProps) 
   });
   return <primitive object={model}/>;
 }
+export function DinosaurModel({character,...props}:GregProps & {character:DinosaurCharacter}) {
+  return <Suspense fallback={null}><LoadedDinosaur key={character} character={character} {...props}/></Suspense>;
+}
 export function GregModel(props:GregProps) {
-  return <Suspense fallback={null}><LoadedGreg {...props}/></Suspense>;
+  return <DinosaurModel character="greg" {...props}/>;
 }
