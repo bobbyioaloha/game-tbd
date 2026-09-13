@@ -1,6 +1,6 @@
 import { legacyFormat, eventFormat, type GenerationFormat, type GenerationProgress, type VoiceProgress } from './generation-formats.js';
 import { randomUUID } from 'node:crypto';
-import { LiveAttempts, type LivePolicy, type PaidAttemptStore } from './live-attempts.js';
+import { LiveAttempts, type LivePolicy } from './live-attempts.js';
 import {
   PIPELINE_DEADLINE_MS, DESIGN_BUDGET_MS, PipelineRequestSchema, type GeneratedCreation, type PipelineEvent, type PipelineProfile,
   type PipelineRequest, type PipelineStage, type StageConfig, type StageMetric,
@@ -17,15 +17,14 @@ type GenerationOptions<Event> = {signal?:AbortSignal;emit?:(event:Event)=>void};
 type VoiceOptions<Event> = GenerationOptions<Event> & {transcriptionBudgetMs?:number};
 export type PipelineOptions = GenerationOptions<PipelineEvent>;
 export class CreationPipeline {
-  private readonly liveAttempts:PaidAttemptStore;
+  private readonly liveAttempts:LiveAttempts;
   readonly liveEnabled:boolean;
-  get liveUsage() {return this.liveAttempts.readStatus();}
+  get liveUsage() {return this.liveAttempts.status;}
   constructor(readonly profiles:PipelineProfile[], private transports:{mock:StageTransport;live?:StageTransport},
     private budgets = {totalMs:PIPELINE_DEADLINE_MS,designMs:DESIGN_BUDGET_MS}, livePolicy?:LivePolicy,
-    private speech:{mock:TranscriptionProvider;live?:TranscriptionProvider} = {mock:mockTranscriptionProvider},
-    paidAttempts?:PaidAttemptStore) {
+    private speech:{mock:TranscriptionProvider;live?:TranscriptionProvider} = {mock:mockTranscriptionProvider}) {
     this.liveEnabled = livePolicy?.enabled ?? false;
-    this.liveAttempts = paidAttempts ?? new LiveAttempts(livePolicy);
+    this.liveAttempts = new LiveAttempts(livePolicy);
   }
   get transcriptionStatus() {return {model:this.speech.live?.model ?? 'gpt-transcribe',available:this.liveEnabled && Boolean(this.speech.live)};}
   private profileFor(profileId:string) {
@@ -38,11 +37,8 @@ export class CreationPipeline {
   }
   private async withAttempt<T>(request:Pick<PipelineRequest,'paidAttempt'>,profile:PipelineProfile,signal:AbortSignal|undefined,work:()=>Promise<T>):Promise<T> {
     if (signal?.aborted) throw new PipelineFailure('CANCELLED','Attempt cancelled.');
-    const release=profile.mode==='live' ? await this.liveAttempts.acquire(request) : undefined;
-    try {
-      if (signal?.aborted) throw new PipelineFailure('CANCELLED','Attempt cancelled.');
-      return await work();
-    } finally {await release?.();}
+    const release=profile.mode==='live' ? this.liveAttempts.acquire(request) : undefined;
+    try {return await work();} finally {release?.();}
   }
   run(request:PipelineRequest,options:PipelineOptions={}):Promise<GeneratedCreation> {
     return this.runFormat(request,options,legacyFormat);
@@ -85,9 +81,7 @@ export class CreationPipeline {
       if (!provider) throw new PipelineFailure('NOT_CONFIGURED','Speech transcription is not configured.');
       return await this.withAttempt(parsed.data,profile,signal,async()=>{
         options.emit?.({type:'transcribing'});
-        const remaining = options.transcriptionBudgetMs === undefined ? undefined : options.transcriptionBudgetMs-(performance.now()-started);
-        if (remaining !== undefined && remaining <= 0) throw new PipelineFailure('TRANSCRIPTION_TIMEOUT','The upload/transcription deadline was reached.');
-        const result=await transcribeClip(provider,audio,signal,profile.mode==='mock' ? parsed.data.mockText : undefined,remaining);
+        const result=await transcribeClip(provider,audio,signal,profile.mode==='mock' ? parsed.data.mockText : undefined,options.transcriptionBudgetMs);
         signal.throwIfAborted();
         options.emit?.({type:'transcript',result});
         if (options.transcribeOnly) return {result};

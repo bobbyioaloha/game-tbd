@@ -38,14 +38,14 @@ test('new typed and voice routes return v3 and preserve the shared paid gate acr
     const paidAttempt={id:randomUUID(),confirmed:true as const};
     const response=await app.inject({method:'POST',url:'/api/lab/events',payload:{...request,paidAttempt}});
     const events=response.body.trim().split('\n').map(line=>RaceEventPipelineEventSchema.parse(JSON.parse(line)));
-    assert.equal(events.at(-1)?.type,'complete');assert.equal((await pipeline.liveUsage).attemptsUsed,1);
+    assert.equal(events.at(-1)?.type,'complete');assert.equal(pipeline.liveUsage.attemptsUsed,1);
     await assert.rejects(pipeline.run({...request,geometryMode:'primitives',paidAttempt}),/already/);
     const form=new FormData();form.append('options',JSON.stringify({profileId:'sol-direct',geometryMode:'primitives',captureMs:1000,paidAttempt:{id:randomUUID(),confirmed:true}}));
     form.append('audio',new Blob(['RIFF1234WAVEaudio'],{type:'audio/wav'}),'recording');
     const upload=new Request('http://localhost',{method:'POST',body:form});
     const voice=await app.inject({method:'POST',url:'/api/voice/events',headers:{'content-type':upload.headers.get('content-type')!},payload:Buffer.from(await upload.arrayBuffer())});
     const voiceEvents=voice.body.trim().split('\n').map(line=>RaceEventVoiceEventSchema.parse(JSON.parse(line)));
-    assert.equal(voiceEvents.at(-1)?.type,'complete');assert.equal(calls.length,4);assert.equal((await pipeline.liveUsage).attemptsUsed,2);
+    assert.equal(voiceEvents.at(-1)?.type,'complete');assert.equal(calls.length,4);assert.equal(pipeline.liveUsage.attemptsUsed,2);
   } finally {await app.close();}
 });
 test('real mock handoff resolves all four distinct events and keeps legacy mocks v2',async()=>{

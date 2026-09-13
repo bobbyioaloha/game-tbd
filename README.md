@@ -47,7 +47,7 @@ Save `OPENAI_API_KEY` only in `apps/server/.env`, using your editor. The file is
 - `bun run dev` and the normal server `start` command keep paid calls disabled, even with a key or inherited enable environment variables.
 - Stop the default server, then run `bun run dev:live` to explicitly enable local paid speech and generation. Its server does **not** watch/restart on edits; restarting deliberately resets the allowance. Vite still supports frontend hot reload.
 - The lab always starts on **Mock two-stage pipeline**. For live work select a live profile, check **Allow this paid attempt**, then click **Generate · up to 2 API calls**. Changing the prompt, method, or profile clears consent; each attempt clears it too.
-- `LIVE_MAX_ATTEMPTS=3` allows three dispatched live attempts per server start, shared across typed/voice lab tests, gameplay, profiles, and browser tabs. Configure an integer from 1 to 10. Failed and cancelled dispatched attempts count. Only one live attempt runs at a time; repeated attempt IDs never dispatch again. Restarting resets the allowance, so it is not a monthly dollar cap.
+- `LIVE_MAX_ATTEMPTS=3` allows three dispatched live attempts per server start, shared across typed/voice lab tests, gameplay, profiles, and browser tabs. Configure an integer from 1 to 100. Failed and cancelled dispatched attempts count. Only one live attempt runs at a time; repeated attempt IDs never dispatch again. Restarting resets the allowance, so it is not a monthly dollar cap.
 - The browser sees availability, models, token budgets and remaining attempts, never credentials. Refreshing profiles is local-only and does not validate the key against OpenAI. Startup, builds, tests, previews, game mocks, and changing a prompt do not call OpenAI.
 - Keep this unauthenticated development lab on localhost. Both dev servers bind to loopback by default; live server startup rejects non-loopback HOST settings. Vite refuses to serve `.env` and server source files. Public deployment needs a separate access-control design.
 
@@ -156,4 +156,4 @@ For the real microphone path, select one of the four event mock transcripts or e
 
 Run `bun run build:deploy` to build the hosted backend and game-only frontend. The Generation lab stays available under `bun run dev` and is excluded from production bundles. Building does not deploy or enable paid calls.
 
-See [deployment setup](docs/deployment.md) for the Vercel Services configuration, production secrets, protected tester access, and the persistent **100-attempt** shared budget. Local `dev:live` retains its separate per-start allowance.
+See [deployment setup](docs/deployment.md) for the Vercel Services configuration, production secrets, protected tester access, and the **100-attempt per-instance allowance**. No database is required. Cold starts and redeployments can reset the allowance; it is not a global spending cap. Local `dev:live` keeps its default of 3 attempts per start.

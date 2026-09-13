@@ -31,23 +31,23 @@ test('speech + design + geometry share one allowance and reject replay',async()=
   const {pipeline,counts}=harness();const input=request();const events:unknown[]=[];
   const result=await pipeline.runVoice(audio,input,{emit:event=>events.push(event)});
   assert.equal(result.result.text,fixture.prompt);assert.equal(result.spec?.displayName,fixture.spec.displayName);
-  assert.deepEqual(counts(),{speechCalls:1,geometryCalls:2});assert.equal((await pipeline.liveUsage).attemptsUsed,1);assert.equal((await pipeline.liveUsage).busy,false);
+  assert.deepEqual(counts(),{speechCalls:1,geometryCalls:2});assert.equal(pipeline.liveUsage.attemptsUsed,1);assert.equal(pipeline.liveUsage.busy,false);
   events.forEach(event=>VoiceEventSchema.parse(event));
   await assert.rejects(pipeline.runVoice(audio,input),failure('DUPLICATE_ATTEMPT'));assert.equal(counts().speechCalls,1);
 });
 test('speech-only testing never dispatches geometry',async()=>{
   const {pipeline,counts}=harness();const result=await pipeline.runVoice(audio,request(),{transcribeOnly:true});
   TranscriptResultSchema.parse(result.result);assert.equal(result.spec,undefined);
-  assert.deepEqual(counts(),{speechCalls:1,geometryCalls:0});assert.equal((await pipeline.liveUsage).attemptsUsed,1);
+  assert.deepEqual(counts(),{speechCalls:1,geometryCalls:0});assert.equal(pipeline.liveUsage.attemptsUsed,1);
 });
 test('invalid audio/consent is free; invalid transcripts consume a single attempt without generation',async()=>{
   for(const transcript of ['','one two three four five six seven eight nine ten eleven']){
     const {pipeline,counts}=harness(async()=>transcript);
     await assert.rejects(pipeline.runVoice({...audio,bytes:new Uint8Array()},request()),failure('INVALID_AUDIO'));
     await assert.rejects(pipeline.runVoice(audio,{...request(),paidAttempt:undefined}),failure('CONSENT_REQUIRED'));
-    assert.equal((await pipeline.liveUsage).attemptsUsed,0);
+    assert.equal(pipeline.liveUsage.attemptsUsed,0);
     await assert.rejects(pipeline.runVoice(audio,request()),failure('INVALID_TRANSCRIPT'));
-    assert.equal((await pipeline.liveUsage).attemptsUsed,1);assert.deepEqual(counts(),{speechCalls:1,geometryCalls:0});
+    assert.equal(pipeline.liveUsage.attemptsUsed,1);assert.deepEqual(counts(),{speechCalls:1,geometryCalls:0});
   }
 });
 test('speech cancellation and deadline abort active work and release the global slot',async()=>{
@@ -60,7 +60,7 @@ test('speech cancellation and deadline abort active work and release the global 
     await started;
     await assert.rejects(pipeline.run({profileId:'sol-astra',paidAttempt:{id:randomUUID(),confirmed:true},text:fixture.prompt}),failure('LIVE_BUSY'));
     if(cancelled)controller.abort();
-    await rejected;assert.ok(signal?.aborted);assert.equal((await pipeline.liveUsage).busy,false);assert.equal(counts().geometryCalls,0);
+    await rejected;assert.ok(signal?.aborted);assert.equal(pipeline.liveUsage.busy,false);assert.equal(counts().geometryCalls,0);
   }
 });
 test('voice HTTP accepts bounded multipart, keeps JSON limits, and rejects foreign/oversized uploads without dispatch',async()=>{
@@ -78,7 +78,7 @@ test('voice HTTP accepts bounded multipart, keeps JSON limits, and rejects forei
     const success=await app.inject({method:'POST',url:'/api/voice/creations',...await upload(request())});
     assert.equal(success.statusCode,200);
     const events=success.body.trim().split('\n').map(line=>VoiceEventSchema.parse(JSON.parse(line)));
-    assert.equal(events.at(-1)?.type,'complete');assert.equal((await pipeline.liveUsage).attemptsUsed,1);
+    assert.equal(events.at(-1)?.type,'complete');assert.equal(pipeline.liveUsage.attemptsUsed,1);
   } finally {await app.close();}
 });
 test('actual SDK speech and generation use intercepted fetch, English hints, and exactly three requests',async()=>{
@@ -102,7 +102,7 @@ test('actual SDK speech and generation use intercepted fetch, English hints, and
   const transport=openAITransport('test-private-credential',fakeFetch);
   const pipeline=new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:'test-private-credential'},true),{mock:transport,live:transport},undefined,{enabled:true,maxAttempts:3},{mock:speech,live:speech});
   const result=await pipeline.runVoice(audio,{...request(),mockText:'giant rubber duck'});
-  assert.equal(result.result.text,'red rocket with fins');assert.equal(result.spec?.displayName,fixture.spec.displayName);assert.equal(calls,3);assert.equal((await pipeline.liveUsage).attemptsUsed,1);
+  assert.equal(result.result.text,'red rocket with fins');assert.equal(result.spec?.displayName,fixture.spec.displayName);assert.equal(calls,3);assert.equal(pipeline.liveUsage.attemptsUsed,1);
 });
 
 test('speech SDK failures are sanitized and never retry or dispatch generation',async()=>{
@@ -117,7 +117,7 @@ test('speech SDK failures are sanitized and never retry or dispatch generation',
   const {pipeline,counts}=harness(speech.transcribe);
   const events:unknown[]=[];
   await assert.rejects(pipeline.runVoice(audio,request(),{emit:event=>events.push(event)}),failure('PROVIDER_UNAVAILABLE'));
-  assert.equal(calls,1);assert.equal(counts().geometryCalls,0);assert.equal((await pipeline.liveUsage).busy,false);
+  assert.equal(calls,1);assert.equal(counts().geometryCalls,0);assert.equal(pipeline.liveUsage.busy,false);
   const serialized=JSON.stringify(events);
   assert.ok(!serialized.includes('test-credential'));assert.ok(!serialized.includes('private provider detail'));
   assert.ok(serialized.includes('req_0123456789abcdef'));
@@ -146,7 +146,7 @@ test('closing the HTTP voice stream cancels transcription and releases the paid 
     try{await Promise.race([aborted,new Promise<never>((_,reject)=>{timer=setTimeout(()=>reject(new Error('Disconnect did not abort speech')),1000);})]);}
     finally{clearTimeout(timer);}
     await response;await new Promise(resolve=>setImmediate(resolve));
-    assert.equal(counts().geometryCalls,0);assert.equal((await pipeline.liveUsage).busy,false);assert.equal((await pipeline.liveUsage).attemptsUsed,1);
+    assert.equal(counts().geometryCalls,0);assert.equal(pipeline.liveUsage.busy,false);assert.equal(pipeline.liveUsage.attemptsUsed,1);
   } finally {await app.close();}
 });
 
@@ -156,5 +156,5 @@ test('mock voice uses the selected simulated transcript and fixture instead of a
   assert.equal(result.result.text,'red rocket with fins');
   assert.equal(result.result.metric.model,'mock-transcription');
   assert.equal(result.spec?.displayName,proceduralFixtures.find(item=>item.prompt==='red rocket with fins')!.spec.displayName);
-  assert.equal((await pipeline.liveUsage).attemptsUsed,0);
+  assert.equal(pipeline.liveUsage.attemptsUsed,0);
 });

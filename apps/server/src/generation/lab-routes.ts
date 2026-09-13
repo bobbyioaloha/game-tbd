@@ -1,16 +1,12 @@
 import { isLocalOrigin } from './local-origin.js';
 import type { FastifyInstance } from 'fastify';
 import { PIPELINE_DEADLINE_MS, DESIGN_BUDGET_MS, PipelineRequestSchema, type RaceEventPipelineEvent, type PipelineEvent } from '@sky/shared';
-import { safePipelineError } from './pipeline-errors.js';
 import type { CreationPipeline } from './pipeline.js';
 export function registerLabRoutes(app:FastifyInstance,pipeline:CreationPipeline,allowedOrigin = isLocalOrigin) {
   app.get('/api/lab/profiles',async (_request,reply) => {
     reply.header('Cache-Control','no-store');
-    try {
-      const liveUsage = await pipeline.liveUsage;
-      return {transcription:{...pipeline.transcriptionStatus,available:pipeline.transcriptionStatus.available && liveUsage.enabled},
-        profiles:pipeline.profiles,liveUsage,deadlineMs:PIPELINE_DEADLINE_MS,designBudgetMs:DESIGN_BUDGET_MS};
-    } catch (error) {return reply.code(503).send({error:safePipelineError(error)});}
+    return {transcription:pipeline.transcriptionStatus,profiles:pipeline.profiles,liveUsage:pipeline.liveUsage,
+      deadlineMs:PIPELINE_DEADLINE_MS,designBudgetMs:DESIGN_BUDGET_MS};
   });
   const routes=[{path:'/api/lab/creations',eventMode:false},{path:'/api/lab/events',eventMode:true}];
   for(const {path,eventMode} of routes)app.post(path,async (request,reply) => {

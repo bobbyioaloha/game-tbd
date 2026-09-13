@@ -26,7 +26,7 @@ The final procedural visual is baked into one render mesh. Its short appearance 
 
 Adding a key, starting the server, refreshing profiles, loading previews, and editing prompts never trigger paid calls. A nonblank OPENAI_API_KEY takes precedence over legacy AI_API_KEY; blank or unset values fall back to AI_API_KEY. Availability indicates configuration only, not verified account/model access. The SDK endpoint is fixed to OpenAI, and SDK debug logging is disabled.
 
-The server enables live calls only with the explicit `--live` CLI argument used by `dev:live`. It enforces paid consent, unique attempt IDs, one live attempt in flight, and `LIVE_MAX_ATTEMPTS` (default 3, integer 1–10) across all profiles and tabs. Dispatched failures/cancellations consume the allowance; invalid or already-cancelled requests do not. Replaying a dispatched ID never generates again. Counts and IDs live in server memory and reset on restart. Live mode intentionally runs without a backend watcher so code edits cannot silently reset them. Restart deliberately to load backend changes or obtain another allowance.
+The server enables live calls only with the explicit `--live` CLI argument used by `dev:live`. It enforces paid consent, unique attempt IDs, one live attempt in flight, and `LIVE_MAX_ATTEMPTS` (default 3, integer 1–100) across all profiles and tabs. Dispatched failures/cancellations consume the allowance; invalid or already-cancelled requests do not. Replaying a dispatched ID never generates again. Counts and IDs live in server memory and reset on restart. Live mode intentionally runs without a backend watcher so code edits cannot silently reset them. Restart deliberately to load backend changes or obtain another allowance.
 
 The unauthenticated paid lab is for localhost only. Live startup rejects a non-loopback HOST, paid browser requests reject non-local origins, and Vite blocks `.env` and server files. The server gate remains authoritative if the UI is bypassed. Legacy raw-spec endpoints remain mocks; the main race uses the explicitly guarded voice endpoint.
 
@@ -55,7 +55,7 @@ Server profiles in `apps/server/src/generation/pipeline-config.ts`:
 
 | Variable | Default |
 | --- | --- |
-| LIVE_MAX_ATTEMPTS | 3 (integer 1–10) |
+| LIVE_MAX_ATTEMPTS | 3 (integer 1–100) |
 | DESIGN_MODEL | gpt-5.6-sol |
 | DESIGN_REASONING | low |
 | DESIGN_MAX_OUTPUT_TOKENS | 2048 |
