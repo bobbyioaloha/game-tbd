@@ -6,44 +6,51 @@ import { loadPipelineProfiles } from '../generation/pipeline-client';
 import { MicrophoneRecorder } from './recorder';
 import { createAudioRaceEventClient } from './race-event-voice-client';
 import { RecorderControls } from './RecorderControls';
+import { paidVoiceAvailable, raceVoiceReadiness } from './race-voice-readiness';
 
 type Configuration=Omit<VoiceRequest,'captureMs'>;
 export function useRaceVoice(race:PracticeRace) {
   const [recorder]=useState(()=>new MicrophoneRecorder());
-  const [profileId,setProfileId]=useState('mock'),[mockText,setMockText]=useState(raceEventFixtures[0].prompt);
+  const [profileId,setSelectedProfileId]=useState('mock'),[mockText,setSelectedMockText]=useState(raceEventFixtures[0].prompt);
+  const [enabled,setEnabled]=useState(true);
   const [armed,setArmed]=useState(false),[refresh,setRefresh]=useState(0);
   const [profiles,setProfiles]=useState<Awaited<ReturnType<typeof loadPipelineProfiles>>>();
   const [error,setError]=useState('');
   const attempt=useRef<Configuration>({profileId:'mock',geometryMode:'primitives',mockText});
   const [host]=useState(()=>new RaceEventHost(race,recorder,createAudioRaceEventClient(()=>attempt.current)));
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
-  const mic=useSyncExternalStore(recorder.subscribe,recorder.getSnapshot);
+  const microphone=useSyncExternalStore(recorder.subscribe,recorder.getSnapshot);
   const profile=profiles?.profiles.find(item=>item.id===profileId);
   const live=profile?.mode==='live';
-  const paidAvailable=Boolean(profiles?.transcription?.available&&profiles.liveUsage.enabled&&!profiles.liveUsage.busy&&profiles.liveUsage.attemptsRemaining>0);
+  const paidAvailable=paidVoiceAvailable(profiles);
+  const getReadiness=()=>raceVoiceReadiness({enabled,microphone:recorder.getSnapshot(),profiles,profileId,armed,error});
+  const setProfileId=(id:string)=>{setArmed(false);setSelectedProfileId(id);};
+  const setMockText=(text:string)=>{setArmed(false);setSelectedMockText(text);};
   useEffect(()=>{
     const controller=new AbortController();
     void loadPipelineProfiles(controller.signal).then(data=>{if(!controller.signal.aborted){setProfiles(data);setError('');}})
-      .catch(()=>{if(!controller.signal.aborted){setProfiles(undefined);setError('Cannot load voice profiles. Start the server and refresh.');}});
+      .catch(()=>{if(!controller.signal.aborted){setProfiles(undefined);setError('Cannot connect to voice creation. Refresh availability or play without voice.');}});
     return()=>controller.abort();
   },[refresh]);
   useEffect(()=>{host.reset();return()=>host.dispose();},[host]);
-  useEffect(()=>{setArmed(false);},[profileId,mockText]);
   useEffect(()=>{if(['spawned','failed','ended'].includes(state.phase))setRefresh(value=>value+1);},[state.phase]);
   const start=()=>{
-    if (host.loop.getSnapshot().phase!=='prompted'||!mic.ready||!profile?.available||(live&&(!armed||!paidAvailable))) return;
+    if (host.loop.getSnapshot().phase!=='prompted'||!getReadiness().ready) return;
     attempt.current={profileId,geometryMode:'primitives',...(!live?{mockText}:{}),...(live?{paidAttempt:{id:crypto.randomUUID(),confirmed:true as const}}:{})};
     setArmed(false);host.loop.startRecording();
   };
-  const reset=()=>{setArmed(false);attempt.current={profileId:'mock',geometryMode:'primitives',mockText};host.reset();};
-  return {host,recorder,profileId,setProfileId,mockText,setMockText,armed,setArmed,profiles,error,profile,live,paidAvailable,state,
+  const reset=()=>{setEnabled(true);setArmed(false);attempt.current={profileId:'mock',geometryMode:'primitives',mockText};host.reset();};
+  const skipForRun=()=>{host.disableForRun();setEnabled(false);setArmed(false);};
+  return {host,recorder,microphone,enabled,getReadiness,skipForRun,profileId,setProfileId,mockText,setMockText,armed,setArmed,profiles,error,profile,live,paidAvailable,state,
     start,finish:()=>{void host.loop.finishRecording();},cancel:()=>host.loop.cancelRecording(),reset,refresh:()=>setRefresh(value=>value+1)};
 }
-export function RaceVoiceControls({voice,paused}:{voice:ReturnType<typeof useRaceVoice>;paused:boolean}) {
-  const configuring=paused&&voice.host.race.elapsed===0;
+export type RaceVoiceController = ReturnType<typeof useRaceVoice>;
+
+export function RaceVoiceControls({voice,paused}:{voice:RaceVoiceController;paused:boolean}) {
+  const configuring=paused&&voice.enabled&&voice.host.race.elapsed===0;
   const active=['preparing','recording','transcribing','generating'].includes(voice.state.phase);
   const canHold=!paused&&(['recording','preparing'].includes(voice.state.phase)||
-    (voice.state.phase==='prompted'&&Boolean(voice.profile?.available)&&(!voice.live||(voice.armed&&voice.paidAvailable))));
+    (voice.state.phase==='prompted'&&voice.getReadiness().ready));
   return <section className="race-voice">
     <h2>Voice creation</h2>
     <p>Yellow star: one speaking attempt, 10 words maximum. Hold Space after collecting it. Release submits automatically. Any racer can activate your creation; its effect can reach everyone.</p>
@@ -68,5 +75,52 @@ export function RaceVoiceControls({voice,paused}:{voice:ReturnType<typeof useRac
     {active&&<button onClick={voice.cancel}>Cancel voice attempt</button>}
     <button onClick={voice.refresh} disabled={active}>Refresh voice profiles</button>
     <small>8 s recording · 10 s transcription · 30 s generation. Pausing cancels an active attempt.</small>
+  </section>;
+}
+
+/** Player-facing setup; model configuration and diagnostics stay in RaceVoiceControls. */
+export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
+  const {microphone} = voice;
+  const liveProfile = voice.profiles?.profiles.find(profile => profile.mode === 'live' && profile.available);
+  const liveEnabled = Boolean(liveProfile && voice.profiles?.transcription?.available && voice.profiles.liveUsage.enabled);
+  const preparing = microphone.phase === 'preparing';
+  return <section className="race-voice-setup" aria-labelledby="voice-setup-title">
+    <h2 id="voice-setup-title">Voice creation</h2>
+    <div className="race-microphone-check">
+      <button disabled={preparing} onClick={() => {void voice.recorder.prepare();}}>
+        {preparing ? 'Checking microphone…' : microphone.ready && microphone.phase !== 'error' ? 'Check microphone again' : 'Enable microphone'}
+      </button>
+      <p role="status">{microphone.message}</p>
+      <small>This permission check stays on your device. It does not record a clip or call AI.</small>
+    </div>
+    <label>Creation mode
+      <select aria-label="Creation mode" value={voice.live ? 'live' : 'mock'} disabled={preparing} onChange={event => {
+        voice.setProfileId(event.target.value === 'live' && liveProfile ? liveProfile.id : 'mock');
+      }}>
+        <option value="mock">Mock · prepared creation</option>
+        <option value="live" disabled={!liveEnabled}>Live AI{liveEnabled ? '' : ' · unavailable'}</option>
+      </select>
+    </label>
+    {voice.live ? <>
+      <p>AI interprets your speech to create an object and its effect.</p>
+      <label className="voice-consent">
+        <input type="checkbox" checked={voice.armed} disabled={!voice.paidAvailable || !voice.profile?.available}
+          onChange={event => voice.setArmed(event.target.checked)}/>
+        Allow this run’s one paid voice attempt
+      </label>
+      <small>Up to 3 paid API calls. Failed or cancelled requests may still cost credits.</small>
+      <p>{voice.profiles?.liveUsage.attemptsRemaining ?? 0} paid attempts remaining.</p>
+    </> : <>
+      <p className="voice-mode-notice"><strong>Mock mode · speech recognition is off</strong><br/>
+        Uses the prepared prompt below, regardless of what you say. No AI calls.</p>
+      <label>Prepared prompt
+        <select aria-label="Prepared prompt" value={voice.mockText} disabled={preparing} onChange={event => voice.setMockText(event.target.value)}>
+          {raceEventFixtures.map(({prompt}) => <option key={prompt}>{prompt}</option>)}
+        </select>
+      </label>
+      {!liveEnabled && <small>Live AI is unavailable for this session.</small>}
+    </>}
+    <button disabled={preparing} onClick={voice.refresh}>Refresh availability</button>
+    <small className="race-voice-limits">Desktop Chrome / Edge · English · 8 s recording maximum.<br/>Keep racing during transcription and creation.</small>
   </section>;
 }

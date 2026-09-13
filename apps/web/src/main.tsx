@@ -1,17 +1,27 @@
-import { StrictMode, useState } from 'react';
+import { lazy, StrictMode, Suspense, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { PlaygroundPage } from './pages/PlaygroundPage';
-import { GamePage } from './pages/GamePage';
-import { GenerationLabPage } from './pages/GenerationLabPage';
 import './styles.css';
+
+const GamePage = lazy(() => import('./pages/GamePage').then(module => ({default: module.GamePage})));
+const GenerationLabPage = lazy(() => import('./pages/GenerationLabPage').then(module => ({default: module.GenerationLabPage})));
+
 function App() {
-  const [page,setPage] = useState<'lab'|'game'|'generation'>('generation');
-  return <><header><a className="brand" href="/">↘ SKYFALL<span> / DEVELOPMENT LAB</span></a><nav>
-    <button className={page==='generation'?'active':''} onClick={()=>setPage('generation')}>Generation lab</button>
-    <button className={page==='lab'?'active':''} onClick={()=>setPage('lab')}>Fixtures</button>
-    <button className={page==='game'?'active':''} onClick={()=>setPage('game')}>Game</button>
-  </nav><span className="badge">● DEVELOPMENT</span></header>
-    {page==='generation' ? <GenerationLabPage/> : page==='lab' ? <PlaygroundPage/> : <GamePage/>}
+  const [route, setRoute] = useState(() => window.location.hash);
+  useEffect(() => {
+    const update = () => setRoute(window.location.hash);
+    window.addEventListener('hashchange', update);
+    return () => window.removeEventListener('hashchange', update);
+  }, []);
+  const lab = route === '#/dev/generation';
+  return <>
+    {lab && <header className="developer-header">
+      <a className="brand" href="#/">↘ SKYFALL<span> / DEVELOPMENT LAB</span></a>
+      <nav aria-label="Developer navigation"><a href="#/">Play game</a><a href="#/dev/generation" aria-current="page">Generation lab</a></nav>
+      <span className="badge">● DEVELOPMENT</span>
+    </header>}
+    <Suspense key={lab ? 'lab' : 'game'} fallback={<p className="page-loading" role="status">Loading {lab ? 'generation lab' : 'game'}…</p>}>
+      {lab ? <GenerationLabPage/> : <GamePage/>}
+    </Suspense>
   </>;
 }
 createRoot(document.getElementById('root')!).render(<StrictMode><App/></StrictMode>);
