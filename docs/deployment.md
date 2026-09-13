@@ -85,6 +85,12 @@ Each server instance holds its own count, used attempt IDs, and one live-request
 
 The app keeps its separate budgets: 8 seconds capture, 10 seconds upload/transcription, and 30 seconds generation. Cancellation does not guarantee already-dispatched provider work is free.
 
+## Web Analytics
+
+The web app mounts `@vercel/analytics/react` once at the app root to count visitors and page views. Vite development runs use Analytics development mode; production builds use production mode.
+
+Enable **Web Analytics** in the Vercel project's **Analytics** tab, then deploy this change and visit the site. Check the dashboard for page views; content blockers can prevent collection. See the [Vercel Web Analytics quickstart](https://vercel.com/docs/analytics/quickstart).
+
 ## Troubleshooting
 
 | Symptom | Check or fix |
