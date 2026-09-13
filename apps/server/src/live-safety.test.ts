@@ -6,6 +6,7 @@ import { buildApp } from './app.js';
 import { buildPipeline } from './generation/pipeline-bootstrap.js';
 import { pipelineProfiles } from './generation/pipeline-config.js';
 import { CreationPipeline } from './generation/pipeline.js';
+import { LiveAttempts } from './generation/live-attempts.js';
 import { PipelineFailure } from './generation/pipeline-errors.js';
 import type { StageTransport } from './generation/stage-transport.js';
 
@@ -51,8 +52,9 @@ test('live mode without a key remains unavailable, and the allowance is bounded'
   const pipeline = buildPipeline({},true);
   await assert.rejects(pipeline.run(request()),code('NOT_CONFIGURED'));
   assert.equal(pipeline.liveUsage.attemptsUsed,0);
-  for (const value of ['0','11','NaN','1.5','']) assert.throws(() => buildPipeline({LIVE_MAX_ATTEMPTS:value}),/LIVE_MAX_ATTEMPTS/);
+  for (const value of ['0','101','NaN','1.5','']) assert.throws(() => buildPipeline({LIVE_MAX_ATTEMPTS:value}),/LIVE_MAX_ATTEMPTS/);
   assert.equal(buildPipeline({LIVE_MAX_ATTEMPTS:'1'}).liveUsage.maxAttempts,1);
+  assert.equal(buildPipeline({LIVE_MAX_ATTEMPTS:'100'}).liveUsage.maxAttempts,100);
 });
 
 test('one explicit attempt dispatches exactly two calls and rejects a replay without spending again', async () => {
@@ -133,4 +135,17 @@ test('HTTP boundary rejects unconfirmed, malformed, and foreign-origin paid requ
     const status = PipelineProfilesSchema.parse((await app.inject({method:'GET',url:'/api/lab/profiles'})).json());
     assert.equal(status.liveUsage.attemptsRemaining,2);
   } finally {await app.close();}
+});
+
+test('100-attempt allowance and duplicate IDs belong to one in-memory instance', () => {
+  const attempts=new LiveAttempts({enabled:true,maxAttempts:100});
+  const first=request();
+  attempts.acquire(first)();
+  for (let i=1;i<100;i++) attempts.acquire(request())();
+  assert.equal(attempts.status.attemptsRemaining,0);
+  assert.throws(()=>attempts.acquire(first),code('DUPLICATE_ATTEMPT'));
+  assert.throws(()=>attempts.acquire(request()),code('LIVE_LIMIT_REACHED'));
+  const anotherInstance=new LiveAttempts({enabled:true,maxAttempts:100});
+  anotherInstance.acquire(first)();
+  assert.equal(anotherInstance.status.attemptsRemaining,99);
 });

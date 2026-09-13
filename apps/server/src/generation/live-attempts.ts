@@ -2,13 +2,13 @@ import type { LiveUsage, PipelineRequest } from '@sky/shared';
 import { PipelineFailure } from './pipeline-errors.js';
 
 export type LivePolicy = {enabled:boolean; maxAttempts:number};
-// One gate belongs to one server pipeline, shared by all tabs and profiles.
+// One gate per server instance. Tabs/profiles on that instance share it; other instances do not.
 export class LiveAttempts {
   private used = new Set<string>();
   private busy = false;
   constructor(private policy:LivePolicy = {enabled:false,maxAttempts:3}) {
-    if (!Number.isInteger(policy.maxAttempts) || policy.maxAttempts < 1 || policy.maxAttempts > 10) {
-      throw new Error('LIVE_MAX_ATTEMPTS must be an integer from 1 to 10');
+    if (!Number.isInteger(policy.maxAttempts) || policy.maxAttempts < 1 || policy.maxAttempts > 100) {
+      throw new Error('LIVE_MAX_ATTEMPTS must be an integer from 1 to 100');
     }
   }
   get status():LiveUsage {
@@ -21,7 +21,7 @@ export class LiveAttempts {
     const id = request.paidAttempt.id;
     if (this.used.has(id)) throw new PipelineFailure('DUPLICATE_ATTEMPT','This paid attempt was already dispatched. It will not run again.');
     if (this.busy) throw new PipelineFailure('LIVE_BUSY','Another paid attempt is running. Wait for it to finish.');
-    if (this.used.size >= this.policy.maxAttempts) throw new PipelineFailure('LIVE_LIMIT_REACHED','The live attempt allowance is exhausted. Restart bun run dev:live deliberately to reset it.');
+    if (this.used.size >= this.policy.maxAttempts) throw new PipelineFailure('LIVE_LIMIT_REACHED','The paid allowance for this server instance is exhausted.');
     // Reserve synchronously before dispatch, including attempts that later fail or cancel.
     this.used.add(id);
     this.busy = true;

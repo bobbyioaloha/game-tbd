@@ -18,17 +18,19 @@ type VoiceOptions<Event> = GenerationOptions<Event> & {transcriptionBudgetMs?:nu
 export type PipelineOptions = GenerationOptions<PipelineEvent>;
 export class CreationPipeline {
   private readonly liveAttempts:LiveAttempts;
+  readonly liveEnabled:boolean;
   get liveUsage() {return this.liveAttempts.status;}
   constructor(readonly profiles:PipelineProfile[], private transports:{mock:StageTransport;live?:StageTransport},
     private budgets = {totalMs:PIPELINE_DEADLINE_MS,designMs:DESIGN_BUDGET_MS}, livePolicy?:LivePolicy,
     private speech:{mock:TranscriptionProvider;live?:TranscriptionProvider} = {mock:mockTranscriptionProvider}) {
+    this.liveEnabled = livePolicy?.enabled ?? false;
     this.liveAttempts = new LiveAttempts(livePolicy);
   }
-  get transcriptionStatus() {return {model:this.speech.live?.model ?? 'gpt-transcribe',available:this.liveUsage.enabled && Boolean(this.speech.live)};}
+  get transcriptionStatus() {return {model:this.speech.live?.model ?? 'gpt-transcribe',available:this.liveEnabled && Boolean(this.speech.live)};}
   private profileFor(profileId:string) {
     const profile=this.profiles.find(item=>item.id===profileId);
     if (!profile) throw new PipelineFailure('INVALID_REQUEST','Unknown pipeline profile.');
-    if (profile.mode==='live' && !this.liveUsage.enabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
+    if (profile.mode==='live' && !this.liveEnabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
     if (!profile.available) throw new PipelineFailure('NOT_CONFIGURED',profile.unavailableReason ?? 'The provider is not configured.');
     if (!this.transports[profile.mode]) throw new PipelineFailure('NOT_CONFIGURED','The generation provider is not configured.');
     return profile;
