@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "skyfall",
+      "name": "mandatory-safety-exercise",
       "devDependencies": {
         "@types/node": "^22.0.0",
         "concurrently": "^9.0.0",

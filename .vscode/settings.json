@@ -1,11 +1,11 @@
 {
   "remote.portsAttributes": {
     "3001": {
-      "label": "Skyfall API",
+      "label": "Mandatory Safety Exercise API",
       "onAutoForward": "silent"
     },
     "5173": {
-      "label": "Skyfall game",
+      "label": "Mandatory Safety Exercise game",
       "onAutoForward": "openBrowserOnce"
     }
   }

@@ -18,7 +18,7 @@ function App() {
   const lab = import.meta.env.DEV && route === '#/dev/generation';
   return <>
     {lab && <header className="developer-header">
-      <a className="brand" href="#/">↘ SKYFALL<span> / DEVELOPMENT LAB</span></a>
+      <a className="brand" href="#/">↘ MANDATORY SAFETY EXERCISE<span> / DEVELOPMENT LAB</span></a>
       <nav aria-label="Developer navigation"><a href="#/">Play game</a><a href="#/dev/generation" aria-current="page">Generation lab</a></nav>
       <span className="badge">● DEVELOPMENT</span>
     </header>}
