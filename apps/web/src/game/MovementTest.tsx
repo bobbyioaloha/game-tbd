@@ -1,3 +1,4 @@
+import { GameMusic } from './GameMusic';
 import { Preview } from '../pages/CharacterPage';
 import { CHARACTERS, DEFAULT_CHARACTER_ANGLE } from './characters';
 import type { DinosaurCharacter, GregPose } from './GregModel';
@@ -27,7 +28,7 @@ const interactingWithUi = (target: EventTarget | null) => target instanceof HTML
 const initialHud = initialRaceHud;
 
 export function MovementTest() {
-  const [screen,setScreen]=useState<'selection'|'viewer'|'setup'|'race'|'countdown'>('selection');
+  const [screen,setScreen]=useState<'title'|'selection'|'viewer'|'setup'|'race'|'countdown'>('title');
   const [inspected,setInspected]=useState<DinosaurCharacter>('greg');
   const person=CHARACTERS.find(character=>character.id===inspected)!;
   const employee=String(CHARACTERS.indexOf(person)+1).padStart(3,'0');
@@ -158,11 +159,19 @@ export function MovementTest() {
     };
   }, [runtime, binding, pause, startCountdown]);
 
-  return <section className="movement-test">
+  return <>
+    <GameMusic track={screen==='race' ? (hud.finish!==null ? 'results' : 'race') : screen==='countdown' ? 'race' : 'menu'} paused={screen==='race'&&paused} recording={microphone.phase==='preparing'||microphone.phase==='recording'}/>
+    {screen==='title' ? <section className="training-title" aria-label="Prehistoric Precautions">
+    <img src="/images/prehistoric-precautions.png" alt="Prehistoric Precautions. Your continued existence is mandatory. Four dinosaur trainees skydive past a refrigerator and sofa toward a forest landing target."/>
+    <div className="training-title-actions">
+      <button autoFocus className="commence-training" onClick={()=>setScreen('selection')}>Commence Training <span aria-hidden="true">→</span></button>
+      <details><summary>Training essentials</summary><p>{steeringHelp}<br/>{actionHelp}</p><p>Choose your trainee, then complete the briefing. Voice creation is optional.</p></details>
+    </div>
+  </section> : <section className="movement-test">
     <div className="movement-layout">
       <div className={'movement-stage packaged-game '+(screen!=='race'?'personnel-menu':'')}>
         <div className="in-game-toolbar">
-          <span>⚠ MANDATORY SAFETY EXERCISE</span>
+          <button className="training-home" onClick={()=>{pause(true);voice.recorder.cancel();setSettings(false);setScreen('title');}}>⚠ PREHISTORIC PRECAUTIONS</button>
           <div>
             {screen==='race'?<><button onClick={()=>{if(runtime.paused&&runtime.race.elapsed===0)startCountdown();else pause(!runtime.paused);}} disabled={binding!==null||settings}>{paused?'Resume':'Pause'}</button><button onClick={prepareRun}>Restart</button></>:null}
             <button aria-pressed={screen==='selection'} onClick={returnToPersonnel}>Personnel</button>
@@ -260,5 +269,6 @@ export function MovementTest() {
         </div>
       </div>
     </div>
-  </section>;
+  </section>}
+  </>;
 }

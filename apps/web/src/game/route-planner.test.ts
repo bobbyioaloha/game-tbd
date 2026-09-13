@@ -9,7 +9,7 @@ test('ducts have open centers, solid walls and an offset exit',()=>{
   const [x,y,z]=first.position;
   assert.equal(obstacleHit([x,y+13,z],[x,y-13,z],first,0),null);
   assert.equal(obstacleHit([x+6.5,y+13,z],[x+6.5,y-13,z],first,0),0.5);
-  assert.equal(last.position[0]-x,8);
+  assert.ok(Math.abs(Math.hypot(last.position[0]-x,last.position[2]-z)-6)<1e-8);
   assert.ok(makeCourse().length>150);
 });
 test('pipe passages contain rare fuel rings with room inside their walls',()=>{

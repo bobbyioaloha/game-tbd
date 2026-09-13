@@ -7,7 +7,7 @@ import { RACE_EVENT_LIMITS, type EventRacer, type RaceEventPort, type RacerSegme
 import { RaceEventBridge } from '../race-events/bridge';
 import { FreefallController } from './freefall-controller';
 import type { PlayerSnapshot, SteeringInput, Position } from './player-controller';
-import { makeCourse, makeItemBoxes, obstacleHit, obstaclePose, OBSTACLE_RULES, segmentSphere, type Item, type Obstacle } from './race-course';
+import { makeCourse, seededRandom, makeItemBoxes, makeFuelRings, obstacleHit, obstaclePose, OBSTACLE_RULES, segmentSphere, type Item, type Obstacle } from './race-course';
 
 export const FINISH_DEPTH = 3600;
 export const LANE_HALF_WIDTH = 36;
@@ -18,7 +18,7 @@ export const BOOST_CAPACITY = 4;
 export type RaceStanding={id:number;name:string;color:string;place:number;progress:number;gap:number;finished:boolean};
 export type Racer = {
   id:number;name:string;color:string;model:PlayableCharacter|null;incidents:number;controller:FreefallController;landed?:PlayerSnapshot;finishTime?:number;
-  target:[number,number];decision:number;brakeUntil:number;item:Item|null;
+  aiRandom:()=>number;temperament:number;wander:[number,number];maneuverUntil:number;target:[number,number];decision:number;brakeUntil:number;item:Item|null;
   creationSlowUntil:number;creationSlowMultiplier:number;creationShieldUntil:number;eventObstacleProtection:boolean;
   slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;sunOrigin:Position|null;nextUse:number;aiLock:TargetLock;dodgeReaction:RivalDodgeReaction;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;sunVictims:Set<number>;
 };
@@ -58,15 +58,14 @@ export class PracticeRace {
     this.feedback='';this.feedbackUntil=0;this.elapsed=0;this.seed=Math.floor(this.seedSource()*4294967296)>>>0;this.shotId=0;this.projectiles=[];
     this.racers=raceLineup(this.selectedCharacter).map((person,id)=>({
       id,name:person.name,color:person.color,model:person.model,incidents:0,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
-      target:[0,0],decision:0,brakeUntil:0,item:null,
+      aiRandom:seededRandom(this.seed^(id*0x45d9f3b)),temperament:id===1?0.25:id===2?0.6:0.95,wander:[0,0],maneuverUntil:0,target:[0,0],decision:0,brakeUntil:0,item:null,
       creationSlowUntil:0,creationSlowMultiplier:1,creationShieldUntil:0,eventObstacleProtection:false,
       slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,sunOrigin:null,nextUse:0,aiLock:new TargetLock(),dodgeReaction:new RivalDodgeReaction(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},sunVictims:new Set(),
     }));
-    this.obstacles=this.courseEnabled?makeCourse():[];
+    this.obstacles=this.courseEnabled?makeCourse(seededRandom(this.seed^0x51f15e)):[];
     this.boxes=this.courseEnabled?makeItemBoxes(this.obstacles,()=>this.random()):[];
     this.rings=this.courseEnabled?[
-      {id:0,position:[12,-300,0],used:new Set<number>(),fuel:2},
-      {id:1,position:[-12,-1200,8],used:new Set<number>(),fuel:2},
+      ...makeFuelRings(this.obstacles,seededRandom(this.seed^0x713a)),
       ...this.obstacles.filter(o=>o.kind==='duct'&&(o.id===1004||o.id===1007)).map(o=>({
         id:o.id,position:[o.position[0],o.position[1]-7,o.position[2]] as Position,used:new Set<number>(),radius:3,fuel:4,
       })),
@@ -165,7 +164,7 @@ export class PracticeRace {
       else {
         if(this.elapsed>=racer.decision){
           racer.danger=planRival(this,racer);
-          racer.decision=this.elapsed+0.25+(racer.id===1?0.1:0);
+          racer.decision=this.elapsed+0.20+racer.aiRandom()*0.22+(1-racer.temperament)*0.10;
         }
         const p=this.snapshot(racer).position;
         steering={x:(racer.target[0]-p[0])*0.8,z:(racer.target[1]-p[2])*0.8};
@@ -183,7 +182,7 @@ export class PracticeRace {
           if(use){this.useItem(racer.id,up,locked);racer.nextUse=this.elapsed+1;racer.aiLock.reset();}
         }
       }
-      if(racer.id!==0&&racer.dodgeReaction.update(racer.id,this.snapshot(racer).position,this.projectiles,this.elapsed,racer.dodgeReady,()=>this.random()))
+      if(racer.id!==0&&racer.dodgeReaction.update(racer.id,this.snapshot(racer).position,this.projectiles,this.elapsed,racer.dodgeReady,racer.aiRandom))
         this.dodge(racer.id,{x:racer.id%2?1:-1,z:0});
       const wantsBoost=racer.id===0?boost:!racer.danger&&this.elapsed>=racer.slowUntil;
       racer.boosting=wantsBoost&&!racer.controller.braking&&racer.boostFuel>0;

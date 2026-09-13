@@ -3,14 +3,15 @@ import type { Position } from './player-controller';
 
 export type Item = 'umbrella' | 'cloak' | 'sun';
 export const ITEM_NAMES: Record<Item,string> = {umbrella:'Jellyfish umbrella',cloak:'Ghost cloak',sun:'Angry sun'};
-export type ObstacleKind = 'balloon'|'fridge'|'satellite'|'sofa'|'duct'|'duck'|'toilet'|'piano'|'rock';
+export type ObstacleKind = 'balloon'|'fridge'|'satellite'|'sofa'|'duct'|'cone'|'extinguisher'|'barrier'|'crate'|'capsule';
 export type Collider = {center:Position; size:Position; sphere?:number; penalty:number};
 export type Obstacle = {id:number;kind:ObstacleKind;position:Position;rotation:Position;active:boolean;hitAt:number};
 export const OBSTACLE_RULES: Record<ObstacleKind,{heft:string;flail:number;knockback:number;colliders:Collider[]}> = {
-  duck:{heft:'rubbery',flail:0.35,knockback:5,colliders:[{center:[0,0,0],size:[4,3,4],sphere:2,penalty:0.75}]},
-  toilet:{heft:'porcelain',flail:0.6,knockback:3,colliders:[{center:[0,0,0],size:[2.5,3.2,3.5],penalty:0.45}]},
-  piano:{heft:'very heavy',flail:0.7,knockback:4,colliders:[{center:[0,0,0],size:[5,3,3],penalty:0.35}]},
-  rock:{heft:'space rock',flail:0.55,knockback:3,colliders:[{center:[0,0,0],size:[4,4,4],sphere:2,penalty:0.5}]},
+  cone:{heft:'traffic control',flail:0.35,knockback:2,colliders:[{center:[0,0,0],size:[3,3,3],penalty:0.75}]},
+  extinguisher:{heft:'fire drill',flail:0.45,knockback:3,colliders:[{center:[0,0,0],size:[1.8,3.6,1.8],penalty:0.6}]},
+  barrier:{heft:'safety barrier',flail:0.5,knockback:3,colliders:[{center:[0,0,0],size:[5,3,1.6],penalty:0.55}]},
+  crate:{heft:'equipment cargo',flail:0.55,knockback:3,colliders:[{center:[0,0,0],size:[3.4,3.4,3.4],penalty:0.5}]},
+  capsule:{heft:'reentry trainer',flail:0.6,knockback:3,colliders:[{center:[0,0,0],size:[4,4.4,4],penalty:0.45}]},
   duct:{heft:'pipe wall',flail:0.6,knockback:2,colliders:[
     {center:[-6.5,0,0],size:[1,24,14],penalty:0.5},{center:[6.5,0,0],size:[1,24,14],penalty:0.5},
     {center:[0,0,-6.5],size:[12,24,1],penalty:0.5},{center:[0,0,6.5],size:[12,24,1],penalty:0.5},
@@ -24,22 +25,45 @@ export const OBSTACLE_RULES: Record<ObstacleKind,{heft:string;flail:number;knock
   ]},
   sofa:{heft:'bouncy',flail:0.45,knockback:5,colliders:[{center:[0,0,0],size:[4.8,2,2.4],penalty:0.6}]},
 };
-export function makeCourse() {
-  const kinds:ObstacleKind[]=['satellite','fridge','balloon','sofa','duck','toilet','piano','rock'];
-  const junk=Array.from({length:192},(_,i):Obstacle=>{
-    const row=Math.floor(i/4),slot=(i%4+row%5)%5;
-    return {id:i,kind:kinds[i%kinds.length],position:[-30+slot*15,-160-row*65,((row*17+i%4*13)%61)-30],
-      rotation:[i*0.21,i*0.73,i*0.13],active:true,hitAt:-1};
-  });
-  const ducts=makeDucts();
-  return [...junk.filter(o=>!ducts.some(d=>Math.abs(o.position[1]-d.position[1])<28&&Math.hypot(o.position[0]-d.position[0],o.position[2]-d.position[2])<18)),...ducts];
+// A seeded stream makes a run reproducible, while reset supplies a fresh seed.
+export function seededRandom(seed:number){
+  return ()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
 }
-export function makeDucts():Obstacle[]{
-  return [650,1650,2650].flatMap((depth,course)=>Array.from({length:3},(_,section)=>({
-    id:1000+course*3+section,kind:'duct' as const,
-    position:[(course%2?-18:10)+section*4,-depth-section*24,course%2?16:-16] as Position,
-    rotation:[0,0,0] as Position,active:true,hitAt:-1,
-  })));
+export function obstacleKindsAtDepth(depth:number):readonly ObstacleKind[]{
+  if(depth<1100)return ['satellite','capsule','crate'];
+  if(depth<2200)return ['balloon','capsule','crate','barrier'];
+  return ['fridge','sofa','cone','extinguisher','barrier','crate'];
+}
+export function makeCourse(random:()=>number=Math.random) {
+  const ducts=makeDucts(random),junk:Obstacle[]=[];
+  for(let row=0;row<48;row++){
+    const depth=160+row*65+random()*24;
+    const occupied:Position[]=[];
+    for(let slot=0;slot<4;slot++){
+      let x=0,z=0,clear=false;
+      for(let attempt=0;attempt<40;attempt++){
+        x=random()*60-30;z=random()*60-30;
+        if(occupied.every(p=>Math.hypot(x-p[0],z-p[2])>12)){clear=true;break;}
+      }
+      if(!clear)continue;
+      const position:Position=[x,-depth-random()*18,z];
+      if(ducts.some(d=>Math.abs(position[1]-d.position[1])<28&&Math.hypot(x-d.position[0],z-d.position[2])<18))continue;
+      occupied.push(position);
+      const kinds=obstacleKindsAtDepth(-position[1]);
+      junk.push({id:row*4+slot,kind:kinds[Math.floor(random()*kinds.length)],position,
+        rotation:[random()*Math.PI*2,random()*Math.PI*2,random()*Math.PI*2],active:true,hitAt:-1});
+    }
+  }
+  return [...junk,...ducts];
+}
+export function makeDucts(random:()=>number=Math.random):Obstacle[]{
+  return [550,1550,2550].flatMap((base,course)=>{
+    const depth=base+random()*240,x=random()*36-18,z=random()*36-18;
+    const angle=random()*Math.PI*2,dx=Math.cos(angle)*3,dz=Math.sin(angle)*3;
+    return Array.from({length:3},(_,section)=>({id:1000+course*3+section,kind:'duct' as const,
+      position:[x+section*dx,-depth-section*24,z+section*dz] as Position,
+      rotation:[0,0,0] as Position,active:true,hitAt:-1}));
+  });
 }
 export function obstaclePose(obstacle:Obstacle,time:number) {
   if(obstacle.kind==='duct')return {position:obstacle.position,rotation:obstacle.rotation};
@@ -105,4 +129,22 @@ export function makeItemBoxes(obstacles:Obstacle[],random:()=>number) {
       return {id:section*5+index,position,rotation:[random()*Math.PI*2,random()*Math.PI*2,random()*Math.PI*2] as Position,active:true};
     });
   }).flat();
+}
+
+export function makeFuelRings(obstacles:Obstacle[],random:()=>number){
+  return [300,1200].map((base,id)=>{
+    const y=-base-random()*100;
+    const clear=(x:number,z:number)=>obstacles.every(o=>Math.abs(o.position[1]-y)>(o.kind==='duct'?30:14)||
+      Math.hypot(x-o.position[0],z-o.position[2])>(o.kind==='duct'?20:13));
+    let position:Position|undefined;
+    for(let attempt=0;attempt<60;attempt++){
+      const x=random()*48-24,z=random()*48-24;
+      if(clear(x,z)){position=[x,y,z];break;}
+    }
+    if(!position)for(let x=-24;x<=24&&!position;x+=6)for(let z=-24;z<=24;z+=6){
+      if(clear(x,z)){position=[x,y,z];break;}
+    }
+    if(!position)throw new Error('No clear fuel-ring placement.');
+    return {id,position,used:new Set<number>(),fuel:2};
+  });
 }

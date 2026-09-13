@@ -87,7 +87,7 @@ export function CloudField({snapshot}:{snapshot:()=>PlayerSnapshot}){
     field.current?.children.forEach((cloud,i)=>{
       const relative=wrap(-y-clouds[i].depth,600)-560;
       cloud.position.set(clouds[i].x,relative,clouds[i].z);
-      materials[i].uniforms.opacity.value=.76*Math.min(1,Math.max(0,(-relative-8)/65))*Math.min(1,(relative+560)/70);
+      materials[i].uniforms.opacity.value=(.18+.58*Math.min(1,Math.max(0,-y/1200)))*Math.min(1,Math.max(0,(-relative-8)/65))*Math.min(1,(relative+560)/70);
     });
   });
   return <group ref={field}>{clouds.map((cloud,i)=><group key={i}>
