@@ -1,10 +1,14 @@
 # Prompt-to-3D generation lab
 
-The lab compares two visual methods behind the same **design → visuals** pipeline. It is isolated from the game, with a shared 30-second deadline, one effect per creation, and no automatic retries or repair calls.
+Use the Generation lab to inspect a creation, compare visual methods, and diagnose a failed request without playing a whole race. It runs locally under `bun run dev`; its page and code are excluded from production builds.
+
+The lab opens on **Race events**, which uses the same v3 effects as the main game. Read [the shared-effect guide](race-events-handoff.md#try-it-without-credits) to test those. Select **Asset generation** for the v2 comparison tool described below. Both use the same design-to-geometry pipeline, a 30-second generation deadline, and one effect per generated object.
+
+For a first microphone test or API key setup, start with [the voice guide](voice-input-plan.md). For the bigger picture, see [the architecture tour](architecture.md).
 
 ## Start and try the mock
 
-Run `bun install`, then `bun run dev`. Open http://localhost:5173 and select **Generation lab**.
+Run `bun install`, then `bun run dev`. Open [the local Generation lab](http://localhost:5173/#/dev/generation) and select **Asset generation**.
 
 1. Keep **Procedural parts** and **Mock two-stage pipeline** selected.
 2. Choose any of the twelve comparison presets, such as **giant rubber duck**, **red rocket with fins**, or **spiky pink shield**.
@@ -18,19 +22,11 @@ The final procedural visual is baked into one render mesh. Its short appearance 
 
 ## Enable live testing
 
-1. Copy `.env.example` to `apps/server/.env` only if the latter does not exist; in WSL run `chmod 600 apps/server/.env`.
-2. Set `OPENAI_API_KEY` there using your editor. Never use a `VITE_` variable or paste the value into chat or shell commands.
-3. Stop any default dev server and run **`bun run dev:live`**. Ordinary `bun run dev` and server `start` keep paid generation disabled regardless of key presence or inherited enable environment variables.
-4. Open the lab (it starts in mock mode), select a live profile and a visual method, and enter a short prompt.
-5. Check **Allow this paid attempt**, then click **Generate · up to 2 API calls**. Consent resets after submission and on edits to the prompt, method or profile.
+Follow [the local live AI setup](voice-input-plan.md#enable-live-ai-locally) to save a server-side key and start `bun run dev:live`. The local allowance defaults to three dispatched attempts per server start; key presence alone does not enable spending.
 
-Adding a key, starting the server, refreshing profiles, loading previews, and editing prompts never trigger paid calls. A nonblank OPENAI_API_KEY takes precedence over legacy AI_API_KEY; blank or unset values fall back to AI_API_KEY. Availability indicates configuration only, not verified account/model access. The SDK endpoint is fixed to OpenAI, and SDK debug logging is disabled.
+In **Asset generation**, select a live profile and visual method, then enter a short prompt. Check **Allow this paid attempt** and click **Generate · up to 2 API calls**. Consent resets after submission and when you change the prompt, method, or profile. Every comparison is a separate deliberate attempt; there is no automatic paid batch, retry, or repair call.
 
-The server enables live calls only with the explicit `--live` CLI argument used by `dev:live`. It enforces paid consent, unique attempt IDs, one live attempt in flight, and `LIVE_MAX_ATTEMPTS` (default 3, integer 1–100) across all profiles and tabs. Dispatched failures/cancellations consume the allowance; invalid or already-cancelled requests do not. Replaying a dispatched ID never generates again. Counts and IDs live in server memory and reset on restart. Live mode intentionally runs without a backend watcher so code edits cannot silently reset them. Restart deliberately to load backend changes or obtain another allowance.
-
-The unauthenticated paid lab is for localhost only. Live startup rejects a non-loopback HOST, paid browser requests reject non-local origins, and Vite blocks `.env` and server files. The server gate remains authoritative if the UI is bypassed. Legacy raw-spec endpoints remain mocks; the main race uses the explicitly guarded voice endpoint.
-
-Set a project hard spend limit separately in the OpenAI dashboard; the per-start attempt allowance is not a dollar cap. Hard limits can slightly overshoot while enforcement propagates; alerts alone do not stop calls. See [spend limits](https://developers.openai.com/api/docs/guides/spend-limits).
+Adding a key, refreshing profiles, loading a fixture, and editing prompts make no provider calls. Availability reports configuration only, not verified model/account access. Legacy raw-spec endpoints stay mocked. For hosted game settings and the separate 100-attempt per-instance default, use [the deployment guide](deployment.md).
 
 ## Run a comparison
 
@@ -170,9 +166,11 @@ Previous generic PROVIDER_ERROR events cannot be reconstructed: their provider r
 
 ## Game integration boundary
 
-The updated Game tab contains **Movement test** (the race mechanics) and **Voice / creation demo**. Movement test shares the guarded speech/generation workflow through RaceCreationHost. Voice / creation demo remains simulated. Controls, movement, collisions and effect timing remain separate from generation.
+The main game already supports the full voice-to-shared-event flow through `RaceEventHost` and `/api/voice/events`. The lab's **Race events** panel uses the same v3 contract. This Asset generation comparison retains v2 results; do not feed them into the race by casting types.
 
-The intended future flow stays: collect authored Voice Power Up → speak once while falling → generate while falling → validate → spawn ahead of the current player → collect the creation → activate its one effect. Collision is game-owned and independent of appearance. Loading or materialization visuals must not activate effects early.
+The player collects an authored Voice Power Up, speaks once while falling, and keeps racing while generation completes. A validated object spawns ahead, and the first racer to collect it activates its shared effect. Appearance does not determine collision size, and materialization visuals do not activate an effect early. See [the race integration](race-events-handoff.md).
+
+The older `CreationDemoPage` remains simulated regression code and is not mounted by the current `GamePage`. Controls, movement, collision, and effect timing stay separate from provider requests.
 
 ## Implementation and verification
 

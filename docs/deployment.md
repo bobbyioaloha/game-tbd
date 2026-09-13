@@ -1,6 +1,12 @@
-# Vercel deployment
+# Deploy the game to Vercel
 
-## Build and deployment
+This repository deploys the browser game and Fastify API together. The Generation lab stays local and is excluded from production bundles. No database is required.
+
+You will need access to the GitHub repository and a Vercel project. An API key is optional for the first deployment: start with mock mode and add live AI after the game and API work.
+
+## 1. Check the release locally
+
+From the repository root:
 
 ```sh
 bun install --frozen-lockfile
@@ -9,51 +15,91 @@ bun run typecheck
 bun run test
 ```
 
-`build:deploy` builds shared contracts, the Node backend, and the game-only Vite frontend. It does not upload files, start servers, fetch secrets, or call providers. Ordinary production builds also omit the Generation lab module and route. The lab remains available with `bun run dev`.
+`build:deploy` builds the shared package, backend, and game-only frontend. It does not upload anything, start a live server, or call an AI provider. Ordinary production builds also omit the lab.
 
-Import the GitHub repository into a Vercel Hobby project with the **repository root** as Root Directory. Use the checked-in `vercel.json` Services configuration; do not override its service-specific build commands with a top-level command. Services is currently beta. The web service publishes `apps/web/dist`; the API service uses the explicit `src/vercel.ts` Fastify entry point, Node 22, a 60-second function limit, and request cancellation. Bun 1.4.2 is pinned in install/build commands. Both service builds include the shared workspace.
+## 2. Connect the repository
 
-The API service sets `outputDirectory: "."` so Vercel bundles the explicit `src/vercel.ts` entrypoint. Keep this setting: Vercel CLI 59.11.7 otherwise discovers our TypeScript `dist` folder, selects the app factory (`app.js`) as the handler, and relocates it away from its ES-module package metadata. That produces `Cannot use import statement outside a module` at startup. Local TypeScript builds still write to `dist`.
+1. Import the GitHub repository into Vercel.
+2. Set **Root Directory to the repository root** (leave the field empty). Do not choose `apps/web`: Vercel needs the root `vercel.json` and all three workspaces.
+3. Use the checked-in **Services** configuration. Keep install/build/output settings in the individual services as defined in `vercel.json`; do not add a project-wide build-command override.
+4. Deploy with no key and paid mode disabled.
 
-Routing sends `/api/*` to Fastify and everything else to Vite. The game continues to use relative API URLs. `/api/lab/profiles` and event endpoints are gameplay dependencies, even though the Generation lab UI is not shipped. Character GLBs remain static frontend assets.
+The configuration builds the web service from `apps/web` and API from `apps/server`. It routes `/api/*` to Fastify and other requests to the frontend. The API starts through `src/vercel.ts`; character models are static web assets. See [Vercel Services](https://vercel.com/docs/services) for the hosting model.
 
-First deploy with **no secrets and paid mode disabled**. Configure Vercel Authentication with **All Deployments** before enabling live mode. This covers the production domain and direct deployment URLs, including their APIs. Hobby currently permits one external authenticated user and one revocable shareable link per account. Anyone receiving a shareable link can use it. Check private-repository collaboration restrictions when connecting both developers' commits; Hobby does not support private-repository team collaboration.
+Keep `/api/lab/profiles` and the event APIs: the game needs them even though the lab page is absent.
 
-## Production configuration
+## 3. Check the mock deployment
 
-Set these directly in the Vercel project's Environment Variables settings, targeting **Production only**:
+Open the production URL in Chrome or Edge and check:
+
+- The personnel screen, character models, and a race load over HTTPS.
+- `GET /api/health` returns `{"status":"ok","mode":"mock"}`.
+- `GET /api/lab/profiles` returns JSON showing mock availability.
+- Mock voice can complete its pickup-to-creation-to-effect flow. It uses a prepared transcript, not speech recognition.
+- Pausing/restarting cancels pending requests, and the local-only Generation lab cannot be opened.
+
+Health and profile requests never call OpenAI. If either API endpoint fails, fix that before testing a paid request. Health reports the configured mode; it does not validate a provider key or report remaining attempts.
+
+For invited live testers, configure **Vercel Authentication** with **All Deployments** and verify protection on both the production domain and direct deployment URLs, including API requests. Share access only with intended testers. Available access and sharing options depend on the account; consult [Deployment Protection](https://vercel.com/docs/deployment-protection). Origin checks in game code are not a substitute for access control.
+
+## 4. Add optional live AI
+
+In the project's **Environment Variables** screen, add these for **Production**:
 
 | Name | Type | Value |
 | --- | --- | --- |
-| `HOSTED_LIVE_ENABLED` | Config | `false` initially; deliberately change to `true` after setup |
-| `APP_ORIGIN` | Config | Exact game origin, e.g. `https://your-game.vercel.app`, without a trailing slash |
-| `OPENAI_API_KEY` | Secret | Enter the provider key directly in Vercel |
-| `LIVE_MAX_ATTEMPTS` | Config, optional | Defaults to **100 per server instance** when unset; accepts 1-100 |
+| `OPENAI_API_KEY` | Secret | Paste the key directly into Vercel. |
+| `HOSTED_LIVE_ENABLED` | Config | `true` when you deliberately want live AI available; `false` disables it. |
+| `APP_ORIGIN` | Config | The exact production origin, such as `https://your-game.vercel.app`, without a trailing slash. |
+| `LIVE_MAX_ATTEMPTS` | Config, optional | `100`, or leave unset for the hosted default of 100 per server instance. Accepts 1-100. |
 
-No database or additional service is required. Existing model/token-limit configuration in `.env.example` remains supported. Local `bun run dev:live` defaults to 3 attempts per start; do not copy that local allowance into Vercel unless you want to override its hosted default.
+Do not copy the whole local `.env` into Vercel: its local allowance defaults to 3. Optional model and token settings are listed in the root `.env.example`.
 
-Vercel stores variables encrypted at rest; Secret values are hidden after saving but available to executing server/build code. The provider reads `process.env.OPENAI_API_KEY` only in server modules. Never use `VITE_` for credentials, serialize environment variables into client configuration, print them, or download production secrets for local checks. The Git/CLI ignore rules exclude local `.env` files and `.vercel` state. The browser receives validated data, not credentials.
+The host must identify the deployment as production (`VERCEL_ENV=production`), the enable flag must be true, and the configured origin must match. Preview deployments always remain mock-only. Each live attempt also needs consent in the game; adding the key or opening the site does not start generation.
 
-Key presence does not authorize spending. Hosted live mode additionally requires the production environment, explicit enable flag, valid origin, and per-attempt consent. Preview deployments always remain mock-only, even if a live flag is accidentally inherited. Origin checks supplement deployment protection; they are not authentication.
+### Where the key lives
 
-After the protected mock deployment passes the checks below, set `HOSTED_LIVE_ENABLED=true` and redeploy. Use the canonical `APP_ORIGIN` URL for live testing. Adding keys or visiting a health endpoint never starts a provider call.
+Vercel stores environment variables encrypted at rest. Choose **Secret** so the value is write-only after saving; executing server/build code can still access it. See [Vercel environment variables](https://vercel.com/docs/environment-variables).
 
-## In-memory allowance
+Our provider reads `process.env.OPENAI_API_KEY` in server modules. The key is never sent as client configuration or included in game requests. Do not add a `VITE_` prefix, print environment variables, or download production secrets for a local check. Locally, use the ignored `apps/server/.env` file.
 
-Each server instance keeps its own count, consumed attempt IDs, and one busy slot in memory. It allows up to **100 paid attempts** by default. Tabs and profiles reaching that instance share the allowance, and a voice attempt holds the slot across transcription, design, and geometry. Duplicate IDs are rejected within that instance. Failures and cancellation after dispatch consume the attempt; completion or cancellation releases the busy slot. There are no automatic provider retries.
+## 5. Redeploy after changing a variable
 
-This is an approximate safeguard, **not a global spending cap**. Vercel can run several instances; each has its own allowance and can accept work concurrently. Cold starts and redeployments start fresh, including duplicate-ID history. The remaining count shown in the game belongs to whichever instance served the request and may change between requests. No data is persisted to a database.
+Saving a variable does not update an existing deployment. In Vercel:
 
-One voice attempt can make up to three paid calls, so 100 attempts is not a dollar ceiling. Already-dispatched work may still incur charges after cancellation. App budgets remain 8 seconds capture, 10 seconds upload/transcription, and 30 seconds generation.
+1. Open the project and choose **Deployments** in the left sidebar.
+2. Find the production deployment you want to rebuild.
+3. Open that deployment's **...** menu and select **Redeploy**.
+4. Confirm the production environment and redeploy.
+5. Wait for Ready, then reload the canonical game URL matching `APP_ORIGIN`.
 
-## Verification and recovery
+These steps rebuild the selected commit. To include code changes, first push those commits to the connected production branch (currently `main`) and check that the new deployment uses them. Redeploying an old commit will not pick up newer code. See [Vercel's redeployment guide](https://vercel.com/docs/deployments/managing-deployments#redeploy-a-project).
 
-Before sharing: run build/typecheck/tests, verify the game and GLBs load over HTTPS, confirm the lab page/code is absent, and check that unauthenticated browser and API requests are protected. Test mock text/voice event generation, microphone permission in Chrome/Edge, collection/effects, streamed progress, and cancellation on reset/navigation. Live-mode health reports configured mode only; it does not probe providers or indicate remaining allowance.
+Verify health/profiles again. When you intentionally want a paid test, select Live AI, enable the microphone, confirm the run's paid attempt, and try one short prompt. The free checks above do not test provider credentials or model access.
 
-The test suite uses fake provider credentials and intercepted transports. It covers hosted opt-in, preview isolation, exact origins, the 100-attempt allowance, streaming, and disconnect cancellation without paid calls or external services.
+## What the 100-attempt allowance means
 
-Authorize one paid end-to-end test separately after the mock and access checks pass. Review stage timings and safe error codes; do not log audio, provider keys, or raw provider errors. Instance-level usage and duplicate rejection are tested locally; do not interpret hosted counters as durable totals.
+Each server instance holds its own count, used attempt IDs, and one live-request slot in memory. A voice attempt holds that slot across speech, design, and geometry and may make up to three paid calls. Failed or cancelled dispatched work counts; there are no automatic provider retries.
 
-To disable paid mode, set `HOSTED_LIVE_ENABLED=false` and redeploy. Environment changes do not update old deployments, which may still have live mode enabled. Keep all deployment URLs protected; revoke the provider key if you need to stop access across old deployments. Already-dispatched work may finish and incur charges. For rollback, choose a known-good mock-only deployment. For key rotation, save the replacement Secret, redeploy, and revoke the old key.
+**This is not a global spending cap.** Several Vercel instances can each accept attempts. Cold starts and redeployments reset their counts and duplicate-ID history. The remaining count can change between requests depending on which instance answers. No database persists or coordinates it.
 
-References: [Services](https://vercel.com/docs/services), [Fastify](https://vercel.com/docs/frameworks/backend/fastify), [deployment protection](https://vercel.com/docs/deployment-protection), [Secret variables](https://vercel.com/docs/environment-variables/sensitive-environment-variables).
+The app keeps its separate budgets: 8 seconds capture, 10 seconds upload/transcription, and 30 seconds generation. Cancellation does not guarantee already-dispatched provider work is free.
+
+## Troubleshooting
+
+| Symptom | Check or fix |
+| --- | --- |
+| `framework is set to services, but no services are declared` | Root Directory must be the repository root, where `vercel.json` declares both services. Then redeploy the current commit. |
+| `Cannot use import statement outside a module` in `/var/task/app.js` | Deploy the config containing API `entrypoint: "src/vercel.ts"` and `outputDirectory: "."`. This keeps Vercel from mistaking the compiled app factory for the handler. |
+| Game loads, but AI is unavailable | Open health/profiles and inspect function logs first. A crashed API can look like disabled AI. Then check Production-scoped variables and whether you redeployed after saving them. |
+| Live request rejected for origin | Use the canonical URL and check `APP_ORIGIN` matches exactly, without a trailing slash. Direct deployment URLs can have a different origin. |
+| Preview remains mock-only | Expected: live AI is restricted to production. |
+| Provider error after a paid attempt | Use the safe error category and stage in the UI. See [generation diagnostics](prompt-to-mesh-pipeline.md#diagnosing-a-live-failure); do not repeatedly spend attempts to test a configuration error. |
+
+The API's `outputDirectory: "."` is intentional. Vercel CLI 59.11.7 otherwise discovered the TypeScript `dist` folder, selected `app.js`, and relocated it away from its ES-module metadata. Local TypeScript builds still write to `dist`. The checked-in function configuration uses Node 22 through the server package, a 60-second limit, and cancellation support.
+
+## Disable AI, rotate a key, or roll back
+
+Set `HOSTED_LIVE_ENABLED=false` and redeploy to disable live AI on the new deployment. Old deployments retain their old variables; keep their URLs protected. Revoke the provider key if you need to stop new calls across old deployments too. Already-dispatched work may finish and incur charges.
+
+To rotate a key, save its replacement as a Secret, redeploy, then revoke the old key. For rollback, choose a known-good mock-only deployment. Never paste keys or raw provider errors into reports.

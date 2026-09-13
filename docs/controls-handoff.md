@@ -1,4 +1,6 @@
-# Controls and movement handoff
+# Controls and movement reference
+
+This is the code-level guide for changing controls or movement. For ordinary contribution steps, start with [CONTRIBUTING.md](../CONTRIBUTING.md); for a project tour, read [the architecture guide](architecture.md).
 
 ## Main race
 
@@ -10,16 +12,16 @@ The actual game uses `MovementTest`, `RaceScene`, `PracticeRace`, and `freefall-
 - `race-event-host.ts` owns the authored voice pickup and v3 request lifecycle. It reads the latest player position when spawning; the race event runtime owns the shared collectible, contacts and effect lifetime. The old `race-creation-host.ts` is a v2 compatibility adapter.
 - `voice/RaceVoiceControls.tsx` owns microphone/profile setup and per-run paid consent. Pause, reset, finish, and unmount must cancel active voice work and invalidate late results.
 
-Manual check: open the game → Play as Greg → keep Mock mode → choose a prepared prompt → Enable microphone → Start with voice → fall without steering → collect the gold pickup at 180 m → hold/release Space → follow the radar to the creation later in the course; any racer can activate it. Play without voice removes the star, clears consent, and leaves the normal race running. Restart returns to setup with fresh consent required. The Generation lab remains at `/#/dev/generation`; the standalone Fixtures tab is removed. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
+Manual check: open the game → choose a character → Begin as [name] → keep Mock mode → choose a prepared prompt → Enable microphone → Start with voice → fall without steering → collect the gold pickup at 180 m → hold/release Space → follow the radar to the creation later in the course; any racer can activate it. Play without voice removes the star, clears consent, and leaves the normal race running. Restart returns to setup with fresh consent required. The Generation lab remains at `/#/dev/generation`; the standalone Fixtures tab is removed. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
 
 ## Separate regression demo
 
-`Game → Voice / creation demo` uses these older, injectable entry points:
+`CreationDemoPage` is retained regression code and is not mounted by the current `GamePage`. It uses these older, injectable entry points:
 - `apps/web/src/game/use-game-input.ts`: keyboard bindings → steering axes and semantic voice actions.
 - `apps/web/src/game/player-controller.ts`: simple falling/steering PlayerController.
 - `apps/web/src/pages/CreationDemoPage.tsx`: compose DemoGame and its simulated transcriber.
 
-## Movement interface
+## Legacy demo movement interface
 ```ts
 interface PlayerController {
   reset(): void;
@@ -60,7 +62,7 @@ Voice inputs call startRecording(), finishRecording(), and cancelRecording(). De
 ## Checks
 Run `bun run build`, `bun run typecheck`, and `bun run test`. Lifecycle tests require no player at all; demo tests cover integration and an injected alternate controller.
 
-Demo manual check: Game → Voice / creation demo → Start new run → stay centered for the gold pickup → hold/release Space → keep falling → collect the creation → observe the fall-speed change. The generation lab remains independent.
+The retained demo is covered by automated integration tests. If you deliberately mount it for development, its free check is: start a run, stay centered for the gold pickup, hold/release Space, then collect the creation and observe the fall-speed change. This is not the current game navigation path.
 
 
 ## Shared race-event integration

@@ -1,117 +1,156 @@
-# Voice input: implementation and testing
+# Voice: setup, testing, and troubleshooting
 
-Implemented in the main race and the Generation lab. The separate Voice / creation demo keeps its deterministic simulated transcriber for regression testing.
+Use this guide to try the microphone in the game or Generation lab. For the code's overall structure, start with [how the game works](architecture.md). Voice is implemented in the main race; the older creation demo remains simulated regression code.
 
-## Behavior
+## Choose how you want to play
 
-- Desktop Chrome/Edge on localhost or HTTPS; English first.
-- Enable the microphone explicitly before the race. This checks permission and immediately stops the device. It never contacts OpenAI.
-- Collect the gold Voice Power Up, then hold Space or the hold button. Release automatically submits; no transcript confirmation. Start speaking within 10 gameplay seconds of collection.
-- Recording stops and submits at 8 seconds. Upload plus transcription has a separate 10-second server budget. Accepted transcripts start the existing 30-second design/geometry budget, with an 8-second design cap.
-- Falling continues during recording and requests. One pickup grants one attempt. Failure, cancellation, missed pickup, or an expired speaking window consumes it; no automatic retry or refund.
-- The finished creation spawns at the player's latest X/Z, approximately three seconds ahead, with a minimum 18 m lead. Collecting it activates its one effect. The fixed 1 m pickup radius is independent of appearance.
-- In the race, pausing, focus loss, restart, finish, and navigation cancel active work, release the microphone, and reject late results. A spawn below the finish margin is rejected.
-- In the Generation lab, focus loss or hiding the tab cancels only microphone capture. After release or automatic submission, transcription and generation continue in the background, including while taking screenshots. Explicit cancellation and leaving the voice page still abort pending requests and discard late results. Capture interruptions and explicit cancellations record their reason in the attempt message and history export.
+| Mode | What happens | What you need |
+| --- | --- | --- |
+| Play without voice | A normal race with ordinary items; the yellow voice star is removed. | A supported desktop browser and keyboard. |
+| Mock | The microphone records, but a selected prepared transcript determines the creation. Your spoken words are not recognized. | Microphone permission and the local mock API. No key or paid calls. |
+| Live AI | The recording is transcribed, then its words drive the design and geometry stages. | A configured live server, microphone permission, and explicit paid consent. |
 
-## Try it without credits
+Desktop Chrome and Edge are the initial target. Use localhost or HTTPS for microphone access. Spoken prompts are English-first and must contain one to ten whitespace-separated words, at most 200 characters.
 
-Run `bun install` then `bun run dev`. Open http://localhost:5173.
+## Try the game without spending credits
 
-**Generation lab (`/#/dev/generation`):** select Input source → Voice, keep Mock two-stage pipeline, choose a comparison prompt, and Enable microphone. Use Hold to test mock and release. The notice shows the exact simulated transcript. Mock mode captures audio but returns the selected simulated transcript; it does not recognize speech. Speak and create previews the corresponding fixture. Transcribe only returns text without generating; Use transcript as typed input copies it into the editable text form without submitting.
+Run `bun install` and `bun run dev` from the repository root, then open [the local game](http://localhost:5173).
 
-The lab shows the transcript, word count, capture/transcription/stage/total timing, the separate shared generation elapsed time, safe provider diagnostics, and the last valid visual. History/JSON export includes voice mode, selected models, transcript, timing, outcomes, and structured errors. Audio is never included. History lasts only while this page is mounted.
+1. Select a character and choose **Begin as [name]**.
+2. Keep **Mock** selected in the pre-flight setup and choose a prepared prompt.
+3. Click **Enable microphone** and allow access. This permission check immediately releases the device and does not call a provider.
+4. Choose **Start with voice**. Staying at the starting horizontal position lets you reach the yellow star at 180 m depth.
+5. After collecting it, hold Space, speak, and release. The HUD shows the simulated transcript and creation progress.
+6. Keep racing and follow the radar to the generated object. It appears later in the course, not immediately beside you. Fly through its glowing halo; the first racer to reach it activates the effect.
 
-**Game:** choose Play as Greg, keep Mock mode, select a prepared prompt, Enable microphone, and Start with voice. Stay at the starting X/Z to collect the gold pickup at depth 180 m (roughly 7.5 seconds). Hold Space, speak, then release. The HUD shows progress and the recognized/simulated text. Stay in the path of the creation to collect it. Restart returns to setup for another opportunity. **Play without voice** removes the star for that run and requires no microphone or generation service.
+You have 10 gameplay seconds after collection to start speaking. Recording auto-submits after 8 seconds. One star grants one attempt; failure or cancellation consumes it. Restart returns to setup for a fresh run. **Play without voice** lets you skip all microphone setup.
 
-The original creation demo remains in the codebase for regression coverage. The standalone Fixtures tab/viewer has been removed; its fixture data remains available to tests and legacy adapters.
+Main-race objects have a 10 m collection radius and a fitted 12 m model diameter. Their normal placement is in the last 40% of the course, with at least 30 m of lead and normally 300 m ahead once that far down. Contact size comes from the game, independently of the generated mesh. See [placement details](race-events-handoff.md#placement-and-lifecycle).
 
-## Deliberate paid tests
+## Try the Generation lab
 
-Reuse `OPENAI_API_KEY` in the ignored `apps/server/.env`. No new key is necessary. Do not expose it through `VITE_` or frontend code. The server defaults to `TRANSCRIPTION_MODEL=gpt-transcribe`; supported alternatives are `gpt-4o-mini-transcribe` and `gpt-4o-transcribe`.
+Open [the local lab](http://localhost:5173/#/dev/generation). It is available during `bun run dev` and excluded from production builds.
 
-Stop the default dev process and explicitly start `bun run dev:live`. This server runs without automatic watch/restart. Keeping a key in `.env` never enables paid mode by itself.
+- **Race events** tests the same v3 creations used by the main race, with simplified racers for inspecting effects. Select a prepared event prompt and mock profile to try recorded input without spending credits. Fixture selection, simulation, and replay work without microphone capture.
+- **Asset generation** is the v2 text/voice-to-3D comparison tool. Select **Voice**, keep **Mock two-stage pipeline**, choose a comparison prompt, enable the microphone, then hold and release the record button. **Speak and create** makes a preview; **Transcribe only** returns the simulated text without generation.
 
-- **Lab:** select a live profile and Voice, choose Transcribe only or Speak and create, and check Allow this paid voice attempt before holding to speak.
-- **Race:** choose Play as Greg, enable the microphone, select Live AI, and check Allow this run’s one paid voice attempt before Start with voice. The arm clears on start of the attempt, restart, or configuration changes. The next run must be armed again.
-- Typed creation can make at most 2 provider calls; transcription-only at most 1; spoken creation at most 3 (speech, design, geometry).
-- All three entry points share one server allowance (default 3 dispatched attempts per start), unique attempt IDs, and a single live request slot. The voice workflow reserves that slot once for its full lifetime. Failed or cancelled calls may incur charges.
-- Invalid metadata/audio and missing consent are rejected before dispatch. A dispatched transcription producing empty or overlong text consumes its attempt and never starts generation.
+In Asset generation, **Use transcript as typed input** copies the recognized or simulated text into the text form without submitting it. The lab shows words, timings, stages, errors, and the last valid visual. Comparison exports can include transcripts and generated specs, but never audio. History lasts only while the page is mounted.
 
-OpenAI transcription uses the file endpoint and an English language hint. The SDK has retries disabled and a fixed provider URL. The application never sends raw provider error messages or credentials to the browser. See the official [speech-to-text guide](https://developers.openai.com/api/docs/guides/speech-to-text).
+## Enable live AI locally
 
-## Generation timeouts
+Skip this section for normal development or mock testing. One server-side key serves transcription, design, and geometry.
 
-`TIMEOUT` after design and geometry total approximately 30 seconds is the generation ceiling; speech can already have succeeded. The timeout identifies the stage and includes design time when geometry ran out of remaining time. `TRANSCRIPTION_TIMEOUT` is the separate speech/upload budget.
+1. If `apps/server/.env` does not exist, copy the root `.env.example` there. Leave an existing file intact. In WSL, you can use:
 
-For a deliberate latency comparison, choose Procedural parts and **Sol direct · no reasoning**. Both generation stages use Sol with reasoning disabled. This is an unbenchmarked alternative; it may change visual quality and does not guarantee completion in 30 seconds. Existing profiles and the default mock selection are preserved. You can reuse the recognized transcript in the typed lab to test generation without another speech call. See [generation timeout testing](prompt-to-mesh-pipeline.md#testing-against-the-30-second-limit).
+   ```sh
+   cp -n .env.example apps/server/.env
+   chmod 600 apps/server/.env
+   ```
 
-## HTTP contract
+2. Open `apps/server/.env` in your editor and set `OPENAI_API_KEY`. The file is ignored by Git. Do not put the key in frontend code, `VITE_` variables, chat, or terminal commands/history.
+3. Stop the default development process with Ctrl+C, then run:
 
-`GET /api/lab/profiles` includes `transcription: {model, available}` alongside generation profiles and shared `liveUsage`. This is local configuration, not a paid connectivity check.
+   ```sh
+   bun run dev:live
+   ```
 
-Both voice POST routes accept multipart form data with exactly two parts:
+4. In race setup, enable the microphone, select **Live AI**, and allow the run's one paid voice attempt before choosing **Start with voice**. In the lab, choose a live profile and confirm that specific paid attempt before recording or generating.
 
-1. `audio`: one nonempty file, at most 1 MiB, with MIME `audio/webm`, `audio/mp4`, or `audio/wav`. The server checks the container signature; the provider decodes the audio. The filename has no authority.
-2. `options`: JSON matching the shared strict `VoiceRequestSchema`:
+`bun run dev`, builds, tests, and the ordinary server start keep paid mode disabled even if a key is present. Starting `dev:live` exposes the paid option; it does not itself make a provider call. Refreshing profiles reports local configuration, not whether the provider accepts your key or model.
 
-```json
-{
-  "profileId": "mock",
-  "geometryMode": "primitives",
-  "captureMs": 1200,
-  "mockText": "red rocket with fins"
-}
-```
+Live development binds to localhost and does not restart the backend on file changes. Restart it deliberately after editing server code. For a hosted game, use [the Vercel guide](deployment.md) instead of these local enablement steps.
 
-`captureMs` is finite in [0, 8000]. It reports browser capture time; it is not server-verified audio duration. The browser enforces the recording cap independently of the server's byte limit. `geometryMode` may be `primitives` or `mesh`; omission retains the pipeline's raw-mesh default. `mockText` is optional, ignored by live transcription, and defaults to giant rubber duck in mock mode.
+### Calls and allowance
 
-For live profiles, also send `paidAttempt: {id: <new UUID>, confirmed: true}`. Metadata does not contain provider keys or model overrides. Transcript validation trims text and requires 1–10 whitespace-separated words and at most 200 characters; invalid text is rejected, never shortened or rewritten.
+| Action | Maximum provider calls |
+| --- | --- |
+| Typed creation | 2: design and geometry |
+| Transcription only | 1: speech |
+| Spoken creation | 3: speech, design, and geometry |
 
-### POST /api/voice/transcriptions
+Local live mode defaults to **3 dispatched attempts per server start**, shared across the race, lab, profiles, and browser tabs. `LIVE_MAX_ATTEMPTS` accepts 1-100. Only one paid attempt runs at a time per server instance, and repeat attempt IDs are rejected. Restarting resets the count. Failed or cancelled dispatched work consumes the allowance and may still incur charges; there are no automatic retries.
 
-Returns JSON `{"text":"red rocket with fins","metric":{"model":"mock-transcription","durationMs":250}}`. Never starts design or geometry. A subsequent typed generation is a separate explicitly allowed attempt.
+Consent clears after an attempt or relevant configuration changes. A new race must be armed again. Invalid metadata and missing consent are rejected before dispatch. If a paid transcription returns empty or overlong text, the attempt is consumed and generation does not start.
 
-### POST /api/voice/creations
+The configured transcription model comes from `TRANSCRIPTION_MODEL` in the server environment; its default is `gpt-transcribe`. Generation profiles and output limits are documented in [the lab guide](prompt-to-mesh-pipeline.md#models-and-budgets).
 
-Streams newline-delimited JSON using `VoiceEventSchema`:
+## Understand timing and cancellation
+
+The budgets run in sequence:
 
 ```text
-{type: "transcribing"}
-{type: "transcript", result: {text, metric}}
-{type: "generation", event: <existing PipelineEvent>}
-{type: "complete", result: {text, metric}, spec: <validated CreationSpec v2>, elapsedMs}
+Record: up to 8 s
+  -> upload and transcribe: up to 10 s
+  -> design and geometry together: up to 30 s
 ```
 
-The generation event wraps existing design/geometry/validation progress, metrics, handoff, and completion/failure. Only the outer `complete` or `failed` is terminal for the voice workflow. On failure: `{type: "failed", error: {code, message, provider?}, elapsedMs}`. A nested generation failure is followed by the outer failure. The client validates the entire stream and final spec before spawning.
+Design has an 8-second cap inside the generation window. If design takes 6 seconds, geometry has about 24 seconds left. A total voice attempt longer than 30 seconds can therefore be expected even when generation stays within its own budget.
 
-Pre-stream failures return `{"error":{"code":"...","message":"...","provider":{...}}}` with safe optional diagnostics. Codes include `INVALID_AUDIO`, `INVALID_REQUEST`, `INVALID_TRANSCRIPT`, `TRANSCRIPTION_TIMEOUT`, existing generation errors, and paid-mode errors. A streaming response may be HTTP 200 with a terminal failure event: inspect that event, not just status. Error HTTP statuses are 400 for invalid input/consent, 403 for disabled mode or foreign origin, 409 for busy/replayed attempts, 429 for exhausted allowance, 503 for missing configuration, and 502 for other provider/deadline failures.
+In the race, pausing, losing focus, restarting, finishing, or leaving cancels pending work, releases the microphone, and rejects late results. An already spawned shared object remains available to racers still falling. Pausing freezes its effect time; resetting clears it.
 
-The 10-second transcription budget includes upload from handler entry. A stalled upload closes the connection rather than starting a provider call. Client timeout is 15 seconds for transcription-only or 45 seconds for the combined workflow, including 5 seconds of delivery grace. Recording time precedes those request budgets.
+In the lab, losing focus cancels microphone capture. After submission, requests can continue in the background. Explicit cancellation or leaving the page aborts pending requests. Audio stays in memory only for capture and the request; it is never written to files, logs, or comparison history.
 
-Multipart parsing is scoped to voice routes; other JSON endpoints retain the 4 KiB limit. Recordings live only in memory during the request. No database, disk storage, audio logs, or audio history exports were added.
+## Troubleshooting
 
-## Ownership and extension points
+| What you see | What to check |
+| --- | --- |
+| It always creates the same thing | Check **Mock** versus **Live AI**. Mock mode uses the selected prepared transcript, regardless of what you say. |
+| Space does nothing | Collect the yellow star first, start within the speaking window, and check that voice is enabled and the race is unpaused. |
+| Microphone unavailable | Check browser permission and input device. Use desktop Chrome/Edge on localhost or HTTPS. You can still play without voice. |
+| Live AI unavailable locally | Check the server is running through `bun run dev:live` and a key is configured in the server environment, then refresh availability. |
+| Live AI unavailable on Vercel | Follow [hosted diagnostics](deployment.md#troubleshooting); an API startup failure can look like disabled AI. |
+| `TRANSCRIPTION_TIMEOUT` | Upload/transcription exceeded its separate budget. Generation may not have started. |
+| `TIMEOUT` in design or geometry | The design cap or shared 30-second generation deadline was reached. See [latency testing](prompt-to-mesh-pipeline.md#testing-against-the-30-second-limit). |
+| Object generated, but no effect yet | The object is waiting for a racer to collect it. Follow the radar and glowing halo. |
+| Attempt consumed after a failure | This is the one-attempt rule. Restart for another opportunity; paid dispatched failures still count. |
+
+Reusing a recognized transcript in the typed lab avoids another transcription call, but a new live generation still requires a separate paid attempt.
+
+## HTTP and adapter reference
+
+`GET /api/lab/profiles` returns generation profiles, transcription availability/model, and shared usage counters. It contains no credentials and makes no provider call.
+
+All three voice POST routes accept multipart form data with exactly two parts:
+
+1. `audio`: one nonempty file, at most 1 MiB, with MIME `audio/webm`, `audio/mp4`, or `audio/wav`. The server checks the container signature; the provider decodes audio.
+2. `options`: JSON matching the strict shared `VoiceRequestSchema`. For an event mock:
+
+   ```json
+   {"profileId":"mock","geometryMode":"primitives","captureMs":1200,"mockText":"hungry purple planet"}
+   ```
+
+`captureMs` is finite in [0, 8000] and reports browser capture time; it is not server-verified duration. `geometryMode` is `primitives` or `mesh`; omission retains the raw-mesh default. `mockText` is ignored by live transcription. The low-level mock speech provider defaults to `giant rubber duck` when omitted; event clients must supply a supported event prompt, as the game's UI does.
+
+Live options also require `paidAttempt: {id: <new UUID>, confirmed: true}`. No keys or model overrides belong in request metadata. Text is validated rather than silently shortened.
+
+| Route | Result |
+| --- | --- |
+| `POST /api/voice/events` | Main-race v3 event workflow, streamed as `RaceEventVoiceEventSchema`. |
+| `POST /api/voice/creations` | Asset lab's v2 workflow, streamed as `VoiceEventSchema`. |
+| `POST /api/voice/transcriptions` | JSON `{text, metric}` only; no design or geometry. |
+
+Both generation streams report `transcribing`, `transcript`, nested `generation` progress, then an outer `complete` or `failed`. The outer terminal event decides success; HTTP 200 alone does not. A completed result includes the validated spec, transcript metric, and elapsed time. The browser validates every event and final spec.
+
+Pre-stream failures return `{error:{code,message,provider?}}` with safe allowlisted diagnostics. Statuses are 400 for invalid input/consent, 403 for disabled mode or foreign origin, 409 for busy/repeated attempts, 429 for exhausted allowance, 503 for missing configuration, and 502 for other provider/deadline failures. Raw provider errors are never forwarded.
+
+The upload deadline starts on handler entry. A stalled upload closes without dispatching transcription. Client deadlines are 15 seconds for transcription-only and 45 seconds for the combined workflow, including delivery grace; capture precedes these request budgets.
 
 | Responsibility | Location |
 | --- | --- |
-| Bounded microphone capture, permission, meter, cleanup | `apps/web/src/voice/recorder.ts` |
-| Shared capture controls | `apps/web/src/voice/RecorderControls.tsx` |
-| Typed HTTP voice client and audio creation adapter | `apps/web/src/voice/voice-client.ts` |
-| Lab recorder/testing UI | `apps/web/src/voice/VoiceLabPanel.tsx` |
-| Race configuration and per-run consent | `apps/web/src/voice/RaceVoiceControls.tsx` |
-| Audio/transcript/event contracts | `packages/shared/src/voice.ts` |
-| Multipart endpoints and disconnect handling | `apps/server/src/voice/routes.ts` |
-| Replaceable mock/OpenAI speech providers | `apps/server/src/voice/transcription.ts` |
-| Shared paid admission and sequential generation | `apps/server/src/generation/pipeline.ts` |
-| One-attempt state machine and stale-result guards | `apps/web/src/game/creation-loop.ts` |
-| Race pickup collision, forward spawn, effect activation | `apps/web/src/game/race-creation-host.ts` |
+| Recording, permission, meter, cleanup | `apps/web/src/voice/recorder.ts`, `RecorderControls.tsx` |
+| Race setup and consent | `apps/web/src/voice/RaceVoiceControls.tsx` |
+| Main-race audio adapter | `apps/web/src/voice/race-event-voice-client.ts` |
+| v3 text/audio streaming client | `apps/web/src/race-events/client.ts` |
+| v2 and transcription-only client | `apps/web/src/voice/voice-client.ts` |
+| Shared audio and event contracts | `packages/shared/src/voice.ts`, `race-event-pipeline.ts` |
+| Uploads and transcription providers | `apps/server/src/voice/routes.ts`, `transcription.ts` |
+| Paid admission and generation | `apps/server/src/generation/pipeline.ts` |
+| Current race attempt and spawn lifecycle | `apps/web/src/game/creation-attempt.ts`, `race-event-host.ts` |
 
-`CreationLoop` accepts either the legacy text transcriber or an audio capture adapter plus `AudioCreationClient`. The recorder never generates assets; the speech provider never selects effects. `RaceScene` retains the sole fixed-step movement loop and passes its swept movement segment to `RaceCreationHost`. Space enters through the race's existing keyboard handler in `MovementTest`.
+The recorder captures audio; transcription returns words; generation returns validated data. `RaceEventHost` connects that work to pickups without moving the player. Legacy `CreationLoop` and `RaceCreationHost` retain the older v2 adapter behavior; they do not define current shared race effects.
 
-The race maps generated slow multipliers/durations and shield durations directly to bounded timers; overlapping authored/generated slows use the stronger multiplier without multiplication. Protection lasts until the later timer expires. Clear-nearby removes obstacle centers within the supplied radius at collection time. Generated effects do not occupy or overwrite inventory items.
+## Verify a change
 
-## Verification
+Run [the contributor checks](../CONTRIBUTING.md#check-your-work), then try the mock game flow above in Chrome or Edge. Tests use fake media devices, canned uploads, and intercepted provider responses. They cover recording cleanup, consent, deadlines, invalid input, and stale results without real credentials.
 
-Run `bun run build`, `bun run typecheck`, and `bun run test`. Tests use fake media devices, canned uploads, and intercepted provider fetches. They cover release/cleanup, late permission, auto-stop, consent/replay/global-slot rules, invalid audio/transcripts, independent speech deadlines, exactly three SDK calls, continuous falling, collection-only effects, and stale-result rejection.
-
-Browser smoke testing uses a temporary synthetic microphone and a mock-only server. It verifies lab speech-to-preview, transcription-only, text fallback, and the actual race's pickup-to-activation flow without accessing a physical microphone or spending credits. A developer still needs to deliberately test a real microphone and live speech recognition in Chrome/Edge.
+A real microphone/live quality test is a separate deliberate action. Record the browser, selected profile, recognized text, timings, and outcome; never include audio or keys in a report.
