@@ -161,3 +161,10 @@
 .race-result{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;white-space:normal;max-width:calc(100% - 40px)}
 .race-result span{min-width:0;overflow-wrap:anywhere;line-height:1.5}
 @media(max-width:700px){.race-result{flex-direction:column;align-items:flex-start;font-size:11px;padding:12px}.race-result strong{font-size:14px}}
+
+/* Generated safety drills share the existing readable encounter banner. */
+.race-event-status.stampede { border-color: #ffc35c; }
+.race-event-status.rapids { border-color: #62e9eb; }
+.race-event-status.drill-assessment { border-color: var(--safety-yellow, #f5cd45); }
+.event-screen-cue.stampede { box-shadow: inset 0 0 65px #ffb64d45; }
+.event-screen-cue.rapids { box-shadow: inset 0 0 55px #62e9eb30; }

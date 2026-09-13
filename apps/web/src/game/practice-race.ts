@@ -31,6 +31,8 @@ export class PracticeRace {
   feedback='';feedbackUntil=0;
   private announce(message:string){this.feedback=message;this.feedbackUntil=this.elapsed+2;}
   private seed=42;private shotId=0;
+  private drillIncidentInstance?:string;
+  private readonly recordedDrillCollisions=new Map<string,number>();
   readonly eventBridge?:RaceEventBridge;
   movementSegments:readonly RacerSegment[]=[];
   constructor(private courseEnabled=true,private seedSource:()=>number=Math.random,readonly events?:RaceEventPort) {
@@ -55,6 +57,7 @@ export class PracticeRace {
   }
   reset(){
     this.eventBridge?.reset();this.movementSegments=[];
+    this.drillIncidentInstance=undefined;this.recordedDrillCollisions.clear();
     this.feedback='';this.feedbackUntil=0;this.elapsed=0;this.seed=Math.floor(this.seedSource()*4294967296)>>>0;this.shotId=0;this.projectiles=[];
     this.racers=raceLineup(this.selectedCharacter).map((person,id)=>({
       id,name:person.name,color:person.color,model:person.model,incidents:0,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
@@ -147,6 +150,20 @@ export class PracticeRace {
           obstacle.active=false;obstacle.hitAt=this.elapsed;
         }
       }
+    }
+  }
+  private recordDrillIncidents(){
+    const event=this.events?.getSnapshot();
+    if(event?.instance?.spec.version!==4)return;
+    if(this.drillIncidentInstance!==event.instance.instanceId){
+      this.drillIncidentInstance=event.instance.instanceId;this.recordedDrillCollisions.clear();
+    }
+    // Runtime totals survive expiration; consume only new unprotected contacts.
+    for(const racer of this.racers){
+      const id=String(racer.id),total=event.impact?.drill?.collisions[id]??0;
+      const recorded=this.recordedDrillCollisions.get(id)??0;
+      racer.incidents+=Math.max(0,total-recorded);
+      this.recordedDrillCollisions.set(id,Math.max(recorded,total));
     }
   }
   step(dt:number,input:SteeringInput,brake:boolean,boost=false){
@@ -277,6 +294,7 @@ export class PracticeRace {
     }
     this.movementSegments=segments;
     this.eventBridge?.afterStep(this.eventRacers(),segments);
+    this.recordDrillIncidents();
     if(this.events?.getSnapshot().phase!=='active')for(const racer of this.racers)racer.eventObstacleProtection=false;
     if(this.finished)this.eventBridge?.reset();
     this.elapsed+=dt;

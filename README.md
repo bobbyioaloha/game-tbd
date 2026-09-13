@@ -8,15 +8,15 @@ Built during the 100-hour TAI x OpenAI Hackathon in September 2026, with Codex a
 
 Choose Greg the Tyrannosaurus, Linda the Triceratops, or Steve the Stegosaurus, then race three computer-controlled opponents to the finish. Susan is on the roster but still uses a placeholder and cannot be selected. The game currently targets desktop Chrome and Edge with a keyboard.
 
-Ordinary items help you compete. The yellow **Voice Power Up** gives you one chance to create something:
+Ordinary items help you compete. The yellow **Inspection Request** gives you one chance to report a hazard:
 
 1. Fly into a yellow star (up to two per run, if time allows).
-2. Hold **Space** and describe an object in ten words or fewer.
+2. Hold **Space** and describe a hazard and what it does in ten words or fewer.
 3. Release to submit. Keep racing while it generates.
 4. Follow the radar to the object ahead and fly through its glowing halo.
-5. The first racer to reach it activates its effect. That can help or hurt everyone, including you.
+5. The first racer to reach it starts a shared safety drill. Everyone can benefit or collide, including you.
 
-Creations can pull racers into a vortex, launch debris, send out a shockwave, or provide a protective slipstream. Their appearance comes from the prompt; their effect comes from a supported set of game mechanics.
+“Angry hippos charge when approached” creates a herd you can bait and dodge. “Nervous hippos scatter when approached” opens gaps instead. Rivers create winding currents or risky shortcuts. AI interprets both appearance and behavior through bounded game mechanics. The Safety Department helpfully reproduces your concern around everyone. See [safety drills](docs/safety-drills.md) for free examples and implementation details.
 
 ### Controls
 
@@ -86,7 +86,8 @@ The current prototype includes a complete race flow, three playable characters, 
 - [Architecture and repository tour](docs/architecture.md)
 - [Voice setup, testing, and troubleshooting](docs/voice-input-plan.md)
 - [Generation lab and model configuration](docs/prompt-to-mesh-pipeline.md)
-- [Shared effects and gameplay integration](docs/race-events-handoff.md)
+- [Safety drills and prompt-dependent behavior](docs/safety-drills.md)
+- [Legacy shared effects and gameplay integration](docs/race-events-handoff.md)
 - [Characters and art contributions](docs/dinosaur-art-direction.md)
 - [Deploy to Vercel, update variables, and redeploy](docs/deployment.md)
 

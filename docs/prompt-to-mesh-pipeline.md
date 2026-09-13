@@ -2,7 +2,7 @@
 
 Use the Generation lab to inspect a creation, compare visual methods, and diagnose a failed request without playing a whole race. It runs locally under `bun run dev`; its page and code are excluded from production builds.
 
-The lab opens on **Race events**, which uses the same v3 effects as the main game. Read [the shared-effect guide](race-events-handoff.md#try-it-without-credits) to test those. Select **Asset generation** for the v2 comparison tool described below. Both use the same design-to-geometry pipeline, a 30-second generation deadline, and one effect per generated object.
+The lab opens on **Safety drills**, which uses the same v4 recipes as the main game. Read [the safety-drill guide](safety-drills.md) to test Stampede and Sky Rapids. V3 fixtures remain in a legacy disclosure. Select **Asset generation** for the v2 comparison tool described below. Both use the same design-to-geometry pipeline, a 30-second generation deadline, and one effect per generated object.
 
 For a first microphone test or API key setup, start with [the voice guide](voice-input-plan.md). For the bigger picture, see [the architecture tour](architecture.md).
 

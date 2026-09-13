@@ -1,4 +1,5 @@
-import { raceEventPreset, type RaceEventSnapshot } from '@sky/shared';
+import { encounterLabel, encounterInstruction, type RaceEventSnapshot } from '@sky/shared';
+import { drillAssessment } from './drill-feedback';
 import type { RaceEventHost } from './race-event-host';
 
 type Props = {
@@ -26,7 +27,7 @@ export function RaceEventReport({host, canReplay, onReplay}: Props) {
   const report = host.report;
   const spec = report?.instance?.spec;
   const impact = report?.impact;
-  const label = spec ? raceEventPreset(spec.effect.type).label : 'No creation yet';
+  const label = spec ? encounterLabel(spec) : 'No creation yet';
   const names = (ids: readonly string[]) => ids.map(id =>
     host.race.racers.find(racer => String(racer.id) === id)?.name ?? id
   ).join(', ') || 'Nobody yet';
@@ -36,7 +37,7 @@ export function RaceEventReport({host, canReplay, onReplay}: Props) {
     <summary>Event result <small>{label}</small></summary>
     {report && spec ? <>
       <strong>{spec.displayName} · {label}</strong>
-      <p>{spec.description}</p>
+      <p>{encounterInstruction(spec)}</p>
       <p role="status">
         {resultLabel(report)}<br/>
         Activated by: {report.triggererId ? names([report.triggererId]) : 'Nobody yet'}<br/>
@@ -47,6 +48,12 @@ export function RaceEventReport({host, canReplay, onReplay}: Props) {
         Impulses delivered: {total(impact?.impulseCounts)} · Debris hits: {total(impact?.debrisHits)}
         {' · '}Blocked debris: {total(impact?.blockedDebrisHits)} · Obstacles blocked: {total(impact?.obstacleBlocks)}
       </p>
+      {impact?.drill && <p>
+        Equipment contacts: {total(impact.drill.collisions)} · Blocked contacts: {total(impact.drill.blockedCollisions)}
+        {' · '}Drafting: {total(impact.drill.draftSeconds).toFixed(1)} s · Riding currents: {total(impact.drill.currentSeconds).toFixed(1)} s
+        {' · '}Herd reactions: {impact.drill.reactions}
+      </p>}
+      {drillAssessment(report) && <p>Your inspection: {drillAssessment(report)}</p>}
       <button disabled={!canReplay} onClick={onReplay}>Restart &amp; replay this creation nearby · free</button>
       <small>Reuses the exact mesh and effect with a new race. No recording or API call. Last result stays here until another creation replaces it.</small>
     </> : <p>Generate an object or load a fixture. This panel retains the chosen effect, activation, and actual impact counters.</p>}

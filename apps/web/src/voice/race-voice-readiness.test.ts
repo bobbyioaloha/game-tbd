@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
-import { raceEventFixtures, PipelineProfilesSchema, type VoiceRequest } from '@sky/shared';
+import { safetyDrillFixtures, PipelineProfilesSchema, type VoiceRequest } from '@sky/shared';
 import { PracticeRace } from '../game/practice-race';
 import { RaceEventRuntime } from '../race-events/runtime';
 import { RaceEventHost } from '../game/race-event-host';
 import { RACE_VOICE_ATTEMPTS } from '../game/race-event-config';
+import { drillAssessment } from '../game/drill-feedback';
 import { paidVoiceAvailable, raceVoiceReadiness } from './race-voice-readiness';
 import type { RaceVoiceController } from './RaceVoiceControls';
 
@@ -73,12 +74,12 @@ async function setup() {
   }
   const requests:Array<Omit<VoiceRequest,'captureMs'>>=[];
   const modules:Record<string,unknown>={
-    react:React,'react/jsx-runtime':{},'@sky/shared':{raceEventFixtures},
+    react:React,'react/jsx-runtime':{},'@sky/shared':{safetyDrillFixtures},
     '../game/race-event-host':{RaceEventHost},'../game/race-event-config':{RACE_VOICE_ATTEMPTS},'./recorder':{MicrophoneRecorder:Recorder},
     '../generation/pipeline-client':{loadPipelineProfiles:async()=>structuredClone(profiles)},
     './race-voice-readiness':{paidVoiceAvailable,raceVoiceReadiness},'./RecorderControls':{},
-    './race-event-voice-client':{createAudioRaceEventClient:(getConfiguration:()=>Omit<VoiceRequest,'captureMs'>)=>({
-      async generateAudio(){requests.push(getConfiguration());return raceEventFixtures[0].spec;},
+    './safety-drill-voice-client':{createAudioSafetyDrillClient:(getConfiguration:()=>Omit<VoiceRequest,'captureMs'>)=>({
+      async generateAudio(){requests.push(getConfiguration());return safetyDrillFixtures[0].spec;},
     })},
   };
   const sandbox={exports:{} as {useRaceVoice:(race:PracticeRace)=>RaceVoiceController},
@@ -121,7 +122,7 @@ test('profile and prepared-prompt changes clear consent', async () => {
   const ui=await setup();let voice=ui.render();
   voice.setArmed(true);voice=ui.render();voice.setProfileId('fake-live');
   voice=ui.render();assert.equal(voice.armed,false);
-  voice.setArmed(true);voice=ui.render();voice.setMockText(raceEventFixtures[1].prompt);
+  voice.setArmed(true);voice=ui.render();voice.setMockText(safetyDrillFixtures[1].prompt);
   assert.equal(ui.render().armed,false);assert.equal(ui.requests.length,0);ui.close();
 });
 
@@ -145,7 +146,7 @@ test('playing without voice removes the grant, never captures, and resets for th
 test('voice cannot be disabled after the run starts or after a fixture is placed', async () => {
   const ui=await setup();const voice=ui.render();
   voice.host.start();assert.throws(()=>voice.host.disableForRun(),/before the race/);
-  ui.race.reset();voice.reset();voice.host.loadFixture(raceEventFixtures[0].spec,true);
+  ui.race.reset();voice.reset();voice.host.loadFixture(safetyDrillFixtures[0].spec,true);
   assert.throws(()=>voice.host.disableForRun(),/before the race/);ui.close();
 });
 
@@ -158,7 +159,7 @@ test('a pre-pickup Space warning cannot override the collected-star prompt', () 
   const modules:Record<string,unknown>={
     react:{useState:(initial:unknown)=>[initial,()=>{}],useEffect:()=>{},useSyncExternalStore:(_:unknown,get:()=>unknown)=>get()},
     'react/jsx-runtime':{jsx,jsxs:jsx},'@react-three/fiber':{},three:{},'@sky/shared':{},
-    '../race-events/RaceEventRenderer':{},'./race-event-config':{},'../components/PowerUpModel':{},
+    '../race-events/RaceEventRenderer':{},'./drill-feedback':{drillAssessment},'./race-event-config':{},'../components/PowerUpModel':{},
   };
   const sandbox={exports:{} as {RaceCreationHud:(props:unknown)=>unknown},
     require:(id:string)=>{assert.ok(id in modules,'Unexpected import: '+id);return modules[id];},

@@ -20,19 +20,19 @@ Rivals are simulated in the browser. There is no multiplayer server, database, o
 
 ```mermaid
 flowchart TD
-    A[Collect a Voice Power Up] --> B[Hold Space to record]
+    A[Collect an Inspection Request] --> B[Hold Space to record]
     B --> C[Release and upload the clip]
     C --> D[Server transcribes and validates the words]
-    D --> E[Design stage chooses appearance brief and effect type]
+    D --> E[Design stage chooses appearance brief and drill recipe]
     E --> F[Geometry stage builds the appearance]
     F --> G[Server and browser validate the creation]
     G --> H[Game places the object ahead]
-    H --> I[First racer to collect it activates the shared effect]
+    H --> I[First racer to collect it starts the shared safety drill]
 ```
 
 The race continues during recording and generation. A run can offer up to two voice stars, each granting one fresh attempt. Later stars depend on the remaining race time; there is no encore. An empty transcript, more than ten words, a timeout, or cancellation ends that attempt; there is no automatic retry.
 
-In live mode, transcription uses a recorded clip. The design model chooses one supported effect type and writes a visual brief; the server supplies its balanced strength and duration. The geometry model receives only the visual brief. Models return structured data, and the browser renders only a completed, validated result.
+In live mode, transcription uses a recorded clip. The design model writes a visual brief and a bounded drill recipe: formation or route, reaction or flow, and an optional compatible modifier. Explicit behavior is honored when supported; omitted behavior is inferred. Authored rules supply strengths, durations and collision bounds. The geometry model receives only the visual brief. Models return structured data, and the browser renders only a completed, validated result.
 
 Mock mode takes the same route through the application using prepared text and creations. It does not understand the recording. This lets contributors check the interaction without paying for speech or generation.
 
@@ -46,7 +46,7 @@ The generated object and the Voice Power Up are different things. The star grant
 | Simulation and movement | `game/RaceScene.tsx`, `practice-race.ts`, `freefall-controller.ts` | One fixed-step clock; movement, opponents, items, and finish state |
 | World and characters | `game/race-course.ts`, `RaceObjects.tsx`, `GregModel.tsx`, `scripts/build-greg.py` | Course geometry, rendering, and reproducible dinosaur assets |
 | Speaking attempt | `game/race-event-host.ts`, `creation-attempt.ts`, `voice/RaceVoiceControls.tsx` | Two-star scheduling, individual attempts, setup, cancellation, and queued spawning |
-| Microphone and client | `voice/recorder.ts`, `race-event-voice-client.ts`, `race-events/client.ts` | Capture audio, request transcription/generation, and validate progress/results |
+| Microphone and client | `voice/recorder.ts`, `safety-drill-voice-client.ts`, `race-events/drill-client.ts` | Capture audio, request transcription/generation, and validate progress/results |
 | Shared effects | `apps/web/src/race-events/runtime.ts`, `bridge.ts`, `RaceEventRenderer.tsx` | Resolve collection, calculate effects for racers, and draw feedback |
 | Server pipeline | `apps/server/src/generation/pipeline.ts`, `apps/server/src/generation/stage-transport.ts`, `apps/server/src/voice/routes.ts`, `apps/server/src/voice/transcription.ts` | Shared paid admission, transcription, design, geometry, and request cleanup |
 | Hosting | `vercel.json`, `apps/server/src/vercel.ts`, `apps/server/src/hosted.ts` | Route frontend/API traffic and explicitly enable production AI |
@@ -59,7 +59,7 @@ Web paths abbreviated as `game/...` or `voice/...` are under `apps/web/src`.
 
 `RaceScene` owns the sole 120 Hz simulation clock. During a race step, `RaceEventBridge` obtains forces, one-shot impulses, and obstacle protection from the event runtime. The normal racer controllers apply them while updating movement, then the bridge checks the movement segments for contacts. Rendering and microphone callbacks never integrate movement themselves.
 
-The four shared effects are gravity vortex, debris storm, shockwave, and safe slipstream. They use bounded, game-authored parameters. Ordinary inventory items are a separate mechanic and keep their own timers and rules.
+V4 safety drills combine Stampede formations/reactions and Sky Rapids routes/flows with bounded authored modifiers. `drill-runtime.ts` supplies spatial hazard/current volumes, and `DrillRenderer.tsx` draws those same volumes and instances the generated mesh. Rivals consider visible hazards and useful currents at their existing decision cadence. Recipe validation also supplies the provider recipe schema; titles and instructions share typed presentation tables. Text and voice streams reuse common envelope schemas while retaining strict version-specific payloads. See [adding actions](safety-drills.md#adding-actions-without-rebuilding-the-pipeline) for the concrete extension path. The original v3 gravity vortex, debris storm, shockwave and safe slipstream remain available for regression testing. Ordinary inventory items are a separate mechanic and keep their own timers and rules.
 
 Generated appearance can be a recipe of boxes, spheres, cylinders, and cones, or an experimental list of vertices and triangles. The browser compiles a primitive recipe into one mesh. Neither format contains executable code or collision settings.
 
@@ -69,13 +69,14 @@ Game coordinates are measured in meters, with +Y up and falling toward -Y. Gener
 
 | Contract | Used for | Reference |
 | --- | --- | --- |
-| `RaceEventCreation` v3 | Current race and the lab's Race events panel; one shared effect with server-balanced parameters | [Shared race effects](race-events-handoff.md) |
+| `SafetyDrillSpec` v4 | Current race and lab; one generated appearance and a composable drill recipe | [Safety drills](safety-drills.md) |
+| `RaceEventCreation` v3 | Retained APIs and legacy shared-effect fixtures | [Shared race effects](race-events-handoff.md) |
 | `CreationSpec` v2 | Lab's Asset generation comparison and retained creation demo; one effect in generated lab results | [Generation lab](prompt-to-mesh-pipeline.md), [legacy demo](creation-skeleton.md) |
 | `PowerUpSpec` v1 | Original fixtures and compatible `/api/powerups` clients | [Legacy power-up API](legacy-powerups.md) |
 
-The main race sends recorded prompts to `POST /api/voice/events`. The event lab also supports text through `POST /api/lab/events`. Both use `GET /api/lab/profiles` for available configurations. Those routes remain in production even though the lab UI is excluded from the production build.
+The main race sends recorded prompts to `POST /api/voice/drills`. The event lab also supports text through `POST /api/lab/drills`. Both use `GET /api/lab/profiles` for available configurations. Those routes remain in production even though the lab UI is excluded from the production build.
 
-Use the schema for the feature you are changing; do not cast a v3 event into the older creation loop. Validate on both server and browser boundaries. Coordinate shared changes because gameplay and generation depend on the same package.
+Use the schema for the feature you are changing; do not cast a v3/v4 encounter into the older creation loop. Validate on both server and browser boundaries. Coordinate shared changes because gameplay and generation depend on the same package.
 
 ## Secrets, timing, and cleanup
 

@@ -1,6 +1,6 @@
 import multipart from '@fastify/multipart';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { AUDIO_UPLOAD_LIMIT_BYTES, TRANSCRIPTION_DEADLINE_MS, VoiceRequestSchema, type RaceEventVoiceEvent, type VoiceEvent } from '@sky/shared';
+import { AUDIO_UPLOAD_LIMIT_BYTES, TRANSCRIPTION_DEADLINE_MS, VoiceRequestSchema, type RaceEventVoiceEvent, type SafetyDrillVoiceEvent, type VoiceEvent } from '@sky/shared';
 import { PipelineFailure, safePipelineError } from '../generation/pipeline-errors.js';
 import { isLocalOrigin } from '../generation/local-origin.js';
 import type { CreationPipeline } from '../generation/pipeline.js';
@@ -36,6 +36,7 @@ export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipelin
       {path:'/api/voice/transcriptions',mode:'transcribe'},
       {path:'/api/voice/creations',mode:'legacy'},
       {path:'/api/voice/events',mode:'event'},
+      {path:'/api/voice/drills',mode:'drill'},
     ] as const;
     for (const {path,mode} of routes) {
       const transcribeOnly=mode==='transcribe';
@@ -63,9 +64,10 @@ export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipelin
           }
           reply.hijack();
           reply.raw.writeHead(200,{'Content-Type':'application/x-ndjson; charset=utf-8','Cache-Control':'no-store','X-Accel-Buffering':'no'});
-          const emit=(event:VoiceEvent|RaceEventVoiceEvent)=>{if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.write(JSON.stringify(event)+'\n');};
+          const emit=(event:VoiceEvent|RaceEventVoiceEvent|SafetyDrillVoiceEvent)=>{if (!reply.raw.destroyed && !reply.raw.writableEnded) reply.raw.write(JSON.stringify(event)+'\n');};
           try {
-            if(mode==='event')await pipeline.runVoiceEvent(audio,options,{signal:controller.signal,emit,transcriptionBudgetMs});
+            if(mode==='drill')await pipeline.runVoiceDrill(audio,options,{signal:controller.signal,emit,transcriptionBudgetMs});
+            else if(mode==='event')await pipeline.runVoiceEvent(audio,options,{signal:controller.signal,emit,transcriptionBudgetMs});
             else await pipeline.runVoice(audio,options,{signal:controller.signal,emit,transcriptionBudgetMs});
           }
           catch {/* The coordinator emitted a terminal failure. */}
