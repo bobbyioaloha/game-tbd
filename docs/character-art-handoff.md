@@ -1,6 +1,6 @@
 # Personnel selection and Greg first pass
 
-Game opens Personnel selection as a HUD overlay within MovementTest’s persistent game viewport and Canvas. Greg is the only enabled participant. Linda (Triceratops), Steve (Stegosaurus), and Susan (Parasaurolophus) are roster placeholders; opponents still use the existing placeholder visuals.
+Game opens Personnel selection as a HUD overlay within MovementTest’s persistent game viewport and Canvas. All four participants are enabled: Greg (Tyrannosaurus), Linda (Triceratops), Steve (Stegosaurus), and Susan (Parasaurolophus). Player and opponent visuals follow the selected roster. See dinosaur-art-direction.md for the current models and introductions.
 
 Inspect Greg is an in-game toolbar action. The personnel HUD provides rotation, zoom, pause/replay and procedure clips. Selection and inspection render Preview and GregModel behind the HUD in the same Canvas used by RaceScene. Setup is a paused in-game overlay, not a page or below-game dashboard. Entering personnel/inspection pauses and cancels voice work; Begin exercise resets the race and shows EXERCISE COMMENCING IN... with a three-second countdown before releasing movement. Restart follows the same flow. Navigation or loss of focus cancels the pending countdown. The race camera follows directly 16 m above Greg, looking straight down without a horizontal viewing offset. Look-up retains the reverse view; landing keeps the wide overview.
 

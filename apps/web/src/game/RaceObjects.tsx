@@ -1,16 +1,26 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, createContext, useContext } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { CanvasTexture, type Group, type Mesh, type MeshStandardMaterial } from 'three';
+import { wornSurface, cargoLabel } from './scenery-materials';
+import type { Texture } from 'three';
 import { PowerUpModel } from '../components/PowerUpModel';
 import { fixtures } from '@sky/shared';
 import { obstaclePose, type ObstacleKind } from './race-course';
 import { SUN_DURATION, type PracticeRace } from './practice-race';
 
+const SurfaceContext=createContext<Texture|null>(null);
+const LabelContext=createContext<Texture|null>(null);
+function CargoLabel({position,scale=1}:{position:[number,number,number];scale?:number}){
+  const map=useContext(LabelContext);
+  return <mesh position={position} scale={scale}><planeGeometry args={[.72,.9]}/><meshStandardMaterial map={map} roughness={1} polygonOffset polygonOffsetFactor={-1}/></mesh>;
+}
 function Block({position=[0,0,0],size,color}:{position?:[number,number,number];size:[number,number,number];color:string}){
-  return <mesh position={position}><boxGeometry args={size}/><meshStandardMaterial color={color}/></mesh>;
+  const map=useContext(SurfaceContext);
+  return <mesh position={position}><boxGeometry args={size}/><meshStandardMaterial color={color} map={map} roughness={.94}/></mesh>;
 }
 function ObstacleModel({kind}:{kind:ObstacleKind}){
-  if(kind==='rock')return <mesh><dodecahedronGeometry args={[2,0]}/><meshStandardMaterial color="#82778b" flatShading/></mesh>;
+  const surface=useContext(SurfaceContext);
+  if(kind==='rock')return <mesh><dodecahedronGeometry args={[2,0]}/><meshStandardMaterial map={surface} roughness={.92} color="#777362" flatShading/></mesh>;
   if(kind==='piano')return <group>
     <Block size={[5,2,2.7]} color="#282936"/>
     <Block position={[0,1.2,0]} size={[5.2,0.25,3]} color="#121621"/>
@@ -18,49 +28,55 @@ function ObstacleModel({kind}:{kind:ObstacleKind}){
     {[-2,2].map(x=><Block key={x} position={[x,-1.3,0]} size={[0.4,1,0.4]} color="#242738"/>)}
   </group>;
   if(kind==='toilet')return <group>
-    <Block position={[0,0.6,-1]} size={[2.2,2.1,0.8]} color="#effafa"/>
-    <mesh position={[0,-0.1,0.4]} scale={[1,0.65,1.4]}><sphereGeometry args={[1.1,16,10]}/><meshStandardMaterial color="#e2f4f4"/></mesh>
-    <mesh position={[0,0.5,0.4]} rotation={[-Math.PI/2,0,0]} scale={[1,1.3,1]}><torusGeometry args={[0.8,0.2,8,24]}/><meshStandardMaterial color="#ffffff"/></mesh>
-    <Block position={[0,-1.1,0]} size={[1,1,1.3]} color="#e2f4f4"/>
+    <Block position={[0,0.6,-1]} size={[2.2,2.1,0.8]} color="#d0cdbb"/>
+    <mesh position={[0,-0.1,0.4]} scale={[1,0.65,1.4]}><sphereGeometry args={[1.1,16,10]}/><meshStandardMaterial map={surface} roughness={.92} color="#b9bdae"/></mesh>
+    <mesh position={[0,0.5,0.4]} rotation={[-Math.PI/2,0,0]} scale={[1,1.3,1]}><torusGeometry args={[0.8,0.2,8,24]}/><meshStandardMaterial map={surface} roughness={.92} color="#ded9c5"/></mesh>
+    <Block position={[0,-1.1,0]} size={[1,1,1.3]} color="#b9bdae"/>
   </group>;
   if(kind==='duck')return <group>
-    <mesh scale={[1.4,0.85,1.1]}><sphereGeometry args={[1.45,16,12]}/><meshStandardMaterial color="#ffd944"/></mesh>
-    <mesh position={[0,1.2,-0.7]}><sphereGeometry args={[0.9,16,12]}/><meshStandardMaterial color="#ffe765"/></mesh>
-    <Block position={[0,1,-1.55]} size={[1.1,0.25,0.8]} color="#ff973e"/>
-    {[-0.6,0.6].map(x=><mesh key={x} position={[x,1.45,-1.2]}><sphereGeometry args={[0.13,8,6]}/><meshStandardMaterial color="#242939"/></mesh>)}
+    <mesh scale={[1.4,0.85,1.1]}><sphereGeometry args={[1.45,16,12]}/><meshStandardMaterial map={surface} roughness={.92} color="#b8a14d"/></mesh>
+    <mesh position={[0,1.2,-0.7]}><sphereGeometry args={[0.9,16,12]}/><meshStandardMaterial map={surface} roughness={.92} color="#c4b164"/></mesh>
+    <Block position={[0,1,-1.55]} size={[1.1,0.25,0.8]} color="#a86837"/>
+    {[-0.6,0.6].map(x=><mesh key={x} position={[x,1.45,-1.2]}><sphereGeometry args={[0.13,8,6]}/><meshStandardMaterial map={surface} roughness={.92} color="#242939"/></mesh>)}
   </group>;
   if(kind==='duct')return <group>
-    {[-6.5,6.5].map(x=><Block key={'x'+x} position={[x,0,0]} size={[1,24,14]} color="#457b87"/>)}
-    {[-6.5,6.5].map(z=><Block key={'z'+z} position={[0,0,z]} size={[12,24,1]} color="#31576d"/>)}
-    {[-11.6,11.6].flatMap(y=>[-6.5,6.5].map(x=><Block key={x+','+y} position={[x,y,0]} size={[1.2,0.7,14.2]} color="#ffd56a"/>))}
-    {[-11.6,11.6].flatMap(y=>[-6.5,6.5].map(z=><Block key={z+','+y} position={[0,y,z]} size={[12,0.7,1.2]} color="#ffd56a"/>))}
+    {[-6.5,6.5].map(x=><Block key={'x'+x} position={[x,0,0]} size={[1,24,14]} color="#7b8581"/>)}
+    {[-6.5,6.5].map(z=><Block key={'z'+z} position={[0,0,z]} size={[12,24,1]} color="#626e6b"/>)}
+    {[-11.6,11.6].flatMap(y=>[-6.5,6.5].map(x=><Block key={x+','+y} position={[x,y,0]} size={[1.2,0.7,14.2]} color="#c8ac50"/>))}
+    {[-11.6,11.6].flatMap(y=>[-6.5,6.5].map(z=><Block key={z+','+y} position={[0,y,z]} size={[12,0.7,1.2]} color="#c8ac50"/>))}
 
   </group>;
   if(kind==='fridge')return <group>
-    <Block size={[2,3.6,1.8]} color="#d7ecee"/>
-    <Block position={[0,0.8,0.94]} size={[1.9,1.7,0.08]} color="#fbffff"/>
-    <Block position={[0,-0.9,0.94]} size={[1.9,1.6,0.08]} color="#fbffff"/>
+    <CargoLabel position={[-.25,.2,1.015]} scale={1.05}/>
+    {[-.88,.88].map(x=><Block key={x} position={[x,0,.94]} size={[.06,3.4,.06]} color="#807f6e"/>)}
+    <Block size={[2,3.6,1.8]} color="#bcbcad"/>
+    <Block position={[0,0.8,0.94]} size={[1.9,1.7,0.08]} color="#d4d2c0"/>
+    <Block position={[0,-0.9,0.94]} size={[1.9,1.6,0.08]} color="#d4d2c0"/>
     <Block position={[0.65,0.65,1.05]} size={[0.12,0.8,0.12]} color="#657782"/>
     <Block position={[0.65,-0.6,1.05]} size={[0.12,0.6,0.12]} color="#657782"/>
   </group>;
   if(kind==='satellite')return <group>
-    <Block size={[2.4,2.4,2.4]} color="#c5a449"/>
+    <CargoLabel position={[0,0,1.21]}/>
+    <Block size={[3,.12,.12]} color="#858678"/>
+    <Block size={[2.4,2.4,2.4]} color="#aa935a"/>
     {[-4,4].map(x=><group key={x} position={[x,0,0]}>
-      <Block size={[5,0.3,3]} color="#2449a0"/>
-      {[-2,-1,0,1,2].map(line=><Block key={line} position={[line,0.17,0]} size={[0.06,0.03,3]} color="#88bfe7"/>)}
+      <Block size={[5,0.3,3]} color="#293e51"/>
+      {[-2,-1,0,1,2].map(line=><Block key={line} position={[line,0.17,0]} size={[0.06,0.03,3]} color="#70808a"/>)}
     </group>)}
-    <mesh position={[0,2,0]} rotation={[Math.PI,0,0]}><coneGeometry args={[1.4,0.8,16,1,true]}/><meshStandardMaterial color="#f5e9bc" side={2}/></mesh>
+    <mesh position={[0,2,0]} rotation={[Math.PI,0,0]}><coneGeometry args={[1.4,0.8,16,1,true]}/><meshStandardMaterial map={surface} roughness={.92} color="#f5e9bc" side={2}/></mesh>
   </group>;
   if(kind==='balloon')return <group>
-    <mesh position={[0,1,0]} scale={[1,1.3,1]}><sphereGeometry args={[2,16,12]}/><meshStandardMaterial color="#f394b8"/></mesh>
+    <mesh position={[0,1,0]} scale={[1,1.3,1]}><sphereGeometry args={[2,16,12]}/><meshStandardMaterial map={surface} roughness={.92} color="#b8a081"/></mesh>
     <Block position={[0,-2.4,0]} size={[1.2,0.8,1.2]} color="#98774c"/>
     {[-0.5,0.5].map(x=><Block key={x} position={[x,-1.4,0]} size={[0.04,1.4,0.04]} color="#eee3ca"/>)}
   </group>;
   return <group>
-    <Block size={[4.8,0.8,2.4]} color="#8755ae"/>
-    <Block position={[0,0.8,0.95]} size={[4.8,1.2,0.5]} color="#a377c5"/>
-    {[-2.1,2.1].map(x=><Block key={x} position={[x,0.5,0]} size={[0.6,1,2.4]} color="#a377c5"/>)}
-    {[-1.2,0,1.2].map(x=><Block key={x} position={[x,0.5,-0.1]} size={[1.1,0.3,1.8]} color="#bd93d9"/>)}
+    <CargoLabel position={[1.6,.7,1.215]}/>
+    {[-1.8,1.8].flatMap(x=>[-.8,.8].map(z=><Block key={x+','+z} position={[x,-.6,z]} size={[.22,.5,.22]} color="#443e31"/>))}
+    <Block size={[4.8,0.8,2.4]} color="#774b38"/>
+    <Block position={[0,0.8,0.95]} size={[4.8,1.2,0.5]} color="#a26447"/>
+    {[-2.1,2.1].map(x=><Block key={x} position={[x,0.5,0]} size={[0.6,1,2.4]} color="#a26447"/>)}
+    {[-1.2,0,1.2].map(x=><Block key={x} position={[x,0.5,-0.1]} size={[1.1,0.3,1.8]} color="#b77853"/>)}
   </group>;
 }
 function BoostSign(){
@@ -75,6 +91,8 @@ function BoostSign(){
   return <sprite position={[0,0,-7]} scale={[8,2,1]}><spriteMaterial map={texture} depthWrite={false}/></sprite>;
 }
 export function RaceObjects({race}:{race:PracticeRace}){
+  const surface=useMemo(wornSurface,[]),label=useMemo(cargoLabel,[]);
+  useEffect(()=>()=>{surface.dispose();label.dispose();},[surface,label]);
   const effects=useRef<Group>(null);
   const obstacles=useRef<Group>(null),boxes=useRef<Group>(null),rings=useRef<Group>(null),shots=useRef<Group>(null);
   useFrame(()=>{
@@ -127,7 +145,7 @@ export function RaceObjects({race}:{race:PracticeRace}){
       </group>
       <group scale={0.8}><PowerUpModel spec={fixtures[0]}/></group>
     </group>)}</group>
-    <group ref={obstacles}>{race.obstacles.map(o=><group key={o.id}><ObstacleModel kind={o.kind}/></group>)}</group>
+    <SurfaceContext.Provider value={surface}><LabelContext.Provider value={label}><group ref={obstacles}>{race.obstacles.map(o=><group key={o.id}><ObstacleModel kind={o.kind}/></group>)}</group></LabelContext.Provider></SurfaceContext.Provider>
     <group ref={boxes}>{race.boxes.map(box=><group key={box.id}>
       <Block size={[1.5,1.5,1.5]} color="#ffe273"/>
       <Block size={[1.6,0.25,1.6]} color="#a26aff"/><Block size={[0.25,1.6,1.6]} color="#a26aff"/>

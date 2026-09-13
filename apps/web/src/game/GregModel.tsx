@@ -5,8 +5,8 @@ import { AnimationMixer, LoopOnce, LoopRepeat, Mesh, MeshLambertMaterial, Quater
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
-export type DinosaurCharacter = 'greg' | 'linda' | 'steve';
-export type GregPose = 'Stand' | 'Dive' | 'Reach' | 'Brake' | 'Bank left' | 'Bank right' | 'Impact' | 'Checklist' | 'Diagnostics';
+export type DinosaurCharacter = 'greg' | 'linda' | 'steve' | 'susan';
+export type GregPose = 'Stand' | 'Dive' | 'Reach' | 'Brake' | 'Bank left' | 'Bank right' | 'Impact' | 'Checklist' | 'Diagnostics' | 'Equipment check';
 type GregProps={loop?:boolean;pose?:GregPose;paused?:boolean;time?:()=>number;wind?:()=>{time:number;speed:number}};
 function LoadedDinosaur({character,pose='Stand',paused=false,time,wind,loop=false}:GregProps & {character:DinosaurCharacter}) {
   const gltf=useLoader(GLTFLoader,`/models/${character}.glb`);
@@ -25,9 +25,15 @@ function LoadedDinosaur({character,pose='Stand',paused=false,time,wind,loop=fals
   },[gltf]);
   const mixer=useMemo(()=>new AnimationMixer(model),[model]);
   const airflow=useMemo(()=>new GregWind(),[model]);
-  const joints=useMemo(()=>['arm_-1','arm_1','leg_-1','leg_1','tail'].map(name=>{const bone=model.getObjectByName(name);return {bone,base:bone?.quaternion.clone()??new Quaternion()};}),[model]);
+  const joints=useMemo(()=>['arm_-1','arm_1','leg_-1','leg_1','tail'].map(name=>{
+    const bone=model.getObjectByName(name),rest=bone?.quaternion.clone()??new Quaternion();
+    return {bone,rest,base:rest.clone()};
+  }),[model]);
   const offset=useMemo(()=>new Quaternion(),[]),euler=useMemo(()=>new Euler(),[]);
   useEffect(()=>{
+    // A new clip may omit limbs (Stand animates only the pelvis). Clear the
+    // previous clip's cached pose so the frame loop cannot restore it.
+    joints.forEach(({bone,base,rest})=>{base.copy(rest);bone?.quaternion.copy(rest);});
     const clip=gltf.animations.find(clip=>clip.name===pose);
     if(!clip)return;
     const playback=loop?clip.clone():clip;
@@ -35,7 +41,7 @@ function LoadedDinosaur({character,pose='Stand',paused=false,time,wind,loop=fals
     const action=mixer.clipAction(playback);
     action.reset().setLoop(loop?LoopRepeat:LoopOnce,loop?Infinity:1);action.clampWhenFinished=!loop;action.play();
     return ()=>{action.stop();if(loop)mixer.uncacheClip(playback);};
-  },[gltf,mixer,pose,loop]);
+  },[gltf,mixer,pose,loop,joints]);
   useEffect(()=>()=>{mixer.stopAllAction();mixer.uncacheRoot(model);materials.forEach(material=>material.dispose());},[mixer,model,materials]);
   useFrame((_,delta)=>{
     joints.forEach(({bone,base})=>bone?.quaternion.copy(base));

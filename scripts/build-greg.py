@@ -2,7 +2,7 @@
 import argparse, json, math, struct, zlib
 from pathlib import Path
 parser=argparse.ArgumentParser(description='Build the shared dinosaur style and character rig.')
-parser.add_argument('--character',choices=('greg','linda','steve'),default='greg')
+parser.add_argument('--character',choices=('greg','linda','steve','susan'),default='greg')
 character=parser.parse_args().character
 display_name=character.title()
 out=Path('apps/web/public/models');out.mkdir(parents=True,exist_ok=True)
@@ -28,6 +28,9 @@ if character=='linda':
     palette[0]=(114,85,132);palette[1]=(171,143,165);palette[9]=(83,62,101)
 if character=='steve':
     palette[0]=(70,116,105);palette[1]=(147,168,130);palette[9]=(49,78,73)
+if character=='susan':
+    palette[0]=(177,143, 60)
+    palette[1]=(216,197,144);palette[9]=(126,94, 40)
 def noise(x,y,seed=0):
     n=((x*374761393+y*668265263+seed*1442695041)&0xffffffff)
     n=((n^(n>>13))*1274126177)&0xffffffff
@@ -57,6 +60,7 @@ def rect(tile,x,y,w,h,color):
             offset=(((tile//4)*TILE+yy)*WIDTH+(tile%4)*TILE+xx)*3
             atlas[offset:offset+3]=bytes(color)
 glyphs={
+ '4':['00010','00110','01010','10010','11111','00010','00010'],
  '0':['01110','11011','11011','11011','11011','11011','01110'],
  '3':['11110','00001','00001','01110','00001','00001','11110'],
  'D':['11110','10001','10001','10001','10001','10001','11110'],
@@ -94,7 +98,7 @@ for tile in (7,8):
         rect(tile,inset,254-inset,256-2*inset,2,(167,153,112))
         rect(tile,inset,inset,2,256-2*inset,(167,153,112))
         rect(tile,254-inset,inset,2,256-2*inset,(167,153,112))
-lettering(7,{'greg':'001','linda':'002','steve':'003'}[character],70,11,(224,218,191))
+lettering(7,{'greg':'001','linda':'002','steve':'003','susan':'004'}[character],70,11,(224,218,191))
 rect(7,40,177,176,3,(154,155,137))
 lettering(8,'FALL',65,7,(32,31,27))
 lettering(8,'RISK',125,7,(32,31,27))
@@ -127,6 +131,11 @@ if character=='steve':
     lettering(11,'IT',23,16,(40,42,38))
     lettering(11,'SUPPORT',156,5,(40,42,38))
     lettering(11,'003',216,4,(40,42,38))
+if character=='susan':
+    rect(11,0,0,256,256,(224,182,57))
+    lettering(11,'FACILITIES',55,4,(40,42,38))
+    rect(11,25,125,206,4,(40,42,38))
+    lettering(11,'004',167,7,(40,42,38))
 pixels=bytearray()
 for y in range(HEIGHT):
     pixels.append(0);pixels.extend(atlas[y*WIDTH*3:(y+1)*WIDTH*3])
@@ -188,6 +197,88 @@ def piece(name,center,scale,color,joint=root,segments=24,rings=16,boxy=1):
                         u=.5+(u-.5)*min(1,max(scale[0],scale[2])/.55)
                         v=.5+(v-.5)*min(1,scale[1]/.65)
                     uv.extend(texture_uv(color,u,v))
+    emit_piece(name,vertices,normals,uv,joint)
+
+
+def face_piece(name,center,scale,color,joint,boxy=None,taper=.82):
+    """Bevelled, tapered head volume with broad authored planes, not ellipsoids.
+
+    The eight-sided section keeps cheek corners and a flat jaw readable while
+    the shorter bevel sections soften the silhouette. Preserve the shared rig.
+    """
+    origin=origins[joints.index(joint)]
+    section=[(-.72,1),(.72,1),(1,.55),(1,-.55),(.72,-1),(-.72,-1),(-1,-.55),(-1,.55)]
+    points=[]
+    for z,width,height,lift in [(-1,.68,.70,0),(-.60,1,1,0),(.60,taper,.86,-.04),(1,taper*.80,.60,-.08)]:
+        for x,y in section:
+            points.append((origin[0]+center[0]+x*scale[0]*width,
+                           origin[1]+center[1]+(y*height+lift)*scale[1],
+                           origin[2]+center[2]+z*scale[2]))
+    faces=[]
+    for ring in range(3):
+        for side in range(8):
+            a=ring*8+side;b=ring*8+(side+1)%8
+            faces.append((a,b,b+8,a+8))
+    faces.extend([tuple(reversed(range(8))),tuple(range(24,32))])
+    vertices=[];normals=[];uv=[]
+    for face in faces:
+        a,b,c=[points[i] for i in face[:3]]
+        u=[b[k]-a[k] for k in range(3)];v=[c[k]-a[k] for k in range(3)]
+        normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+        midpoint=[sum(points[i][k] for i in face)/len(face)-origin[k]-center[k] for k in range(3)]
+        if sum(normal[k]*midpoint[k] for k in range(3))<0:
+            face=tuple(reversed(face));normal=[-n for n in normal]
+        length=math.sqrt(sum(n*n for n in normal));normal=[n/length for n in normal]
+        for i in range(1,len(face)-1):
+            for index in (face[0],face[i],face[i+1]):
+                point=points[index]
+                vertices.extend(point);normals.extend(normal)
+                # Consistent planar skin scale; do not stretch a whole tile over each bevel.
+                x,y,z=[point[k]-origin[k]-center[k] for k in range(3)]
+                uv.extend(texture_uv(color,.5+(z if abs(normal[0])>.5 else x)*.45,.5+y*.55))
+    emit_piece(name,vertices,normals,uv,joint)
+
+
+def limb_piece(name,center,scale,color,joint,segments=None,rings=None,boxy=None):
+    """Tapered eight-sided muscle sections with knee/elbow breaks.
+
+    Preserve joint origins, prop attachments and overall reach. Long vertical
+    sections narrow at the wrist/ankle; hands and feet use flat bevelled wedges.
+    """
+    if scale[1]<max(scale[0],scale[2]):
+        face_piece(name,center,scale,color,joint,taper=.78)
+        return
+    origin=origins[joints.index(joint)]
+    upper='thigh' in name or 'shoulder' in name or 'upper' in name
+    profile=([(-1,.56,.04),(-.48,.78,.10),(.12,1,0),(.65,.87,-.04),(1,.62,0)] if upper else
+             [(-1,.60,.08),(-.60,.60,.12),(.30,.82,-.03),(.70,1,-.06),(1,.70,0)])
+    section=[(-.70,-1),(.70,-1),(1,-.50),(1,.50),(.70,1),(-.70,1),(-1,.50),(-1,-.50)]
+    points=[]
+    for y,width,bend in profile:
+        for x,z in section:
+            points.append((origin[0]+center[0]+x*scale[0]*width,
+                           origin[1]+center[1]+y*scale[1],
+                           origin[2]+center[2]+(z*width+bend)*scale[2]))
+    faces=[]
+    for ring in range(len(profile)-1):
+        for side in range(8):
+            a=ring*8+side;b=ring*8+(side+1)%8
+            faces.append((a,b,b+8,a+8))
+    faces.extend([tuple(range(8)),tuple(range(32,40))])
+    vertices=[];normals=[];uv=[]
+    for face in faces:
+        a,b,c=[points[i] for i in face[:3]]
+        u=[b[k]-a[k] for k in range(3)];v=[c[k]-a[k] for k in range(3)]
+        normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+        outward=[sum(points[i][k] for i in face)/len(face)-origin[k]-center[k] for k in range(3)]
+        if sum(normal[k]*outward[k] for k in range(3))<0:
+            face=tuple(reversed(face));normal=[-n for n in normal]
+        length=math.sqrt(sum(n*n for n in normal));normal=[n/length for n in normal]
+        for i in range(1,len(face)-1):
+            for index in (face[0],face[i],face[i+1]):
+                point=points[index];vertices.extend(point);normals.extend(normal)
+                x,y,z=[point[k]-origin[k]-center[k] for k in range(3)]
+                uv.extend(texture_uv(color,.5+(z if abs(normal[0])>.5 else x)*.65,.5+y*.65))
     emit_piece(name,vertices,normals,uv,joint)
 
 def patch(name,center,size,color,joint=root):
@@ -321,24 +412,25 @@ if character=='greg':
     piece('lower belly',(0,-.18,.14),(.47,.46,.43),1)
     piece('throat',(0,.8,.31),(.35,.63,.38),1)
     head=bone('head',(0,1.15,.35),root)
-    piece('skull',(0,.12,.12),(.46,.41,.57),0,head,boxy=.9)
-    piece('long angular muzzle',(0,-.02,.56),(.40,.25,.55),0,head,boxy=.8)
-    piece('lower jaw',(0,-.22,.53),(.355,.105,.5),1,head,boxy=.8)
+    face_piece('skull',(0,.12,.12),(.46,.41,.57),0,head,boxy=.9)
+    face_piece('long angular muzzle',(0,-.02,.56),(.40,.25,.55),0,head,boxy=.8)
+    face_piece('lower jaw',(0,-.22,.53),(.355,.105,.5),1,head,boxy=.8)
+    face_piece('mouth seam',(0,-.205,.60),(.35,.012,.40),5,head)
     for side in [-1,1]:
         piece('small recessed eye',(side*.431,.19,.35),(.025,.043,.06),5,head,16,10)
         piece('heavy brow',(side*.438,.25,.33),(.028,.027,.115),0,head)
         piece('nostril',(side*.22,.104,1.025),(.024,.018,.024),5,head,12,8)
         leg=bone('leg '+str(side),(side*.43,-.23,-.07),root)
-        piece('thigh',(0,-.16,0),(.32,.50,.35),0,leg)
-        piece('shin',(0,-.64,.04),(.175,.38,.19),0,leg)
-        piece('foot',(0,-1.01,.23),(.23,.145,.38),0,leg,boxy=.85)
+        limb_piece('thigh',(0,-.16,0),(.32,.50,.35),0,leg)
+        limb_piece('shin',(0,-.64,.04),(.175,.38,.19),0,leg)
+        limb_piece('foot',(0,-1.01,.23),(.23,.145,.38),0,leg,boxy=.85)
         for toe in [-1,0,1]:
             swept_piece('tapered toe claw',[(toe*.12,-1.015,.51,.048),(toe*.12,-1.025,.63,.036),(toe*.12,-1.065,.75,.003)],5,leg,segments=10,steps=3)
         arm=bone('arm '+str(side),(side*.44,.56,.3),root)
-        piece('upper arm',(side*.06,-.12,.06),(.125,.22,.13),0,arm)
-        piece('forearm',(side*.07,-.25,.19),(.08,.09,.19),0,arm)
+        limb_piece('upper arm',(side*.06,-.12,.06),(.125,.22,.13),0,arm)
+        limb_piece('forearm',(side*.07,-.25,.19),(.08,.09,.19),0,arm)
         for finger in [-1,1]:
-            piece('two fingers',(side*.07+finger*.042,-.25,.37),(.035,.037,.095),0,arm)
+            limb_piece('two fingers',(side*.07+finger*.042,-.25,.37),(.035,.037,.095),0,arm)
             swept_piece('finger claw',[(side*.07+finger*.042,-.25,.43,.024),(side*.07+finger*.045,-.26,.49,.018),(side*.07+finger*.048,-.29,.54,.003)],5,arm,segments=8,steps=3)
         piece('shoulder webbing',(side*.29,.49,.04),(.065,.72,.605),2,root,32,24,boxy=.65)
         piece('metal adjuster',(side*.29,.54,.565),(.082,.10,.035),3,root,16,12,boxy=.3)
@@ -360,10 +452,11 @@ elif character=='linda':
     for index in range(11):
         angle=math.pi*index/10
         piece('scalloped frill rim',(.735*math.cos(angle),.22+.69*math.sin(angle),-.10),(.095,.10,.085),0,head)
-    piece('broad skull',(0,.025,.25),(.49,.40,.49),0,head,boxy=.9)
-    piece('cheeks',(0,-.16,.47),(.43,.25,.39),0,head)
-    piece('lower jaw',(0,-.30,.60),(.32,.095,.31),1,head,boxy=.8)
-    piece('parrot beak',(0,-.16,.82),(.26,.17,.20),6,head,boxy=.8)
+    face_piece('broad skull',(0,.025,.25),(.49,.40,.49),0,head,boxy=.9)
+    face_piece('cheeks',(0,-.16,.47),(.43,.25,.39),0,head)
+    face_piece('lower jaw',(0,-.30,.60),(.32,.095,.31),1,head,boxy=.8)
+    face_piece('parrot beak',(0,-.16,.82),(.22,.17,.23),6,head,taper=.50)
+    face_piece('mouth seam',(0,-.245,.70),(.29,.012,.24),5,head)
     # Three visibly separate horns, curved forward with the same smooth normals as skin.
     for side in [-1,1]:
         swept_piece('brow horn',[(side*.29,.27,.44,.105),(side*.32,.44,.56,.085),(side*.37,.64,.74,.050),(side*.42,.80,.91,.003)],6,head,segments=16)
@@ -373,15 +466,15 @@ elif character=='linda':
     swept_piece('nose horn',[(0,.015,.82,.09),(0,.13,.91,.068),(0,.30,1.04,.003)],6,head,segments=16)
     for side in [-1,1]:
         leg=bone('leg '+str(side),(side*.46,-.12,-.76),root)
-        piece('hind thigh',(0,-.27,0),(.28,.40,.32),0,leg)
-        piece('hind shin',(0,-.77,.035),(.205,.35,.215),0,leg)
-        piece('hind foot',(0,-1.09,.14),(.255,.145,.30),0,leg,boxy=.8)
+        limb_piece('hind thigh',(0,-.27,0),(.28,.40,.32),0,leg)
+        limb_piece('hind shin',(0,-.77,.035),(.205,.35,.215),0,leg)
+        limb_piece('hind foot',(0,-1.09,.14),(.255,.145,.30),0,leg,boxy=.8)
         arm=bone('arm '+str(side),(side*.48,-.10,.61),root)
-        piece('front shoulder',(0,-.22,0),(.28,.37,.30),0,arm)
-        piece('front shin',(0,-.76,.025),(.20,.38,.21),0,arm)
-        piece('front foot',(0,-1.11,.14),(.25,.145,.30),0,arm,boxy=.8)
+        limb_piece('front shoulder',(0,-.22,0),(.28,.37,.30),0,arm)
+        limb_piece('front shin',(0,-.76,.025),(.20,.38,.21),0,arm)
+        limb_piece('front foot',(0,-1.11,.14),(.25,.145,.30),0,arm,boxy=.8)
         for limb,y in [(leg,-1.10),(arm,-1.12)]:
-            for toe in [-1,0,1]:piece('ivory toenail',(toe*.14,y,.405),(.062,.06,.08),6,limb,16,10,boxy=.7)
+            for toe in [-1,0,1]:limb_piece('ivory toenail',(toe*.14,y,.405),(.062,.06,.08),6,limb,16,10,boxy=.7)
     # The board is strapped to the outside of the right foreleg, so it follows
     # the hoof lift instead of floating or requiring a fifth limb.
     clipboard=bone('clipboard',(.30,-.65,.10),arm)
@@ -394,29 +487,30 @@ elif character=='linda':
     tail=bone('tail',(0,.09,-1.00),root)
     swept_piece('short tapered tail',[(0,0,.10,.34),(0,-.025,-.25,.30),(.035,-.11,-.57,.215),(.07,-.15,-.89,.125),(.10,-.13,-1.18,.053),(.105,-.08,-1.39,.004)],0,tail)
 
-else:
+elif character=='steve':
     piece('arched torso',(0,.05,-.20),(.65,.59,1.04),0)
     piece('pale underside',(0,-.22,-.12),(.49,.32,.83),1)
     piece('sloping neck',(0,-.15,.73),(.31,.30,.52),0)
     head=bone('head',(0,-.20,1.10),root)
-    piece('small low skull',(0,.025,.12),(.30,.27,.38),0,head,boxy=.9)
-    piece('long muzzle',(0,-.055,.42),(.235,.18,.31),0,head,boxy=.85)
-    piece('beak',(0,-.06,.65),(.175,.12,.12),6,head,boxy=.8)
-    piece('lower jaw',(0,-.19,.38),(.20,.065,.28),1,head)
+    face_piece('small low skull',(0,.025,.12),(.30,.27,.38),0,head,boxy=.9)
+    face_piece('long muzzle',(0,-.055,.42),(.235,.18,.31),0,head,boxy=.85)
+    face_piece('beak',(0,-.06,.65),(.175,.10,.15),6,head,taper=.62)
+    face_piece('lower jaw',(0,-.19,.38),(.20,.065,.28),1,head)
+    face_piece('mouth seam',(0,-.145,.48),(.19,.01,.21),5,head)
     for side in (-1,1):
         piece('distracted eye',(side*.281,.08,.21),(.022,.043,.06),5,head,16,10)
         piece('heavy eyelid',(side*.270,.135,.20),(.038,.032,.10),0,head)
         piece('nostril',(side*.12,.025,.68),(.018,.017,.014),5,head,12,8)
         leg=bone('leg '+str(side),(side*.46,.03,-.82),root)
-        piece('powerful hind thigh',(0,-.27,0),(.31,.44,.34),0,leg)
-        piece('long hind shin',(0,-.85,.02),(.20,.39,.22),0,leg)
-        piece('hind foot',(0,-1.23,.15),(.25,.145,.30),0,leg,boxy=.8)
+        limb_piece('powerful hind thigh',(0,-.27,0),(.31,.44,.34),0,leg)
+        limb_piece('long hind shin',(0,-.85,.02),(.20,.39,.22),0,leg)
+        limb_piece('hind foot',(0,-1.23,.15),(.25,.145,.30),0,leg,boxy=.8)
         arm=bone('arm '+str(side),(side*.43,-.27,.61),root)
-        piece('front shoulder',(0,-.19,0),(.24,.30,.27),0,arm)
-        piece('short front shin',(0,-.61,.02),(.18,.29,.20),0,arm)
-        piece('front foot',(0,-.93,.13),(.225,.145,.28),0,arm,boxy=.8)
+        limb_piece('front shoulder',(0,-.19,0),(.24,.30,.27),0,arm)
+        limb_piece('short front shin',(0,-.61,.02),(.18,.29,.20),0,arm)
+        limb_piece('front foot',(0,-.93,.13),(.225,.145,.28),0,arm,boxy=.8)
         for limb,y,z in [(leg,-1.24,.42),(arm,-.94,.39)]:
-            for toe in (-1,0,1):piece('blunt toenail',(toe*.13,y,z),(.06,.06,.085),6,limb,16,10,boxy=.7)
+            for toe in (-1,0,1):limb_piece('blunt toenail',(toe*.13,y,z),(.06,.06,.085),6,limb,16,10,boxy=.7)
     for side in (-1,1):
         for index,(z,y,height,width) in enumerate([(.65,.35,.35,.34),(.24,.52,.65,.44),(-.22,.58,.83,.52),(-.70,.48,.72,.48),(-1.12,.23,.43,.36)]):
             back_plate('back plate '+str(side)+' '+str(index),(side*.20,y,z+side*.08),width,height,side)
@@ -432,6 +526,40 @@ else:
     for side in (-1,1):
         for index,z in enumerate((-1.03,-1.43)):
             swept_piece('tail spike '+str(side)+' '+str(index),[(side*.08,-.04,z,.073),(side*.30,.065,z-.13,.052),(side*.60,.19,z-.30,.003)],6,tail,segments=16,steps=4,reference=(0,1,0))
+
+
+else:
+    piece('upright pear shaped torso',(0,.12,-.08),(.52,.70,.55),0)
+    piece('pale belly',(0,.04,.32),(.40,.59,.20),1)
+    swept_piece('long upright neck',[(0,.40,.12,.32),(0,.82,.25,.27),(0,1.15,.30,.22)],0,root)
+    head=bone('head',(0,1.12,.30),root)
+    face_piece('slender skull',(0,.12,.17),(.29,.30,.40),0,head)
+    face_piece('duck bill',(0,-.025,.60),(.28,.09,.27),9,head,taper=1.04)
+    face_piece('pale lower jaw',(0,-.12,.43),(.25,.07,.30),1,head)
+    face_piece('mouth seam',(0,-.095,.60),(.25,.01,.24),5,head,taper=1.02)
+    swept_piece('swept back hollow crest',[(0,.30,.10,.17),(0,.55,-.12,.16),(0,.70,-.40,.13),(0,.70,-.70,.09),(0,.60,-.95,.035)],9,head)
+    for side in (-1,1):
+        piece('watchful eye',(side*.28,.18,.30),(.022,.038,.055),5,head,16,10)
+        piece('decisive brow',(side*.27,.24,.30),(.04,.03,.10),0,head)
+        piece('nostril',(side*.20,.035,.70),(.018,.015,.022),5,head,12,8)
+        leg=bone('leg '+str(side),(side*.38,-.20,-.14),root)
+        limb_piece('strong thigh',(0,-.20,0),(.27,.40,.30),0,leg)
+        limb_piece('shin',(0,-.70,.08),(.15,.30,.17),0,leg)
+        limb_piece('planted foot',(0,-1.01,.22),(.22,.14,.30),0,leg,boxy=.8)
+        for toe in (-1,0,1):limb_piece('blunt hoof',(toe*.12,-1.02,.48),(.055,.055,.075),6,leg,16,10)
+        arm=bone('arm '+str(side),(side*.40,.55,.14),root)
+        limb_piece('upper forearm',(side*.05,-.20,.04),(.12,.27,.13),0,arm)
+        limb_piece('lower forearm',(side*.04,-.40,.18),(.095,.12,.22),0,arm)
+        limb_piece('capable hand',(side*.04,-.40,.36),(.12,.09,.12),0,arm)
+        piece('shoulder strap',(side*.27,.40,.02),(.06,.60,.57),2,root,32,24,boxy=.65)
+    tail=bone('tail',(0,-.12,-.44),root)
+    swept_piece('balanced tapered tail',[(0,0,.10,.30),(0,-.08,-.40,.25),(0,-.10,-.85,.17),(0,-.04,-1.30,.08),(0,.06,-1.70,.004)],0,tail)
+    carabiner=bone('carabiner',(.42,.05,.40),root)
+    swept_piece('service carabiner',[(0,.10,0,.025),(.08,.07,0,.025),(.08,-.09,0,.025),(0,-.13,0,.025),(-.04,-.02,0,.025),(0,.10,0,.025)],3,carabiner,segments=8,reference=(0,0,1))
+    piece('tool pouch',(-.54,-.10,.08),(.14,.23,.20),2,root,20,16,boxy=.35)
+    piece('pouch flap',(-.60,.05,.10),(.09,.055,.20),9,root,16,12,boxy=.4)
+    piece('tool handle',(-.56,.20,.06),(.04,.18,.04),3,root,12,8)
+    patch('Facilities badge',(0,.42,.50),(.38,.22),11)
 
 equipment_start=len(meshes)
 piece('waist webbing',(0,-.1,0),(.56,.085,.595),2,root,32,16,boxy=.7)
@@ -486,7 +614,7 @@ def anim(name,tracks):
         channels.append({'sampler':len(samplers)-1,'target':{'node':joint,'path':'rotation'}})
     animations.append({'name':name,'samplers':samplers,'channels':channels})
 arms=[i for i in joints if nodes[i]['name'].startswith('arm')]
-if character=='greg':
+if character in ('greg','susan'):
     anim('Stand',[(root,[quat(),quat()],[0,1])])
     greg_falling=[]
     for joint in joints:
@@ -499,7 +627,18 @@ if character=='greg':
     anim('Brake',[(root,[quat(.85),quat(.85)],[0,1])]+greg_falling)
     anim('Bank left',[(root,[quat(math.pi/2,z=.3),quat(math.pi/2,z=.3)],[0,1]),(tail,[quat(z=-.3),quat(z=-.3)],[0,1])]+greg_falling)
     anim('Bank right',[(root,[quat(math.pi/2,z=-.3),quat(math.pi/2,z=-.3)],[0,1]),(tail,[quat(z=.3),quat(z=.3)],[0,1])]+greg_falling)
-    anim('Reach',[(arms[1],[quat(),quat(),quat(2.2),quat(2.3),quat(2.3),quat()],[0,.7,1.8,2.3,3.3,4.4]),(head,[quat(),quat(y=.3),quat(y=.3),quat()],[0,1,3.4,4.4])])
+    if character=='greg':
+        anim('Reach',[(arms[1],[quat(),quat(),quat(2.2),quat(2.3),quat(2.3),quat()],[0,.7,1.8,2.3,3.3,4.4]),(head,[quat(),quat(y=.3),quat(y=.3),quat()],[0,1,3.4,4.4])])
+    else:
+        equipment_tracks=[
+            (arms[1],[quat(),quat(-.3,z=-.5),quat(-.45,z=-.6),quat(-.2,z=-.3),quat(),quat()],[0,.45,.75,1.15,1.7,3.8]),
+            (arms[0],[quat(),quat(-.25,z=.5),quat(-.4,z=.65),quat(),quat()],[0,.35,.7,1.25,3.8]),
+            (carabiner,[quat(),quat(z=.25),quat(),quat()],[0,1.15,1.6,3.8]),
+            (head,[quat(),quat(.18,y=.2),quat(.12,y=.2),quat(),quat(y=-.4),quat(),quat()],[0,.4,1.4,1.9,2.6,3.2,3.8]),
+            ([i for i in joints if nodes[i]['name']=='leg 1'][0],[quat(),quat(-.12),quat(),quat()],[0,1.65,1.9,3.8]),
+        ]
+        anim('Equipment check',equipment_tracks)
+        anim('Reach',equipment_tracks)
     anim('Impact',[(root,[quat(math.pi/2),quat(.8),quat(2),quat(math.pi/2)],[0,.2,.55,1.2])])
 else:
     # Linda already stands horizontally. Pitching her like upright Greg would

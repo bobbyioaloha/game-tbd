@@ -58,9 +58,9 @@
 .movement-stage:has(.creation-notice) .aim-hint,.movement-stage:has(.race-feedback) .aim-hint{display:none}
 @container(max-width:600px) and (max-height:500px){.race-tracker:has(~ .creation-notice){display:none}}
 /* Department of Workplace Safety: flat panels and restrained, functional type. */
-.movement-test{font-family:Arial,system-ui,sans-serif}.movement-stage,.movement-test button,.game-test-tabs button,.race-detail{border-radius:0}
-.movement-test .eyebrow{color:#d7bd58;font-family:monospace}.movement-heading h1{font-weight:500}
-.movement-status,.race-place,.race-tracker,.play-item,.flight-tools,.race-feedback,.creation-notice,.threat-warning,.race-result,.incident-counter{font-family:monospace;text-shadow:none}
+.movement-test{font-family:var(--font-ui)}.movement-stage,.movement-test button,.game-test-tabs button,.race-detail{border-radius:0}
+.movement-test .eyebrow{color:#d7bd58;font-family:var(--font-mono)}.movement-heading h1{font-weight:500}
+.movement-status,.race-place,.race-tracker,.play-item,.flight-tools,.race-feedback,.creation-notice,.threat-warning,.race-result,.incident-counter{font-family:var(--font-mono);text-shadow:none}
 .movement-status{background:#172c3e;padding:9px 12px;top:12px;left:12px;right:12px;font-size:12px;border-bottom:2px solid #d7bd58}
 .race-place{top:64px;font-size:28px}.race-place small{font-size:10px}
 .race-tracker,.play-item,.flight-tools,.race-feedback,.creation-notice,.creation-trophy,.threat-warning,.race-result,.jet-label,.race-mic-setup{background:#172c3ef2;border:1px solid #7c8a90;border-radius:0;box-shadow:none}
@@ -68,46 +68,46 @@
 .play-item{max-width:280px;padding:10px}.play-item svg{width:44px;height:44px}.play-item strong{font-size:15px}.play-item small,.play-item span{font-size:11px}
 .flight-tools{font-size:12px}.flight-tools strong{font-size:12px;color:#e0c869}.flight-tools progress{accent-color:#d7bd58}
 .incident-counter{position:absolute;top:66px;right:18px;background:#172c3e;padding:10px 12px;font-size:12px;border-left:2px solid #d7bd58;z-index:2;color:#e9e9de;pointer-events:none}.incident-counter strong{margin-left:12px}
-.movement-pause{background:#0d202ec9}.movement-pause h2{font-family:monospace;text-transform:uppercase;font-size:22px;font-weight:400}.movement-pause button,.game-test-tabs button[aria-pressed=true]{background:#d7bd58;color:#172c3e}
+.movement-pause{background:#0d202ec9}.movement-pause h2{font-family:var(--font-mono);text-transform:uppercase;font-size:22px;font-weight:400}.movement-pause button,.game-test-tabs button[aria-pressed=true]{background:#d7bd58;color:#172c3e}
 .creation-notice{border-color:#d7bd58;padding:12px 18px}.creation-notice>strong{font-size:18px}.creation-notice span{font-size:14px}
 .threat-warning{font-size:17px;border-color:#d7bd58}.threat-warning.incoming{animation:none;box-shadow:none}.threat-warning small{font-size:12px}
 @container(max-width:600px){.movement-status{font-size:10px}.incident-counter{top:65px;right:12px;font-size:10px}.threat-warning{top:108px;max-width:calc(100% - 165px)}.play-item{max-width:calc(100% - 180px)}.play-item svg{width:30px;height:30px}.race-tracker{width:130px}.creation-notice{font-size:14px}}
 @media(max-width:600px){header{height:auto;min-height:74px;flex-wrap:wrap;gap:10px;padding-top:12px;padding-bottom:12px}header nav{flex-wrap:wrap}}
 
 /* Industrial safety placards: bold signal words, off-white stock, yellow/black edging. */
-.safety-label{display:block;font:700 10px Arial,sans-serif;letter-spacing:1px;background:#f0c928;color:#171b1b;padding:5px 7px;margin:-10px -12px 8px}
+.safety-label{display:block;font:700 10px var(--font-ui);letter-spacing:1px;background:#f0c928;color:#171b1b;padding:5px 7px;margin:-10px -12px 8px}
 .incident-counter{background:#eeeede;color:#19272d;border:2px solid #172c3e;padding:10px 12px;font-weight:700}
 .incident-counter strong{font-size:20px}.incident-counter .safety-label{border-bottom:2px solid #172c3e}
 .race-tracker{border:2px solid #172c3e;background:#eeeede;color:#182c38;padding:10px}
-.race-tracker>strong{display:block;margin:-10px -10px 10px;padding:8px;background:#f0c928;color:#171b1b;font:700 10px Arial,sans-serif;letter-spacing:.3px}
+.race-tracker>strong{display:block;margin:-10px -10px 10px;padding:8px;background:#f0c928;color:#171b1b;font:700 10px var(--font-ui);letter-spacing:.3px}
 .race-tracker li small,.tracker-start,.tracker-finish,.tracker-you{color:#223843}.race-tracker li span{color:#223843!important}
 .race-tracker-course::before{background:#596c74}.tracker-dot{border-color:#172c3e}.tracker-dot.you{outline-color:#172c3e}
 .play-item{border:2px solid #172c3e;border-top:7px solid #f0c928;background:#eeeede;color:#172c3e}
-.play-item small,.play-item span{color:#33464f}.play-item small{font:700 10px Arial,sans-serif;letter-spacing:.5px}
+.play-item small,.play-item span{color:#33464f}.play-item small{font:700 10px var(--font-ui);letter-spacing:.5px}
 .flight-tools{border:2px solid #172c3e;padding-top:10px}.flight-tools .safety-label{margin:-10px -16px 8px}
 .movement-status{border-bottom:5px solid transparent;border-image:repeating-linear-gradient(135deg,#f0c928 0 9px,#1c2429 9px 18px) 5}
-.safety-caution{display:block;background:#f0c928;color:#141a1c;border:3px solid #141a1c;padding:9px 32px;font:900 28px Arial,sans-serif;letter-spacing:3px}
-.movement-pause h2{font:700 20px Arial,sans-serif;max-width:400px}.movement-pause button{background:#f0c928}
-.threat-warning::before{content:"⚠ WARNING";display:block;font:900 13px Arial,sans-serif;letter-spacing:1px;color:#f0c928}
+.safety-caution{display:block;background:#f0c928;color:#141a1c;border:3px solid #141a1c;padding:9px 32px;font:900 28px var(--font-ui);letter-spacing:3px}
+.movement-pause h2{font:700 20px var(--font-ui);max-width:400px}.movement-pause button{background:#f0c928}
+.threat-warning::before{content:"⚠ WARNING";display:block;font:900 13px var(--font-ui);letter-spacing:1px;color:#f0c928}
 @container(max-width:600px){.incident-counter{padding:8px 10px}.incident-counter .safety-label{margin:-8px -10px 6px}.flight-tools .safety-label{margin:-10px -9px 6px;font-size:9px}.race-tracker>strong{font-size:9px;margin:-10px -10px 8px}.play-item small{font-size:9px}.threat-warning::before{font-size:10px}}
 
 /* One game viewport: scene, personnel menus, race HUD, and setup share this shell. */
 .movement-test:has(.packaged-game){padding:14px 2%}.packaged-game{display:flex;flex-direction:column;height:calc(100dvh - 120px);min-height:620px;background:#75b8df;border:2px solid #172c3e}
-.in-game-toolbar{flex:none;min-height:46px;background:#172c3e;border-bottom:4px solid #f0c928;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 12px;color:#f0c928;font:700 11px Arial,sans-serif;letter-spacing:1px;z-index:5}
-.in-game-toolbar>div{display:flex;gap:6px;flex-wrap:wrap}.in-game-toolbar button{padding:7px 10px;font:11px Arial,sans-serif;border:1px solid #71818a}.in-game-toolbar button[aria-pressed=true]{background:#f0c928;color:#172c3e}
+.in-game-toolbar{flex:none;min-height:46px;background:#172c3e;border-bottom:4px solid #f0c928;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 12px;color:#f0c928;font:700 11px var(--font-ui);letter-spacing:1px;z-index:5}
+.in-game-toolbar>div{display:flex;gap:6px;flex-wrap:wrap}.in-game-toolbar button{padding:7px 10px;font:11px var(--font-ui);border:1px solid #71818a}.in-game-toolbar button[aria-pressed=true]{background:#f0c928;color:#172c3e}
 .in-game-display{position:relative;flex:1;min-height:0;overflow:hidden}.in-game-display>div:first-child{height:100%}
 .in-game-personnel{position:absolute;top:24px;bottom:24px;right:24px;width:320px;padding:16px;background:#172c3eef;border:2px solid #f0c928;color:#eef0e4;overflow:auto;z-index:2;box-shadow:0 8px 24px #172c3e33}
-.in-game-personnel .safety-label{margin:-16px -16px 16px;padding:9px 12px}.in-game-personnel h1{font:700 22px Arial,sans-serif;letter-spacing:0;margin:10px 0 18px}.in-game-personnel h2{font:700 28px Arial,sans-serif;margin:8px 0}
-.in-game-personnel h2 small{display:block;font:11px monospace;margin-top:7px}.in-game-personnel p{font-size:12px;margin:12px 0;color:#d5dfdf}
-.in-game-roster{display:grid;gap:5px}.in-game-roster button{display:grid;grid-template-columns:1fr auto;text-align:left;padding:9px 10px;gap:3px;border-color:#789097}.in-game-roster button[aria-pressed=true]{background:#eeeede;color:#172c3e;border-color:#f0c928}.in-game-roster span{font-size:10px}.in-game-roster small{grid-column:1/-1;font:9px monospace;color:inherit}.in-game-roster button:disabled{opacity:.55}
-.in-game-inspection{display:grid;gap:8px;margin:14px 0}.in-game-inspection label{display:flex;gap:10px;align-items:center;justify-content:space-between;font:11px monospace}.in-game-inspection input{width:165px;accent-color:#f0c928}.in-game-inspection select{background:#243b49;color:white;padding:7px;border:1px solid #789097;max-width:175px}
-.in-game-inspection button{font-size:11px;padding:7px;margin-right:5px}.in-game-personnel .begin-exercise{width:100%;background:#f0c928;color:#172c3e;padding:13px;font-weight:700;margin:4px 0 10px}.in-game-personnel>small{display:block;font:10px monospace;text-align:center}
+.in-game-personnel .safety-label{margin:-16px -16px 16px;padding:9px 12px}.in-game-personnel h1{font:700 22px var(--font-ui);letter-spacing:0;margin:10px 0 18px}.in-game-personnel h2{font:700 28px var(--font-ui);margin:8px 0}
+.in-game-personnel h2 small{display:block;font:11px var(--font-mono);margin-top:7px}.in-game-personnel p{font-size:12px;margin:12px 0;color:#d5dfdf}
+.in-game-roster{display:grid;gap:5px}.in-game-roster button{display:grid;grid-template-columns:1fr auto;text-align:left;padding:9px 10px;gap:3px;border-color:#789097}.in-game-roster button[aria-pressed=true]{background:#eeeede;color:#172c3e;border-color:#f0c928}.in-game-roster span{font-size:10px}.in-game-roster small{grid-column:1/-1;font:9px var(--font-mono);color:inherit}.in-game-roster button:disabled{opacity:.55}
+.in-game-inspection{display:grid;gap:8px;margin:14px 0}.in-game-inspection label{display:flex;gap:10px;align-items:center;justify-content:space-between;font:11px var(--font-mono)}.in-game-inspection input{width:165px;accent-color:#f0c928}.in-game-inspection select{background:#243b49;color:white;padding:7px;border:1px solid #789097;max-width:175px}
+.in-game-inspection button{font-size:11px;padding:7px;margin-right:5px}.in-game-personnel .begin-exercise{width:100%;background:#f0c928;color:#172c3e;padding:13px;font-weight:700;margin:4px 0 10px}.in-game-personnel>small{display:block;font:10px var(--font-mono);text-align:center}
 .in-game-settings{position:absolute;inset:16px 16px 16px auto;width:min(440px,calc(100% - 32px));z-index:6;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:18px;background:#172c3e;border:2px solid #f0c928}
 .in-game-settings .race-detail{width:100%}.settings-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}.settings-heading h2{margin:0;font-size:20px}.settings-heading button{font-size:11px;padding:8px}
 @media(max-width:700px){.packaged-game{min-height:760px;height:calc(100dvh - 100px)}.in-game-toolbar{flex-wrap:wrap;padding:8px;gap:7px}.in-game-toolbar>span{font-size:10px}.in-game-toolbar button{padding:6px 8px}.in-game-personnel{top:auto;bottom:12px;left:12px;right:12px;width:auto;max-height:48%;padding:12px}.in-game-personnel .safety-label{margin:-12px -12px 10px}.in-game-personnel h1{font-size:18px;margin:4px 0 10px}.in-game-personnel h2{font-size:22px}.in-game-personnel p{margin:8px 0}.in-game-roster{grid-template-columns:1fr 1fr}.in-game-roster button{grid-template-columns:1fr}.in-game-roster span{font-size:9px}.in-game-inspection{margin:10px 0}}
 
 .exercise-start-screen{position:absolute;inset:0;z-index:4;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;padding:24px;background:#142c3ef7;color:#f1eedc;border-top:10px solid transparent;border-bottom:10px solid transparent;border-image:repeating-linear-gradient(135deg,#f0c928 0 12px,#17232c 12px 24px) 10}
-.exercise-start-screen h1{font:700 clamp(20px,3vw,34px) Arial,sans-serif;letter-spacing:2px;margin:8px 0}.exercise-start-number{font:900 clamp(90px,18vh,160px)/1 Arial,sans-serif;color:#f0c928;animation:commencement-number .2s ease-out}.exercise-start-screen p{color:#dae0dd;margin:0}.exercise-start-screen button{font-size:12px;background:transparent;border-color:#798c95}.exercise-start-screen .safety-caution{font-size:20px}
+.exercise-start-screen h1{font:700 clamp(20px,3vw,34px) var(--font-ui);letter-spacing:2px;margin:8px 0}.exercise-start-number{font:900 clamp(90px,18vh,160px)/1 var(--font-ui);color:#f0c928;animation:commencement-number .2s ease-out}.exercise-start-screen p{color:#dae0dd;margin:0}.exercise-start-screen button{font-size:12px;background:transparent;border-color:#798c95}.exercise-start-screen .safety-caution{font-size:20px}
 @keyframes commencement-number{from{opacity:.4;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
 @media(prefers-reduced-motion:reduce){.exercise-start-number{animation:none}}
 
@@ -132,9 +132,9 @@
 /* Player entry and pre-race setup reuse the game's safety-exercise palette. */
 .movement-test:has(.packaged-game){padding:14px}
 .packaged-game{height:calc(100dvh - 28px);min-height:620px}
-.in-game-toolbar a{color:#eaf0f8;text-decoration:none;padding:7px 10px;border:1px solid #71818a;font:11px Arial,sans-serif}
+.in-game-toolbar a{color:#eaf0f8;text-decoration:none;padding:7px 10px;border:1px solid #71818a;font:11px var(--font-ui)}
 .race-setup{position:absolute;inset:16px;z-index:3;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;padding:24px;background:#172c3ef5;border:2px solid #f0c928;color:#eef0e4}
-.race-setup h1{font:700 28px Arial,sans-serif;letter-spacing:0;margin:16px 0 22px}
+.race-setup h1{font:700 28px var(--font-ui);letter-spacing:0;margin:16px 0 22px}
 .race-setup h1:focus{outline:none}
 .race-setup-columns{flex:1;min-height:0;overflow:auto;padding-right:8px;overscroll-behavior:contain;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,1fr);gap:32px}
 .race-setup summary{font-weight:700;cursor:pointer;padding:8px 0}
@@ -156,3 +156,8 @@
 .race-setup-actions>div{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
 .race-setup .begin-exercise{background:#f0c928;color:#172c3e;font-weight:700}
 @media(max-width:800px){.race-setup{inset:8px;padding:16px}.race-setup-columns{grid-template-columns:1fr;gap:20px}.race-voice-setup{border-left:0;border-top:1px solid #71818a;padding:20px 0 0}.race-setup h1{font-size:24px}.race-setup-actions>div{flex-direction:column}.packaged-game{min-height:620px}}
+
+/* Ground inspection results stay readable alongside the landing scene. */
+.race-result{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;white-space:normal;max-width:calc(100% - 40px)}
+.race-result span{min-width:0;overflow-wrap:anywhere;line-height:1.5}
+@media(max-width:700px){.race-result{flex-direction:column;align-items:flex-start;font-size:11px;padding:12px}.race-result strong{font-size:14px}}
