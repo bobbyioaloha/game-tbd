@@ -8,6 +8,10 @@ const GenerationLabPage = import.meta.env.DEV
   ? lazy(() => import('./pages/GenerationLabPage').then(module => ({default: module.GenerationLabPage})))
   : null;
 
+const LaunchPreviewPage = import.meta.env.DEV
+  ? lazy(() => import('./launch-preview/LaunchPreviewPage').then(module => ({default: module.LaunchPreviewPage})))
+  : null;
+
 function App() {
   const [route, setRoute] = useState(() => window.location.hash);
   useEffect(() => {
@@ -16,14 +20,15 @@ function App() {
     return () => window.removeEventListener('hashchange', update);
   }, []);
   const lab = import.meta.env.DEV && route === '#/dev/generation';
+  const launchPreview = import.meta.env.DEV && route === '#/dev/launch';
   return <>
     {lab && <header className="developer-header">
       <a className="brand" href="#/">↘ FALLING STANDARDS<span> / DEVELOPMENT LAB</span></a>
       <nav aria-label="Developer navigation"><a href="#/">Play game</a><a href="#/dev/generation" aria-current="page">Generation lab</a></nav>
       <span className="badge">● DEVELOPMENT</span>
     </header>}
-    <Suspense key={lab ? 'lab' : 'game'} fallback={<p className="page-loading" role="status">Loading {lab ? 'generation lab' : 'game'}…</p>}>
-      {lab && GenerationLabPage ? <GenerationLabPage/> : <GamePage/>}
+    <Suspense key={lab ? 'lab' : launchPreview ? 'launch-preview' : 'game'} fallback={<p className="page-loading" role="status">Loading {lab ? 'generation lab' : launchPreview ? '3D study' : 'game'}…</p>}>
+      {lab && GenerationLabPage ? <GenerationLabPage/> : launchPreview && LaunchPreviewPage ? <LaunchPreviewPage/> : <GamePage/>}
     </Suspense>
     <Analytics mode={import.meta.env.DEV ? 'development' : 'production'}/>
   </>;

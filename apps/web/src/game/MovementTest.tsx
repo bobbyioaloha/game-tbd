@@ -1,3 +1,4 @@
+import { LaunchScreen } from '../launch/LaunchScreen';
 import { RaceCreations } from './RaceCreations';
 import { MusicControls, useGameMusic } from './GameMusic';
 import { Preview } from '../pages/CharacterPage';
@@ -166,14 +167,7 @@ export function MovementTest() {
   }, [runtime, binding, pause, startCountdown]);
 
   return <>
-    {screen==='title' ? <section className="training-title" aria-label="Falling Standards">
-    <img src="/images/falling-standards.png" alt="Falling Standards. Your continued existence is mandatory. Four dinosaur trainees skydive past a refrigerator and sofa toward a forest landing target."/>
-    <div className="training-title-actions">
-      <button autoFocus className="commence-training" onClick={()=>setScreen('selection')}>Commence Training <span aria-hidden="true">→</span></button>
-      <MusicControls music={music} compact/>
-      <details><summary>Training essentials</summary><p>{steeringHelp}<br/>{actionHelp}</p><p>Choose your trainee, then complete the briefing. Voice creation is optional.</p></details>
-    </div>
-  </section> : <section className="movement-test">
+    {screen==='title' ? <LaunchScreen onCommence={()=>setScreen('selection')} music={music}/> : <section className="movement-test">
     <div className="movement-layout">
       <div className={'movement-stage packaged-game '+(screen!=='race'?'personnel-menu':'')}>
         <div className="in-game-toolbar">
