@@ -11,14 +11,14 @@ import { ITEM_NAMES } from './race-course';
 import { useFrame } from '@react-three/fiber';
 import { Vector3, PerspectiveCamera, type Group, type Mesh, type MeshBasicMaterial } from 'three';
 import { CloudField, StarfishDiver } from './skydiving-scenery';
-import { PracticeRace, FINISH_DEPTH, RACER_COLORS, LANE_HALF_WIDTH } from './practice-race';
+import { PracticeRace, FINISH_DEPTH, LANE_HALF_WIDTH } from './practice-race';
 
 const eventAuraColors={gravityWell:'#bb8cff',debrisShower:'#ffb94b',repulsionBurst:'#ff8555',protectiveZone:'#6dffff'};
 
 export const defaultBindings = {left:'KeyA',right:'KeyD',forward:'KeyW',backward:'KeyS',brake:'KeyK',look:'KeyI',use:'KeyJ',boost:'KeyU',dodge:'KeyL'};
 export type Action = keyof typeof defaultBindings;
 export type RaceRuntime = {race:PracticeRace;voice?:RaceEventHost;keys:Set<string>;paused:boolean;bindings:typeof defaultBindings;clock:number;generation:number;fireRequested:boolean;dodgeRequested:boolean;target?:number};
-export type Marker = {id:number;name:string;left:number;top:number;angle:number;edge:boolean;gap:string;locked:boolean;selected:boolean;progress:number};
+export type Marker = {id:number;name:string;color:string;left:number;top:number;angle:number;edge:boolean;gap:string;locked:boolean;selected:boolean;progress:number};
 export const initialRaceHud = {incidents:0,creationMarker:null as {left:number;top:number;angle:number;edge:boolean;name:string;gap:string}|null,speed:0,depth:0,x:-7.5,z:0,brake:false,look:false,time:0,place:1,finish:null as number|null,remaining:FINISH_DEPTH,markers:[] as Marker[],allFinished:false,item:'Empty',effects:'',targetName:'',itemKey:null as Item|null,feedback:'',boost:false,fuel:0,dodgeCooldown:0,threat:'',threatAngle:0,threatDistance:'',standings:new PracticeRace(false).standings()};
 
 function CrashMat() {
@@ -135,7 +135,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         const world=new Vector3(rx,ry-y+0.3,rz);
         const marker=projectRivalMarker(world,camera);
         const difference=ry-y;
-        return {id:racer.id,name:racer.name,...marker,locked:runtime.target===racer.id,selected:lock.current.target===racer.id,progress:lock.current.target===racer.id?lock.current.progress:0,
+        return {id:racer.id,name:racer.name,color:racer.color,...marker,locked:runtime.target===racer.id,selected:lock.current.target===racer.id,progress:lock.current.target===racer.id?lock.current.progress:0,
           gap:racer.finishTime!==undefined ? 'Landed' : Math.abs(difference)<1 ? 'Level' : Math.round(Math.abs(difference))+' m '+(difference>0?'above':'below')};
       });
       const creation=runtime.voice?.creation;
@@ -173,10 +173,10 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
   return <>
     <color attach="background" args={['#75b8df']}/><fog attach="fog" args={['#b8ddef',80,250]}/>
     <ambientLight intensity={2}/><directionalLight position={[15,30,-10]} intensity={2.5}/>
-    <group ref={racers}>{RACER_COLORS.map((color,index)=><group key={index}>
-      {index<2
-        ?<group position={[0,-1.35,0]} rotation={[0,Math.PI,0]}><DinosaurModel character={index===0?'greg':'linda'} pose="Dive" time={()=>runtime.race.elapsed} wind={()=>({time:runtime.race.elapsed,speed:runtime.race.racers[index].finishTime===undefined?runtime.race.snapshot(runtime.race.racers[index]).fallSpeed:0})}/></group>
-        :<StarfishDiver color={color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/>}
+    <group ref={racers}>{runtime.race.racers.map((racer,index)=><group key={index}>
+      {racer.model
+        ?<group position={[0,-1.35,0]} rotation={[0,Math.PI,0]}><DinosaurModel key={racer.model} character={racer.model} pose="Dive" time={()=>runtime.race.elapsed} wind={()=>({time:runtime.race.elapsed,speed:runtime.race.racers[index].finishTime===undefined?runtime.race.snapshot(runtime.race.racers[index]).fallSpeed:0})}/></group>
+        :<StarfishDiver color={racer.color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/>}
       <mesh name="event-aura" visible={false}><sphereGeometry args={[2.2,16,12]}/><meshBasicMaterial color="#7ee9f1" wireframe transparent opacity={0.5} depthWrite={false}/></mesh>
     </group>)}</group>
     <RaceObjects race={runtime.race}/>

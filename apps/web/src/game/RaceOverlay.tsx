@@ -1,6 +1,5 @@
 import type { Item } from './race-course';
 import type { initialRaceHud } from './RaceScene';
-import { RACER_COLORS } from './practice-race';
 
 function ItemIcon({item}:{item:Item|null}){
   return <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -25,11 +24,11 @@ export function RaceOverlay({hud,paused,useKey,boostKey,dodgeKey}:{hud:typeof in
       <div className="race-tracker-course" aria-hidden="true">
         <span className="tracker-start">START</span><span className="tracker-finish">FINISH</span>
         {[...hud.standings].sort((a,b)=>a.id-b.id).map(racer=><div key={racer.id} className="tracker-marker" style={{top:(racer.progress*100)+'%'}}>
-          <span className={'tracker-dot '+(racer.id===0?'you':'')} style={{left:(10+racer.id*13)+'px',background:RACER_COLORS[racer.id]}}/>{racer.id===0&&<span className="tracker-you">YOU →</span>}
+          <span className={'tracker-dot '+(racer.id===0?'you':'')} style={{left:(10+racer.id*13)+'px',background:racer.color}}/>{racer.id===0&&<span className="tracker-you">YOU →</span>}
         </div>)}
       </div>
       <ol>{hud.standings.map(racer=><li key={racer.id} className={racer.id===0?'you':''}>
-        <span style={{color:RACER_COLORS[racer.id]}}>{racer.place}. {racer.name}</span>
+        <span style={{color:racer.color}}>{racer.place}. {racer.name}</span>
         <small>{racer.finished?'FIN':racer.id===0?'YOU':Math.abs(racer.gap)<1?'Level':Math.round(Math.abs(racer.gap))+'m '+(racer.gap>0?'ahead':'back')}</small>
       </li>)}</ol>
     </div>
@@ -42,7 +41,7 @@ export function RaceOverlay({hud,paused,useKey,boostKey,dodgeKey}:{hud:typeof in
       })}
     </svg>}
     {!paused&&hud.markers.map(marker=><div key={marker.id} className={'jet-target '+(marker.selected?'selected ':'')+(marker.locked?'locked':'')}
-      style={{left:marker.left+'%',top:marker.top+'%',color:marker.selected?(marker.locked?'#8cff9a':'#ffe175'):RACER_COLORS[marker.id]}}>
+      style={{left:marker.left+'%',top:marker.top+'%',color:marker.selected?(marker.locked?'#8cff9a':'#ffe175'):marker.color}}>
       {marker.edge?<span className="jet-edge" style={{transform:'rotate('+marker.angle+'deg)'}}>↑</span>:<svg viewBox="0 0 48 48" aria-hidden="true">
         <path d="M3 15V3h12m18 0h12v12m0 18v12H33m-18 0H3V33" fill="none" stroke="currentColor" strokeWidth="2"/>
         {marker.selected&&<circle cx="24" cy="24" r="20" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray={(marker.progress*126)+' 126'} transform="rotate(-90 24 24)"/>}
