@@ -24,7 +24,7 @@ The final procedural visual is baked into one render mesh. Its short appearance 
 
 Follow [the local live AI setup](voice-input-plan.md#enable-live-ai-locally) to save a server-side key and start `bun run dev:live`. The local allowance defaults to three dispatched attempts per server start; key presence alone does not enable spending.
 
-In **Asset generation**, select a live profile and visual method, then enter a short prompt. Check **Allow this paid attempt** and click **Generate · up to 2 API calls**. Consent resets after submission and when you change the prompt, method, or profile. Every comparison is a separate deliberate attempt; there is no automatic paid batch, retry, or repair call.
+In **Asset generation**, select a live profile and visual method, then enter a short prompt. Check **Allow this paid attempt** and click **Generate · up to 2 paid calls**. Consent resets after submission and when you change the prompt, method, or profile. Every comparison is a separate deliberate attempt; there is no automatic paid batch, retry, or repair call.
 
 Adding a key, refreshing profiles, loading a fixture, and editing prompts make no provider calls. Availability reports configuration only, not verified model/account access. Legacy raw-spec endpoints stay mocked. For hosted game settings and the separate 100-attempt per-instance default, use [the deployment guide](deployment.md).
 
@@ -39,6 +39,10 @@ Rate recognizable silhouette and requested features as Clear, Partial, or Unclea
 **Export comparison JSON** creates a visible, selectable JSON snapshot and a download link. Copy the text if the browser does not support downloads. It includes prompts, full profile settings, methods, events, specs, ratings, timing and outcomes. Export before navigating away, reloading, or editing code during development; history is component memory only.
 
 Keep 30 seconds as the failure ceiling. A 5–10 second typical result is an evaluation target, not a measured guarantee. Retain both methods until live samples establish recognizable-result rate, latency, and usage. Single-call generation, additional shapes, material presets, and generated animation are future experiments.
+
+## Content screening
+
+Live requests and generated design text are screened before geometry. Refusals make no creation and consume the admitted attempt. The two free moderation requests share the 30-second generation deadline; no extra paid generation calls are added. See [content guardrails](content-guardrails.md) for policy, mock rejection fixtures, privacy, and limitations.
 
 ## Models and budgets
 

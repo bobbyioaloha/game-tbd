@@ -1,3 +1,4 @@
+import { mockContentGuard } from './generation/content-guard.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -15,7 +16,7 @@ const fixture = proceduralFixtures.find(item => item.prompt === 'red rocket with
 const request = ():PipelineRequest => ({text:fixture.prompt,profileId:'sol-astra',geometryMode:'primitives',paidAttempt:{id:randomUUID(),confirmed:true}});
 const responseFor:StageTransport['run'] = async request => ({data:request.stage === 'design' ? fixture.design : appearanceToRecipe(fixture.appearance)});
 function livePipeline(run:StageTransport['run'] = responseFor, maxAttempts = 3, enabled = true) {
-  return new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:secret},true),{live:{run},mock:{run:responseFor}},undefined,{enabled,maxAttempts});
+  return new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:secret},true),{live:{run},mock:{run:responseFor}},undefined,{enabled,maxAttempts},undefined,{mock:mockContentGuard,live:mockContentGuard});
 }
 const code = (expected:string) => (error:unknown) => error instanceof PipelineFailure && error.code === expected;
 

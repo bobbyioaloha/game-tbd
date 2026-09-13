@@ -1,3 +1,4 @@
+import { mockContentGuard } from './generation/content-guard.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -17,7 +18,7 @@ function harness(speech:TranscriptionProvider['transcribe']=async()=>fixture.pro
   const pipeline=new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:'test-fake-key'},true),{
     mock:{run:async()=>{throw new Error('Unexpected mock');}},
     live:{run:async request=>{geometryCalls++;return {data:request.stage==='design'?fixture.design:appearanceToRecipe(fixture.appearance)};}},
-  },undefined,{enabled:true,maxAttempts:3},{mock:{model:'mock',transcribe:speech},live:{model:'test-transcription',transcribe:async(...args)=>{speechCalls++;return speech(...args);}}});
+  },undefined,{enabled:true,maxAttempts:3},{mock:{model:'mock',transcribe:speech},live:{model:'test-transcription',transcribe:async(...args)=>{speechCalls++;return speech(...args);}}},{mock:mockContentGuard,live:mockContentGuard});
   return {pipeline,counts:()=>({geometryCalls,speechCalls})};
 }
 const failure=(code:string)=>(error:unknown)=>error instanceof PipelineFailure&&error.code===code;
@@ -100,7 +101,7 @@ test('actual SDK speech and generation use intercepted fetch, English hints, and
   };
   const speech=openAITranscription('test-private-credential','gpt-transcribe',fakeFetch);
   const transport=openAITransport('test-private-credential',fakeFetch);
-  const pipeline=new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:'test-private-credential'},true),{mock:transport,live:transport},undefined,{enabled:true,maxAttempts:3},{mock:speech,live:speech});
+  const pipeline=new CreationPipeline(pipelineProfiles({OPENAI_API_KEY:'test-private-credential'},true),{mock:transport,live:transport},undefined,{enabled:true,maxAttempts:3},{mock:speech,live:speech},{mock:mockContentGuard,live:mockContentGuard});
   const result=await pipeline.runVoice(audio,{...request(),mockText:'giant rubber duck'});
   assert.equal(result.result.text,'red rocket with fins');assert.equal(result.spec?.displayName,fixture.spec.displayName);assert.equal(calls,3);assert.equal(pipeline.liveUsage.attemptsUsed,1);
 });

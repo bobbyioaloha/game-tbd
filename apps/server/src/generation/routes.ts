@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { CreationSpecSchema, GenerationRequestSchema } from '@sky/shared';
+import { CONTENT_REFUSAL_MESSAGE, CONTENT_UNAVAILABLE_MESSAGE } from './content-policy.js';
+import { PipelineFailure } from './pipeline-errors.js';
 import { mockCreationProvider, type CreationProvider } from './provider.js';
 
 export function registerCreationRoutes(app: FastifyInstance, provider: CreationProvider = mockCreationProvider, timeoutMs = 30000) {
@@ -25,7 +27,10 @@ export function registerCreationRoutes(app: FastifyInstance, provider: CreationP
         return reply.code(502).send({error: {code: 'INVALID_SPEC', message: 'Provider returned invalid creation data.'}});
       }
       return {...parsed.data, id: randomUUID()};
-    } catch {
+    } catch (error) {
+      if (error instanceof PipelineFailure && ['REFUSED','PROVIDER_UNAVAILABLE'].includes(error.code)) {
+        return reply.code(error.code === 'REFUSED' ? 422 : 503).send({error:{code:error.code,message:error.code === 'REFUSED' ? CONTENT_REFUSAL_MESSAGE : CONTENT_UNAVAILABLE_MESSAGE}});
+      }
       return reply.code(500).send({error: {code: 'GENERATION_FAILED', message: 'Creation generation failed or timed out.'}});
     } finally {
       clearTimeout(timer);

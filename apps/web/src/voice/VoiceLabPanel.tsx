@@ -86,7 +86,10 @@ export function VoiceLabPanel({profile,geometryMode,mockText,liveUsage,transcrip
       commit(attempt,response.spec?'ready':'transcribed',response.spec?'Ready: one creation, one effect.':'Transcription complete. No asset generation was requested.');
     } catch(error){
       if(active.current===attempt){
-        if(error instanceof VoiceRequestError){attempt.error=error.detail;setFailure(error.detail);}
+        if(error instanceof VoiceRequestError){
+          attempt.error=error.detail;setFailure(error.detail);
+          if(error.detail.code==='REFUSED')setResult(undefined);
+        }
         commit(attempt,attempt.controller.signal.aborted?'cancelled':'failed',error instanceof Error?error.message:'Voice request failed.');
       }
     }

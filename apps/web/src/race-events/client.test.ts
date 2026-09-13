@@ -28,3 +28,21 @@ test('voice event client uses its dedicated endpoint and surfaces failure withou
       {profileId:'mock',mockText:'hungry purple planet'},new AbortController().signal),/INVALID_TRANSCRIPT/);assert.equal(calls,1);
   } finally {globalThis.fetch=original;}
 });
+
+test('typed and voice race refusals never resolve a spec or automatically retry', async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  const message = "That request isn't suitable for this game. No creation was made.";
+  globalThis.fetch = async url => {
+    calls++;
+    const event = {type:'failed',error:{code:'REFUSED',message},elapsedMs:30,
+      ...(url==='/api/lab/events'?{stage:'design',metrics:[]}: {})};
+    return new Response(JSON.stringify(event)+'\n');
+  };
+  try {
+    const signal = new AbortController().signal;
+    await assert.rejects(raceEventClient.generate({text:'blocked mock request',profileId:'mock'},signal),{message});
+    await assert.rejects(raceEventClient.generateVoice({blob:new Blob(['fake clip']),captureMs:1000},{profileId:'mock'},signal),{message});
+    assert.equal(calls,2);
+  } finally {globalThis.fetch=original;}
+});

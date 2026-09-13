@@ -1,3 +1,4 @@
+import { mockContentGuard } from './generation/content-guard.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -81,7 +82,7 @@ test('the in-memory slot stays reserved across both generation stages',async()=>
   const pipeline:CreationPipeline=new CreationPipeline(pipelineProfiles(env,true),{mock:{run:async()=>{throw new Error('Unexpected mock');}},live:{run:async request=>{
     assert.equal(pipeline.liveUsage.busy,true);
     return {data:request.stage==='design'?fixture.design:appearanceToRecipe(fixture.appearance)};
-  }}},undefined,{enabled:true,maxAttempts:100});
+  }}},undefined,{enabled:true,maxAttempts:100},undefined,{mock:mockContentGuard,live:mockContentGuard});
   await pipeline.run(input());
   assert.equal(pipeline.liveUsage.busy,false);
   assert.equal(pipeline.liveUsage.attemptsRemaining,99);
@@ -92,7 +93,7 @@ test('HTTP progress streams before generation finishes and disconnect cancels wo
   const pipeline=new CreationPipeline(pipelineProfiles(env,true),{
     mock:{run:async()=>{throw new Error('Unexpected mock');}},
     live:{run:async request=>{upstreamSignal=request.signal;return new Promise(()=>{});}},
-  },undefined,{enabled:true,maxAttempts:100});
+  },undefined,{enabled:true,maxAttempts:100},undefined,{mock:mockContentGuard,live:mockContentGuard});
   const app=buildApp({pipeline,allowedOrigin:origin=>origin===env.APP_ORIGIN});
   const controller=new AbortController();
   try {

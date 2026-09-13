@@ -40,3 +40,17 @@ test('voice client reports structured speech errors and speech-only sends no cre
     assert.deepEqual(response,{result});assert.equal(calls,1);
   } finally {globalThis.fetch=original;}
 });
+
+test('voice refusals return a concise message without a creation or retry', async () => {
+  const original = globalThis.fetch;
+  let calls = 0;
+  const message = "That request isn't suitable for this game. No creation was made.";
+  globalThis.fetch = async () => {
+    calls++;
+    return new Response(JSON.stringify({type:'failed',error:{code:'REFUSED',message},elapsedMs:30})+'\n');
+  };
+  try {
+    await assert.rejects(call(),error => error instanceof VoiceRequestError && error.detail.code==='REFUSED' && error.message===message);
+    assert.equal(calls,1);
+  } finally {globalThis.fetch=original;}
+});
