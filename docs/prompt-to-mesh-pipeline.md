@@ -170,7 +170,7 @@ Previous generic PROVIDER_ERROR events cannot be reconstructed: their provider r
 
 ## Game integration boundary
 
-The main game already supports the full voice-to-shared-event flow through `RaceEventHost` and `/api/voice/events`. The lab's **Race events** panel uses the same v3 contract. This Asset generation comparison retains v2 results; do not feed them into the race by casting types.
+The main game supports voice-to-shared-drill creation through `RaceEventHost` and `/api/voice/drills`. The lab's **Safety drills** panel uses the same v4 contract, including text generation through `/api/lab/drills`. The v3 `/api/voice/events` and `/api/lab/events` endpoints remain available for compatibility. This Asset generation comparison retains v2 results; do not feed them into the race by casting types.
 
 The player collects an authored Voice Power Up, speaks once while falling, and keeps racing while generation completes. A validated object spawns ahead, and the first racer to collect it activates its shared effect. Appearance does not determine collision size, and materialization visuals do not activate an effect early. See [the race integration](race-events-handoff.md).
 

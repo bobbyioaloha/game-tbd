@@ -68,10 +68,11 @@ function fitInstanceGeometry(geometry:BufferGeometry) {
 }
 
 /** Compile once for every instance of an encounter's generated appearance. */
-export function PowerUpInstances({appearance,meshRef,capacity}:{
+export function PowerUpInstances({appearance,meshRef,capacity,opacity=1}:{
   appearance:MeshAppearance|PrimitiveAppearance;
   meshRef:RefObject<InstancedMesh|null>;
   capacity:number;
+  opacity?:number;
 }) {
   const attributes=useMemo(()=>{
     if(appearance.type==='primitives')return compilePrimitiveAppearance(appearance);
@@ -87,6 +88,6 @@ export function PowerUpInstances({appearance,meshRef,capacity}:{
       <bufferAttribute attach="attributes-position" args={[attributes.positions,3]}/>
       <bufferAttribute attach="attributes-color" args={[attributes.colors,3]}/>
     </bufferGeometry>
-    <meshStandardMaterial vertexColors roughness={0.5} flatShading side={DoubleSide}/>
+    <meshStandardMaterial vertexColors roughness={0.5} flatShading side={DoubleSide} transparent={opacity<1} opacity={opacity} depthWrite={opacity>=1}/>
   </instancedMesh>;
 }

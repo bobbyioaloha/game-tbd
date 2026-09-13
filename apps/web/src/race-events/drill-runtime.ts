@@ -1,8 +1,14 @@
 import {
-  compileSafetyDrill, RACE_EVENT_LIMITS,
+  compileSafetyDrill, SAFETY_DRILL_LIMITS, RACE_EVENT_LIMITS,
   type SafetyDrillRecipe, type EventVector, type EventRacer, type RacerSegment,
   type RacerEventInput, type DrillActor, type DrillCurrent, type DrillSnapshot, type DrillImpact,
 } from '@sky/shared';
+import { PinballDrill } from './pinball-drill';
+import { BuddyDrill } from './buddy-drill';
+import { OrbitDrill } from './orbit-drill';
+import { ReconstructionDrill } from './reconstruction-drill';
+import { ObservationDrill } from './observation-drill';
+import { createDrillBands, inDrillCourse, increment, midpoint, emptyDrillImpact, type DrillMechanic, type DrillBand } from './drill-mechanics';
 import { add, subtract, scale, length, direction, clampLength, contactTime, seededRandom, dot } from './math';
 
 type StampedeRecipe = Extract<SafetyDrillRecipe, {family:'stampede'}>;
@@ -12,10 +18,8 @@ type Actor = {
   sign:number;row:number;
   reaction?:{startsAt:number;origin:EventVector;velocity:EventVector;state:'charging'|'scattering'};
 };
-type Band = {id:number;origin:EventVector};
+type Band = DrillBand;
 const zeroInput = ():RacerEventInput => ({acceleration:[0,0,0],velocityDelta:[0,0,0],obstacleProtection:false});
-const increment = (record:Record<string,number>,id:string,amount=1) => {record[id]=(record[id]??0)+amount;};
-const midpoint = (a:EventVector,b:EventVector):EventVector => scale(add(a,b),0.5);
 const currentPriority:Record<DrillCurrent['kind'],number>={eddy:0,fast:1,flow:2};
 function unsupportedBehavior(_recipe:never):never {
   throw new Error('Safety drill behavior has no runtime implementation.');
@@ -29,31 +33,20 @@ export function closestDrillPoint(point:EventVector,from:EventVector,to:EventVec
 }
 
 /** A subordinate simulation: the race runtime supplies its existing fixed tick and swept contacts. */
-export class SafetyDrillRuntime {
+class CourseDrill implements DrillMechanic {
   private readonly config;
-  private readonly recipe:SafetyDrillRecipe;
+  private readonly recipe:StampedeRecipe|RapidsRecipe;
   private readonly actors:Actor[]=[];
   private readonly currents:DrillCurrent[]=[];
   private readonly hit=new Set<string>();
-  private readonly report:DrillImpact={collisions:{},blockedCollisions:{},draftSeconds:{},currentSeconds:{},reactions:0};
+  private readonly report=emptyDrillImpact();
   private age=0;
 
-  constructor(recipe:unknown,seed:number,racers:readonly EventRacer[]) {
-    this.config=compileSafetyDrill(recipe);
-    this.recipe=this.config.recipe;
+  constructor(recipe:StampedeRecipe|RapidsRecipe,seed:number,racers:readonly EventRacer[]) {
+    this.config=SAFETY_DRILL_LIMITS;
+    this.recipe=recipe;
     const random=seededRandom(seed);
-    // Freeze bands at activation. Nearby racers share a band; no band follows or belongs to a racer.
-    const groups:EventRacer[][]=[];
-    for(const racer of [...racers].filter(racer=>!racer.finished).sort((a,b)=>b.position[1]-a.position[1]||a.id.localeCompare(b.id))) {
-      const group=groups.find(group=>Math.abs(group[0].position[1]-racer.position[1])<this.config.bandSpacing);
-      if(group)group.push(racer);
-      else if(groups.length<this.config.maxBands)groups.push([racer]);
-    }
-    const bands:Band[]=groups.map((group,id)=>({id,origin:[
-      Math.max(-12,Math.min(12,group.reduce((sum,racer)=>sum+racer.position[0],0)/group.length)),
-      Math.min(...group.map(racer=>racer.position[1]))-this.config.bandLeadMeters,
-      Math.max(-10,Math.min(10,group.reduce((sum,racer)=>sum+racer.position[2],0)/group.length)),
-    ]}));
+    const bands=createDrillBands(racers);
     // Adding a family must supply its own setup and tick behavior; never fall through to Rapids.
     switch(this.recipe.family) {
       case 'stampede':
@@ -66,11 +59,6 @@ export class SafetyDrillRuntime {
     }
   }
 
-  private inCourse(position:EventVector,margin:number):EventVector {
-    const edge=this.config.laneHalfWidth-margin;
-    return [Math.max(-edge,Math.min(edge,position[0])),position[1],Math.max(-edge,Math.min(edge,position[2]))];
-  }
-
   private createHerd(recipe:StampedeRecipe,band:Band,random:()=>number) {
     for(let index=0;index<this.config.actorCount&&this.actors.length<this.config.maxActors;index++) {
       const row=Math.floor(index/4),column=index%4;
@@ -78,7 +66,7 @@ export class SafetyDrillRuntime {
       const split=recipe.formation==='split';
       const x=recipe.formation==='convoy'?(column-1.5)*8:split?(column-1.5)*6+2:-sign*(14+random()*6);
       const z=recipe.formation==='convoy'?(row%2?5:-5):split?0:(column-1.5)*11;
-      const origin=this.inCourse(add(band.origin,[x,-row*this.config.bandLengthMeters/2,z]),this.config.actorRadius);
+      const origin=inDrillCourse(add(band.origin,[x,-row*this.config.bandLengthMeters/2,z]),this.config.actorRadius);
       this.actors.push({id:this.actors.length,origin,position:origin,previous:origin,velocity:[0,0,0],sign,row});
     }
   }
@@ -98,7 +86,7 @@ export class SafetyDrillRuntime {
           x=Math.sin(t*Math.PI*2+phase)*(recipe.layout==='alternating'?19:13);
           z=Math.sin(t*Math.PI+phase)*8;
         }
-        points.push(this.inCourse(add(band.origin,[x,-t*this.config.bandLengthMeters,z]),this.config.currentRadius));
+        points.push(inDrillCourse(add(band.origin,[x,-t*this.config.bandLengthMeters,z]),this.config.currentRadius));
       }
       for(let index=0;index<points.length-1;index++) {
         const from=points[index],to=points[index+1];
@@ -108,7 +96,7 @@ export class SafetyDrillRuntime {
       }
     }
     if(recipe.modifier==='eddies')for(const t of [0.3,0.7]) {
-      const position=this.inCourse(add(band.origin,[-21,-t*this.config.bandLengthMeters,-7]),this.config.currentRadius);
+      const position=inDrillCourse(add(band.origin,[-21,-t*this.config.bandLengthMeters,-7]),this.config.currentRadius);
       this.currents.push({id:this.currents.length,bandId:band.id,pathId:2,position,
         from:add(position,[0,5,0]),to:add(position,[0,-5,0]),radius:this.config.currentRadius,
         direction:[0,1,0],kind:'eddy',strength:0});
@@ -261,4 +249,25 @@ export class SafetyDrillRuntime {
     return {collisions:{...this.report.collisions},blockedCollisions:{...this.report.blockedCollisions},
       draftSeconds:{...this.report.draftSeconds},currentSeconds:{...this.report.currentSeconds},reactions:this.report.reactions};
   }
+}
+
+/** Explicit family dispatch; every mechanic shares collection, timing and the existing race clock. */
+export class SafetyDrillRuntime implements DrillMechanic {
+  private readonly mechanic:DrillMechanic;
+  constructor(input:unknown,seed:number,racers:readonly EventRacer[]) {
+    const recipe=compileSafetyDrill(input).recipe;
+    switch(recipe.family) {
+      case 'stampede': case 'rapids': this.mechanic=new CourseDrill(recipe,seed,racers);break;
+      case 'pinball': this.mechanic=new PinballDrill(recipe,seed,racers);break;
+      case 'buddy': this.mechanic=new BuddyDrill(recipe,seed,racers);break;
+      case 'orbit': this.mechanic=new OrbitDrill(recipe,seed,racers);break;
+      case 'reconstruction': this.mechanic=new ReconstructionDrill(recipe,seed,racers);break;
+      case 'observation': this.mechanic=new ObservationDrill(recipe,seed,racers);break;
+      default: unsupportedBehavior(recipe);
+    }
+  }
+  prepareStep(age:number,dt:number,racers:readonly EventRacer[]) {return this.mechanic.prepareStep(age,dt,racers);}
+  resolveContacts(segments:readonly RacerSegment[],racers:readonly EventRacer[]) {return this.mechanic.resolveContacts(segments,racers);}
+  getSnapshot() {return this.mechanic.getSnapshot();}
+  getImpact() {return this.mechanic.getImpact();}
 }

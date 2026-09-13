@@ -16,7 +16,8 @@ import { Vector3, PerspectiveCamera, type Group, type Mesh, type MeshBasicMateri
 import { CloudField, StarfishDiver } from './skydiving-scenery';
 import { PracticeRace, FINISH_DEPTH, LANE_HALF_WIDTH } from './practice-race';
 
-const eventAuraColors={gravityWell:'#bb8cff',debrisShower:'#ffb94b',repulsionBurst:'#ff8555',protectiveZone:'#6dffff',stampede:'#ffbe55',rapids:'#62e9eb'};
+const eventAuraColors={gravityWell:'#bb8cff',debrisShower:'#ffb94b',repulsionBurst:'#ff8555',protectiveZone:'#6dffff',stampede:'#ffbe55',rapids:'#62e9eb',
+  pinball:'#ffd36a',buddy:'#75e2f4',orbit:'#aa95ff',reconstruction:'#bd8cff',observation:'#ff665d'} satisfies Record<ReturnType<typeof encounterKind>,string>;
 
 export const defaultBindings = {left:'KeyA',right:'KeyD',forward:'KeyW',backward:'KeyS',brake:'KeyK',look:'KeyI',use:'KeyJ',boost:'KeyU',dodge:'KeyL'};
 export type Action = keyof typeof defaultBindings;

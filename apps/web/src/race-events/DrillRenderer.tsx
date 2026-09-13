@@ -3,22 +3,23 @@ import { useFrame } from '@react-three/fiber';
 import { Color, DoubleSide, Object3D, Vector3, type Group, type InstancedMesh } from 'three';
 import { SAFETY_DRILL_LIMITS, type RaceEventPort, type SafetyDrillSpec, type DrillCurrent, type EventVector } from '@sky/shared';
 import { PowerUpInstances } from '../components/PowerUpModel';
+import { MechanicRenderer } from './MechanicRenderer';
 
-// Shared runtime caps are 32 herd actors / 64 current segments. Two bank markers per segment.
-const ACTORS=SAFETY_DRILL_LIMITS.maxActors,CURRENTS=SAFETY_DRILL_LIMITS.maxCurrents,MARKERS=CURRENTS*2;
+// Shared actor/current caps; actors include herds, bumpers and echoes. Two bank markers per current segment.
+const ACTORS=SAFETY_DRILL_LIMITS.maxActors,CURRENTS=SAFETY_DRILL_LIMITS.maxCurrents,MARKERS=CURRENTS*2+ACTORS;
 const flowColor={flow:'#48dfee',fast:'#ffd36a',eddy:'#85f1b4'};
 
 /** Visualizes the runtime's actual hazard and current bounds. Never advances simulation. */
 export function DrillRenderer({events,spec,debug=false}:{events:RaceEventPort;spec:SafetyDrillSpec;debug?:boolean}) {
   const root=useRef<Group>(null),appearance=useRef<InstancedMesh>(null),bounds=useRef<InstancedMesh>(null);
-  const telegraphs=useRef<InstancedMesh>(null),aims=useRef<InstancedMesh>(null);
+  const telegraphs=useRef<InstancedMesh>(null),aims=useRef<InstancedMesh>(null),ghosts=useRef<InstancedMesh>(null);
   const currents=useRef<InstancedMesh>(null),caps=useRef<InstancedMesh>(null),arrows=useRef<InstancedMesh>(null),wakes=useRef<InstancedMesh>(null),wakeCaps=useRef<InstancedMesh>(null);
   const {scratch,color,direction,up}=useMemo(()=>({scratch:new Object3D(),color:new Color(),direction:new Vector3(),up:new Vector3(0,1,0)}),[]);
   useFrame(()=>{
     const state=events.getSnapshot(),drill=state.drill;
     if(root.current)root.current.visible=state.phase==='active'&&Boolean(drill);
-    if(!drill||!appearance.current||!bounds.current||!currents.current||!caps.current||!arrows.current||!wakes.current||!wakeCaps.current||!telegraphs.current||!aims.current)return;
-    let appearanceCount=0,wakeCount=0,telegraphCount=0;
+    if(!drill||!appearance.current||!bounds.current||!currents.current||!caps.current||!arrows.current||!wakes.current||!wakeCaps.current||!telegraphs.current||!aims.current||!ghosts.current)return;
+    let appearanceCount=0,ghostCount=0,wakeCount=0,telegraphCount=0;
     const place=(mesh:InstancedMesh,index:number,x:number,y:number,z:number,sx:number,sy=sx,sz=sx,tint='#ffffff')=>{
       scratch.position.set(x,y,z);scratch.scale.set(sx,sy,sz);scratch.updateMatrix();
       mesh.setMatrixAt(index,scratch.matrix);mesh.setColorAt(index,color.set(tint));
@@ -41,8 +42,9 @@ export function DrillRenderer({events,spec,debug=false}:{events:RaceEventPort;sp
     };
     for(const [index,actor] of drill.actors.entries()){
       scratch.rotation.set(0,Math.atan2(actor.velocity[0],actor.velocity[2]),0);
-      place(appearance.current,appearanceCount++,...actor.position,actor.radius*2);
-      const tint=actor.state==='warning'?'#ffda6e':actor.state==='scattering'?'#8bf5e0':'#ff775f';
+      if(actor.kind==='echo'&&actor.state==='warning')place(ghosts.current,ghostCount++,...actor.position,actor.radius*2);
+      else place(appearance.current,appearanceCount++,...actor.position,actor.radius*2);
+      const tint=actor.state==='warning'?'#ffda6e':actor.kind==='bumper'?'#ffd36a':actor.kind==='echo'?'#d58aff':actor.state==='scattering'?'#8bf5e0':'#ff775f';
       scratch.rotation.set(0,0,0);
       place(bounds.current,index,...actor.position,actor.radius,actor.radius,actor.radius,tint);
       if(actor.telegraph){
@@ -65,16 +67,18 @@ export function DrillRenderer({events,spec,debug=false}:{events:RaceEventPort;sp
       scratch.rotation.set(0,state.elapsedSeconds*0.35,0);
       for(const sign of [-1,1])place(appearance.current,appearanceCount++,current.position[0]+current.radius*sign,current.position[1],current.position[2],2.6);
     }
-    appearance.current.count=appearanceCount;bounds.current.count=drill.actors.length;
+    appearance.current.count=appearanceCount;ghosts.current.count=ghostCount;bounds.current.count=drill.actors.length;
     currents.current.count=drill.currents.length;caps.current.count=drill.currents.length*2;
     telegraphs.current.count=telegraphCount;aims.current.count=telegraphCount;
     arrows.current.count=drill.currents.length;wakes.current.count=wakeCount;wakeCaps.current.count=wakeCount*2;
-    for(const mesh of [appearance.current,bounds.current,currents.current,caps.current,arrows.current,wakes.current,wakeCaps.current,telegraphs.current,aims.current]){
+    for(const mesh of [appearance.current,ghosts.current,bounds.current,currents.current,caps.current,arrows.current,wakes.current,wakeCaps.current,telegraphs.current,aims.current]){
       mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
     }
   });
   return <group ref={root} visible={false}>
     <PowerUpInstances appearance={spec.appearance} meshRef={appearance} capacity={MARKERS}/>
+    <PowerUpInstances appearance={spec.appearance} meshRef={ghosts} capacity={ACTORS} opacity={0.25}/>
+    <MechanicRenderer events={events} appearance={spec.appearance} debug={debug}/>
     <instancedMesh ref={telegraphs} args={[undefined,undefined,ACTORS]} count={0} frustumCulled={false}>
       <cylinderGeometry args={[1,1,1,12,1,true]}/><meshBasicMaterial transparent opacity={0.18} depthWrite={false} side={DoubleSide}/>
     </instancedMesh>

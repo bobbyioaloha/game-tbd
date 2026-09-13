@@ -1,5 +1,6 @@
 import { encounterLabel, encounterInstruction, type RaceEventSnapshot } from '@sky/shared';
 import { drillAssessment } from './drill-feedback';
+import { drillMetricSummary } from '../race-events/drill-metrics';
 import type { RaceEventHost } from './race-event-host';
 
 type Props = {
@@ -48,11 +49,7 @@ export function RaceEventReport({host, canReplay, onReplay}: Props) {
         Impulses delivered: {total(impact?.impulseCounts)} · Debris hits: {total(impact?.debrisHits)}
         {' · '}Blocked debris: {total(impact?.blockedDebrisHits)} · Obstacles blocked: {total(impact?.obstacleBlocks)}
       </p>
-      {impact?.drill && <p>
-        Equipment contacts: {total(impact.drill.collisions)} · Blocked contacts: {total(impact.drill.blockedCollisions)}
-        {' · '}Drafting: {total(impact.drill.draftSeconds).toFixed(1)} s · Riding currents: {total(impact.drill.currentSeconds).toFixed(1)} s
-        {' · '}Herd reactions: {impact.drill.reactions}
-      </p>}
+      {impact?.drill && spec.version===4 && <p>{drillMetricSummary(spec.drill.family,impact.drill)}</p>}
       {drillAssessment(report) && <p>Your inspection: {drillAssessment(report)}</p>}
       <button disabled={!canReplay} onClick={onReplay}>Restart &amp; replay this creation nearby · free</button>
       <small>Reuses the exact mesh and effect with a new race. No recording or API call. Last result stays here until another creation replaces it.</small>

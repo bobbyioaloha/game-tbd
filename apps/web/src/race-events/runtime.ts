@@ -173,8 +173,14 @@ export class RaceEventRuntime implements RaceEventPort {
       this.age=Math.min(this.age,encounterDurationSeconds(this.instance.spec));
       const drillInputs=this.drill!.prepareStep(this.age,dt,this.racers);
       for(const racer of this.racers) {
-        inputs[racer.id].acceleration=drillInputs[racer.id].acceleration;
-        if(length(inputs[racer.id].acceleration)>0)this.markAffected(racer.id);
+        const input=inputs[racer.id],drillInput=drillInputs[racer.id];
+        input.acceleration=clampLength(drillInput.acceleration,limits.maxAcceleration);
+        input.obstacleProtection ||= drillInput.obstacleProtection;
+        if(length(drillInput.velocityDelta)>0) {
+          input.velocityDelta=clampLength(add(input.velocityDelta,drillInput.velocityDelta),limits.maxVelocityDelta);
+          this.markAffected(racer.id);this.count(this.impulseCounts,racer.id);
+        }
+        if(length(input.acceleration)>0||input.obstacleProtection)this.markAffected(racer.id);
       }
       return inputs;
     }
