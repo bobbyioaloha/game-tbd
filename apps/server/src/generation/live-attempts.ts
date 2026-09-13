@@ -2,8 +2,12 @@ import type { LiveUsage, PipelineRequest } from '@sky/shared';
 import { PipelineFailure } from './pipeline-errors.js';
 
 export type LivePolicy = {enabled:boolean; maxAttempts:number};
+export interface PaidAttemptStore {
+  readStatus():Promise<LiveUsage>;
+  acquire(request:Pick<PipelineRequest,'paidAttempt'>):Promise<()=>void|Promise<void>>;
+}
 // One gate belongs to one server pipeline, shared by all tabs and profiles.
-export class LiveAttempts {
+export class LiveAttempts implements PaidAttemptStore {
   private used = new Set<string>();
   private busy = false;
   constructor(private policy:LivePolicy = {enabled:false,maxAttempts:3}) {
@@ -15,7 +19,8 @@ export class LiveAttempts {
     return {enabled:this.policy.enabled,maxAttempts:this.policy.maxAttempts,attemptsUsed:this.used.size,
       attemptsRemaining:this.policy.maxAttempts-this.used.size,busy:this.busy};
   }
-  acquire(request:Pick<PipelineRequest,'paidAttempt'>):() => void {
+  async readStatus():Promise<LiveUsage> {return this.status;}
+  async acquire(request:Pick<PipelineRequest,'paidAttempt'>):Promise<() => void> {
     if (!this.policy.enabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
     if (!request.paidAttempt?.confirmed) throw new PipelineFailure('CONSENT_REQUIRED','Allow this paid attempt before generating.');
     const id = request.paidAttempt.id;

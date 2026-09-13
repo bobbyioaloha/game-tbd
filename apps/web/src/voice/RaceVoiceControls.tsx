@@ -63,10 +63,10 @@ export function RaceVoiceControls({voice,paused}:{voice:RaceVoiceController;paus
     {voice.live?<p>Live: speech → design → geometry. Up to 3 paid API calls for this run’s one attempt.</p>:<div className="voice-mode-notice" role="note">
       <strong>Mock mode · speech recognition is off</strong>
       <p>This attempt uses “{voice.mockText}”, regardless of what you say. No AI calls.</p>
-      <p>{voice.profiles?.liveUsage.enabled?'For real speech, select a live Voice profile and allow the paid attempt before starting the race.':'For real speech, start bun run dev:live, select a live Voice profile, and allow the paid attempt before starting the race.'}{!configuring?' Restart the race to change its profile.':''}</p>
+      <p>{voice.profiles?.liveUsage.enabled?'For real speech, select a live Voice profile and allow the paid attempt before starting the race.':'Live speech is unavailable. Choose Mock mode or play without voice.'}{!configuring?' Restart the race to change its profile.':''}</p>
     </div>}
     {voice.live&&<label className="voice-consent"><input type="checkbox" checked={voice.armed} disabled={!configuring||!voice.paidAvailable||!voice.profile?.available} onChange={event=>voice.setArmed(event.target.checked)}/>Allow this run’s one paid voice attempt</label>}
-    {voice.profiles&&<p>{voice.profiles.liveUsage.attemptsRemaining} / {voice.profiles.liveUsage.maxAttempts} paid attempts remaining this server start.</p>}
+    {voice.profiles&&<p>{voice.profiles.liveUsage.attemptsRemaining} / {voice.profiles.liveUsage.maxAttempts} paid attempts remaining.</p>}
     {voice.error&&<p role="alert">{voice.error}</p>}
     {voice.profile?.unavailableReason&&<p>{voice.profile.unavailableReason}</p>}
     <RecorderControls recorder={voice.recorder} mode={voice.live?'live':'mock'} disabled={!canHold} setupDisabled={!paused||active} onStart={voice.start} onFinish={voice.finish} onCancel={voice.cancel}/>

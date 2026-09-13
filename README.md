@@ -151,3 +151,9 @@ The main race now uses v3 shared events through its existing microphone controls
 For a free gameplay check: run `bun run dev`, open **Game → Settings → Event fixtures**, choose an object while paused before the first fall, and resume. This bypasses microphone/API calls. Quick encounter defaults to 30 m ahead; uncheck it to test the normal later-course placement (last 40%, normally 300 m ahead). Event result in Settings retains the selected effect, activation and impact counters. Pause and use the free replay button to reuse the exact creation nearby in a new race. Normal voice-generated placement is unchanged. The fixture panel is development-only.
 
 For the real microphone path, select one of the four event mock transcripts or explicitly opt into a live profile before starting. Collect the yellow star and hold/release Space as before. Mock speech uses the selected transcript; paid calls remain disabled under ordinary `bun run dev`. See [the implementation and gameplay handoff](docs/race-events-handoff.md) for ownership, units, exact hooks, lifecycle rules, and verification.
+
+## Vercel deployment
+
+Run `bun run build:deploy` to build the hosted backend and game-only frontend. The Generation lab stays available under `bun run dev` and is excluded from production bundles. Building does not deploy or enable paid calls.
+
+See [deployment setup](docs/deployment.md) for the Vercel Services configuration, production secrets, protected tester access, and the persistent **100-attempt** shared budget. Local `dev:live` retains its separate per-start allowance.

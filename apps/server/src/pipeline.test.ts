@@ -256,7 +256,7 @@ test('geometry API diagnostics survive the complete SDK, pipeline and HTTP strea
     assert.equal(terminal.error.provider?.httpStatus,404);
     assert.equal(terminal.error.provider?.model,'gpt-6-astra');
     assert.equal(response.body.includes('test-private-credential'),false);
-    assert.equal(calls,2);assert.equal(pipeline.liveUsage.attemptsUsed,1);
+    assert.equal(calls,2);assert.equal((await pipeline.liveUsage).attemptsUsed,1);
   } finally {await app.close();}
 });
 
@@ -330,6 +330,6 @@ test('direct Sol sends none reasoning through the real SDK and still uses one gu
   const request={profileId:'sol-direct',geometryMode:'primitives' as const,text:fixture.prompt};
   await assert.rejects(pipeline.run(request),error=>error instanceof PipelineFailure&&error.code==='CONSENT_REQUIRED');assert.equal(calls,0);
   const spec=await pipeline.run({...request,paidAttempt:{id:'861f3264-c7cf-4e5e-8a95-8bf5e7388b79',confirmed:true}});
-  GeneratedCreationSchema.parse(spec);assert.equal(calls,2);assert.equal(pipeline.liveUsage.attemptsUsed,1);
-  assert.equal(pipeline.liveUsage.busy,false);
+  GeneratedCreationSchema.parse(spec);assert.equal(calls,2);assert.equal((await pipeline.liveUsage).attemptsUsed,1);
+  assert.equal((await pipeline.liveUsage).busy,false);
 });

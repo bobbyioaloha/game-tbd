@@ -36,7 +36,7 @@ test('key presence and inherited enable flags cannot enable paid generation', as
     assert.equal(direct.statusCode,403);
     assert.equal(direct.json().error.code,'LIVE_DISABLED');
     assert.equal(networkCalls,0);
-    assert.equal(pipeline.liveUsage.attemptsUsed,0);
+    assert.equal((await pipeline.liveUsage).attemptsUsed,0);
   } finally {await app.close();globalThis.fetch=original;}
 });
 
@@ -50,9 +50,9 @@ test('pipeline gate stays off even if a caller supplies an available live profil
 test('live mode without a key remains unavailable, and the allowance is bounded', async () => {
   const pipeline = buildPipeline({},true);
   await assert.rejects(pipeline.run(request()),code('NOT_CONFIGURED'));
-  assert.equal(pipeline.liveUsage.attemptsUsed,0);
+  assert.equal((await pipeline.liveUsage).attemptsUsed,0);
   for (const value of ['0','11','NaN','1.5','']) assert.throws(() => buildPipeline({LIVE_MAX_ATTEMPTS:value}),/LIVE_MAX_ATTEMPTS/);
-  assert.equal(buildPipeline({LIVE_MAX_ATTEMPTS:'1'}).liveUsage.maxAttempts,1);
+  assert.equal((await buildPipeline({LIVE_MAX_ATTEMPTS:'1'}).liveUsage).maxAttempts,1);
 });
 
 test('one explicit attempt dispatches exactly two calls and rejects a replay without spending again', async () => {
@@ -62,7 +62,7 @@ test('one explicit attempt dispatches exactly two calls and rejects a replay wit
   const spec = await pipeline.run(input);
   assert.equal(spec.displayName,'Red rocket');
   assert.equal(calls,2);
-  assert.deepEqual(pipeline.liveUsage,{enabled:true,maxAttempts:3,attemptsUsed:1,attemptsRemaining:2,busy:false});
+  assert.deepEqual((await pipeline.liveUsage),{enabled:true,maxAttempts:3,attemptsUsed:1,attemptsRemaining:2,busy:false});
   await assert.rejects(pipeline.run(input),code('DUPLICATE_ATTEMPT'));
   assert.equal(calls,2);
 });
@@ -74,7 +74,7 @@ test('missing or malformed consent is blocked before dispatch; early cancellatio
   await assert.rejects(pipeline.run({...request(),paidAttempt:{id:'invalid',confirmed:true}}),code('INVALID_REQUEST'));
   const controller = new AbortController();controller.abort();
   await assert.rejects(pipeline.run(request(),{signal:controller.signal}),code('CANCELLED'));
-  assert.equal(calls,0);assert.equal(pipeline.liveUsage.attemptsUsed,0);
+  assert.equal(calls,0);assert.equal((await pipeline.liveUsage).attemptsUsed,0);
 });
 
 test('concurrent tabs and profiles share a single live slot; cancelled dispatched work consumes an attempt', async () => {
@@ -86,13 +86,13 @@ test('concurrent tabs and profiles share a single live slot; cancelled dispatche
   const running = pipeline.run(input,{signal:controller.signal});
   const finished = assert.rejects(running,code('CANCELLED'));
   await started;
-  assert.equal(pipeline.liveUsage.busy,true);
+  assert.equal((await pipeline.liveUsage).busy,true);
   await assert.rejects(pipeline.run(input),code('DUPLICATE_ATTEMPT'));
   await assert.rejects(pipeline.run({...request(),profileId:'sol-sol'}),code('LIVE_BUSY'));
   assert.equal(calls,1);
   controller.abort();await finished;
-  assert.equal(pipeline.liveUsage.busy,false);
-  assert.equal(pipeline.liveUsage.attemptsUsed,1);
+  assert.equal((await pipeline.liveUsage).busy,false);
+  assert.equal((await pipeline.liveUsage).attemptsUsed,1);
   await assert.rejects(pipeline.run(input),code('DUPLICATE_ATTEMPT'));
 });
 
@@ -110,10 +110,10 @@ test('failed provider calls exhaust the shared allowance without refunds, retrie
     }
     await assert.rejects(pipeline.run(request()),code('LIVE_LIMIT_REACHED'));
     assert.equal(calls,3);
-    assert.equal(pipeline.liveUsage.attemptsRemaining,0);
+    assert.equal((await pipeline.liveUsage).attemptsRemaining,0);
     const mock = await pipeline.run({...request(),profileId:'mock',paidAttempt:undefined});
     assert.equal(mock.displayName,'Red rocket');
-    assert.equal(calls,3);assert.equal(pipeline.liveUsage.attemptsUsed,3);
+    assert.equal(calls,3);assert.equal((await pipeline.liveUsage).attemptsUsed,3);
   } finally {await app.close();}
 });
 
