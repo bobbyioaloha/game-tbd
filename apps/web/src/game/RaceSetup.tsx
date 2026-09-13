@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { RaceVoiceSetup, type RaceVoiceController } from '../voice/RaceVoiceControls';
 
-const BRIEFING_SEEN_KEY = 'skyfall.briefing-seen.v1';
+const BRIEFING_SEEN_KEY = 'mandatory-safety-exercise.briefing-seen.v1';
 function hasSeenBriefing() {
   try { return localStorage.getItem(BRIEFING_SEEN_KEY) === 'true'; }
   catch { return false; }

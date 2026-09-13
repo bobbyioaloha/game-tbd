@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Mandatory Safety Exercise</title>
+  <rect width="64" height="64" rx="12" fill="#1c3141"/>
+  <path d="M9 30a23 23 0 0 1 46 0c-4-4-11-4-15 0-4-4-12-4-16 0-4-4-11-4-15 0Z" fill="#f0c928"/>
+  <path d="m12 32 16 14m24-14L36 46M32 31v14" fill="none" stroke="#eaf0f8" stroke-width="3" stroke-linecap="round"/>
+  <path d="M27 43h10v8h5L32 60 22 51h5Z" fill="#f0c928"/>
+</svg>
