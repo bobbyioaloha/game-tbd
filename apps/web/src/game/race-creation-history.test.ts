@@ -5,7 +5,7 @@ import { RaceEventRuntime } from '../race-events/runtime';
 import { FreefallController } from './freefall-controller';
 import { PracticeRace, FINISH_DEPTH } from './practice-race';
 import { RaceEventHost } from './race-event-host';
-import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
+import { RACE_CREATION_PICKUP_RADIUS, raceVoiceStarLeadMeters } from './race-event-config';
 
 const dt = 1 / 120;
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
@@ -24,7 +24,7 @@ function setup() {
       options.onProgress('generating', 'Creating…', 'private test transcript');
       return new Promise(resolve => requests.push({ resolve, signal: options.signal }));
     },
-  });
+  }, () => 0.5);
   host.start();
   const step = (seconds = dt) => {
     for (let tick = 0; tick < Math.round(seconds / dt); tick++) {
@@ -39,6 +39,15 @@ function setup() {
     racer.controller.setFallSpeed(30);
     racer.controller.step(depth / 30, { x: 0, z: 0 }, { fallSpeedMultiplier: 1 });
     racer.decision = Infinity; racer.nextUse = Infinity; racer.target = [x, z];
+  };
+  // These tests isolate inspection-history ownership. Full-run star timing is
+  // covered separately; move only the player to the deterministic reveal point.
+  const revealSecondStar = () => {
+    place(0, 0, FINISH_DEPTH * 0.65 - raceVoiceStarLeadMeters(30) + 1);
+    step();
+    assert.ok(host.voice, 'the second star is offered at its authored course position');
+    assert.ok(Math.abs(host.voice.position[1] + FINISH_DEPTH * 0.65) < 1e-8);
+    assert.equal(host.attemptNumber, 1, 'an offer does not rearm or replace the first attempt');
   };
   const request = async () => {
     assert.ok(host.voice, 'a fresh voice star is required');
@@ -57,7 +66,7 @@ function setup() {
     place(id, x, -y - RACE_CREATION_PICKUP_RADIUS + 0.1, z); step();
     assert.equal(runtime.getSnapshot().triggererId, String(id));
   };
-  return { host, runtime, race, step, place, request, generate, trigger };
+  return { host, runtime, race, step, place, revealSecondStar, request, generate, trigger };
 }
 
 test('both authored creations retain their own validated model and cumulative results after slot replacement', async () => {
@@ -71,8 +80,9 @@ test('both authored creations retain their own validated model and cumulative re
   assert.deepEqual(first.snapshot?.impact, game.runtime.getSnapshot().impact);
   assert.equal(first.snapshot?.drill, undefined);
   assert.deepEqual(first.snapshot?.debris, []);
-  game.step(4.1); assert.equal(game.host.attemptNumber, 2);
+  game.revealSecondStar();
   await game.generate(sun); game.trigger(); game.step(3);
+  assert.equal(game.host.attemptNumber, 2);
   const records = game.host.creations;
   assert.equal(records.length, 2);
   assert.equal(records[0], first, 'replacing the runtime must leave the first inspection record intact');
@@ -134,11 +144,12 @@ for (const action of ['pause', 'finish'] as const) test(action + ' retains a gen
 });
 
 test('a queued second result is retained honestly without replacing the first record or an occupied event', async () => {
-  const game = setup(); await game.generate(drill); game.trigger(); game.step(14.2);
+  const game = setup(); await game.generate(drill); game.trigger(); game.step(10.1);
   const first = game.host.creations[0];
-  assert.equal(game.host.attemptNumber, 2);
+  game.revealSecondStar();
   game.host.spawn(drill, 'occupied-slot'); game.trigger();
   await game.generate(sun);
+  assert.equal(game.host.attemptNumber, 2);
   assert.equal(game.host.loop.getSnapshot().phase, 'ready');
   game.race.racers[0].finishTime = game.race.elapsed; game.step();
   assert.equal(game.host.creations.length, 2);

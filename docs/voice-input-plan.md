@@ -16,7 +16,7 @@ Desktop Chrome and Edge are the initial target. Use localhost or HTTPS for micro
 
 ## Try the game without spending credits
 
-Run `bun install` and `bun run dev` from the repository root, then open [the local game](http://localhost:5173).
+Run `bun install --frozen-lockfile` and `bun run dev` from the repository root, then open [the local game](http://localhost:5173).
 
 1. Select a character and choose **Begin as [name]**.
 2. Keep **Mock** selected in the pre-flight setup and choose a prepared prompt.
@@ -25,11 +25,17 @@ Run `bun install` and `bun run dev` from the repository root, then open [the loc
 5. After collecting it, hold Space, speak, and release. The HUD shows the simulated transcript and creation progress.
 6. Keep racing and follow the radar to the generated object. It appears later in the course, not immediately beside you. Fly through its glowing halo; the first racer to reach it activates the effect.
 
-You have 10 gameplay seconds after collection to start speaking. Recording auto-submits after 8 seconds. Each run offers up to two stars, with one fresh attempt per star; failure, cancellation, or missing a star consumes that opportunity. Restart returns to setup and clears consent. **Play without voice** lets you skip all microphone setup.
+You have 10 gameplay seconds after a collected grant becomes available to start speaking. Recording auto-submits after 8 seconds. Each normal voice-enabled run offers two stars if you reach their locations, with one fresh attempt per star; failure, cancellation, or missing a star consumes that opportunity. Restart returns to setup and clears consent. **Play without voice** lets you skip all microphone setup.
 
-The second yellow star waits until the first generated object and its effect have fully expired, then gives you four gameplay seconds to recover. A failed attempt or missed star also has a four-second delay. The star appears in your current lane and stays there, at least 120 m ahead and farther away when needed to allow four seconds of approach at your current fall speed. It appears only if enough race remains for another attempt; a slow first generation can leave no second opportunity. Rivals can activate generated objects, but cannot collect your yellow voice stars.
+The second yellow star has a fixed depth chosen randomly between 60% and 70% of the course at the start of each run. It appears with at least 120 m of approach, or four seconds at your current fall speed when that needs more distance. At reveal it aligns with your current horizontal position, then stays fixed. The HUD announces its arrival. The first star's outcome, a waiting generated object, an active effect, and rival progress never suppress this offer. Rivals can activate generated objects, but cannot collect your yellow voice stars.
+
+Collecting the second star saves its grant while the first recording or request finishes. Its ten-second speaking window begins once that voice work settles and any first result finishes its reveal buffer. The first generated object may remain collectible or active while you record and generate the second request. Only one recording or provider request runs at a time; a saved grant is not a saved audio clip.
 
 Main-race objects have a 10 m collection radius and a fitted 12 m model diameter. Normal v3 placement is roughly eight seconds ahead of the player (240 m at normal fall speed), with room left for collection and the effect before the finish. A completed result waits two gameplay seconds before appearing, and longer if the current shared event is still active; it is not announced as spawned until placed. Contact size comes from the game, independently of the generated mesh. See [placement details](race-events-handoff.md#placement-and-lifecycle).
+
+The first attempt retains its full capture, transcription, generation, reveal, approach, and effect admission checks at recording and submission. The second star is offered independently of those estimates, and its collected grant permits recording during an active run. Before dispatching the second request, the host requires at least 17 seconds of estimated race time: two seconds to reveal an immediately completed creation, three seconds of reachable approach, the maximum ten-second effect, and a two-second finish margin. If even that cannot fit, the opportunity is consumed with a message and no provider call.
+
+The second attempt still has the separate 8/10/30-second budgets. Braking does not inflate the time estimate; slow generation or later boosts can leave a completed creation too late to place. Such results are discarded with a message, not retried or carried into another run. Two star offers do not guarantee two playable creations before landing. There is no encore or in-run reuse.
 
 ## Try the Generation lab
 
@@ -39,8 +45,6 @@ Open [the local lab](http://localhost:5173/#/dev/generation). It is available du
 - **Asset generation** is the v2 text/voice-to-3D comparison tool. Select **Voice**, keep **Mock two-stage pipeline**, choose a comparison prompt, enable the microphone, then hold and release the record button. **Speak and create** makes a preview; **Transcribe only** returns the simulated text without generation.
 
 In Asset generation, **Use transcript as typed input** copies the recognized or simulated text into the text form without submitting it. The lab shows words, timings, stages, errors, and the last valid visual. Comparison exports can include transcripts and generated specs, but never audio. History lasts only while the page is mounted.
-
-New requests need time for the existing 8/10/30-second budgets, the two-second reveal buffer, approach, and the effect. The host checks before offering the second star, before recording, and again before submitting audio. Braking does not inflate the time estimate; later boosts can still make a completed creation too late to place. Such results are discarded with a message, not retried or carried into another run. There is no encore or in-run reuse.
 
 ## Enable live AI locally
 
@@ -92,7 +96,7 @@ Record: up to 8 s
 
 Design has an 8-second cap inside the generation window. If design takes 6 seconds, geometry has about 24 seconds left. A total voice attempt longer than 30 seconds can therefore be expected even when generation stays within its own budget.
 
-In the race, pausing, losing focus, restarting, finishing, or leaving cancels pending work (including a ready result awaiting placement), releases the microphone, and rejects late results. An already spawned shared object remains available to racers still falling. Pausing freezes its effect time; resetting clears it.
+In the race, pausing, losing focus, restarting, finishing, or leaving cancels pending work (including a saved second-star grant and a ready result awaiting placement), releases the microphone, and rejects late results. A pause preserves an uncollected future star and freezes its approach with the race clock. An already spawned shared object remains available to racers still falling. Pausing freezes its effect time; resetting clears it. The HUD reports an unusable or discarded second opportunity independently of the first effect's status.
 
 In the lab, losing focus cancels microphone capture. After submission, requests can continue in the background. Explicit cancellation or leaving the page aborts pending requests. Audio stays in memory only for capture and the request; it is never written to files, logs, or comparison history.
 
@@ -108,7 +112,7 @@ In the lab, losing focus cancels microphone capture. After submission, requests 
 | `TRANSCRIPTION_TIMEOUT` | Upload/transcription exceeded its separate budget. Generation may not have started. |
 | `TIMEOUT` in design or geometry | The design cap or shared 30-second generation deadline was reached. See [latency testing](prompt-to-mesh-pipeline.md#testing-against-the-30-second-limit). |
 | Object generated, but no effect yet | The object is waiting for a racer to collect it. Follow the radar and glowing halo. |
-| Attempt consumed after a failure | Each star grants one attempt. Watch for the second star if enough race remains; paid dispatched failures still count. |
+| Attempt consumed after a failure | Each star grants one attempt. Watch for the second star at 60–70% of the course regardless of the first outcome; paid dispatched failures still count. |
 
 Reusing a recognized transcript in the typed lab avoids another transcription call, but a new live generation still requires a separate paid attempt.
 
@@ -158,6 +162,6 @@ The recorder captures audio; transcription returns words; generation returns val
 
 ## Verify a change
 
-Run [the contributor checks](../CONTRIBUTING.md#check-your-work), then try the mock game flow above in Chrome or Edge. Tests use fake media devices, canned uploads, and intercepted provider responses. They cover recording cleanup, consent, deadlines, invalid input, and stale results without real credentials.
+Run [the contributor checks](../CONTRIBUTING.md#check-your-work), then try the mock game flow above in Chrome or Edge. Tests use fake media devices, canned uploads, and intercepted provider responses. They cover recording cleanup, consent, deadlines, invalid input, and stale results without real credentials. Second-star checks advance the actual 120 Hz race through first-star travel, recording, and response delay; they cover success, failure, timeout, missed pickups, uncollected objects, active effects, boosts, saved grants, and cancellation. In Chrome or Edge, verify a successful first mock encounter followed by the second star, plus pause/reset during pending voice work.
 
 A real microphone/live quality test is a separate deliberate action. Record the browser, selected profile, recognized text, timings, and outcome; never include audio or keys in a report.
