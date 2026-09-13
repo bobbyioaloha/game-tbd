@@ -12,6 +12,7 @@
       "root": "apps/server",
       "framework": "fastify",
       "entrypoint": "src/vercel.ts",
+      "outputDirectory": ".",
       "installCommand": "cd ../.. && bunx bun@1.4.2 install --frozen-lockfile",
       "buildCommand": "cd ../.. && bunx bun@1.4.2 run build:deploy:server",
       "functions": {
