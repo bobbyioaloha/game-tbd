@@ -12,7 +12,7 @@ import type { Item } from './race-course';
 import { RaceObjects } from './RaceObjects';
 import { ITEM_NAMES } from './race-course';
 import { useFrame } from '@react-three/fiber';
-import { Vector3, PerspectiveCamera, type Group, type Mesh, type MeshBasicMaterial } from 'three';
+import { DoubleSide, Vector3, PerspectiveCamera, type Group, type Mesh, type MeshBasicMaterial } from 'three';
 import { CloudField, StarfishDiver } from './skydiving-scenery';
 import { PracticeRace, FINISH_DEPTH, LANE_HALF_WIDTH } from './practice-race';
 
@@ -35,6 +35,7 @@ function RacerDinosaur({racer,race}:{racer:PracticeRace['racers'][number];race:P
 
 export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:typeof initialRaceHud)=>void}) {
   const racers = useRef<Group>(null), mat = useRef<Group>(null), rails = useRef<Group>(null);
+  const inspectionRing=useRef<Mesh>(null);
   const lock=useRef(new TargetLock());
   const accumulator = useRef(0), hudTime = useRef(0);
   const follow = useRef({x:-7.5,z:0,generation:-1});
@@ -71,6 +72,12 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       follow.current.z=followCameraAxis(follow.current.z,landed?0:z,dt);
     }
     const eventState=race.events?.getSnapshot();
+    const inspection=eventState?.phase==='active'?eventState.drill?.observations?.['0']:undefined;
+    if(inspectionRing.current) {
+      inspectionRing.current.visible=!landed&&Boolean(inspection&&(inspection.watching||inspection.warning));
+      inspectionRing.current.position.set(x,0.65,z);
+      (inspectionRing.current.material as MeshBasicMaterial).color.set(inspection?.watching?'#ff665d':'#ffd36a');
+    }
     const affected=eventState?.phase==='active'&&eventState.affectedRacerIds.includes('0');
     if(camera instanceof PerspectiveCamera) {
       const extra=affected?(eventState.instance&&encounterKind(eventState.instance.spec)==='protectiveZone'?13:8):0;
@@ -181,6 +188,9 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         :<StarfishDiver color={racer.color} motion={()=>({time:runtime.race.elapsed,speed:runtime.race.snapshot(runtime.race.racers[index]).fallSpeed})}/>}
       <mesh name="event-aura" visible={false}><sphereGeometry args={[2.2,16,12]}/><meshBasicMaterial color="#7ee9f1" wireframe transparent opacity={0.5} depthWrite={false}/></mesh>
     </group>)}</group>
+    <mesh ref={inspectionRing} visible={false} rotation={[-Math.PI/2,0,0]}>
+      <ringGeometry args={[2.15,2.4,48]}/><meshBasicMaterial color="#ffd36a" transparent opacity={0.9} depthWrite={false} side={DoubleSide}/>
+    </mesh>
     <RaceObjects race={runtime.race}/>
     {runtime.voice&&<RaceCreations host={runtime.voice}/>}
     <PrehistoricEarth snapshot={()=>runtime.race.snapshot(runtime.race.racers[0])}/>

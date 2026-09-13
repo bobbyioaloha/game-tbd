@@ -4,16 +4,17 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Box3, DoubleSide, Shape, Vector3, type Group } from 'three';
 import { encounterLabel, encounterKind, encounterInstruction, type RaceEncounter } from '@sky/shared';
 import { drillAssessment } from './drill-feedback';
+import { EffectCue } from './EffectCue';
 import { RaceEventRenderer } from '../race-events/RaceEventRenderer';
 import { RACE_CREATION_MODEL_DIAMETER, RACE_CREATION_PICKUP_RADIUS, RACE_VOICE_ATTEMPTS } from './race-event-config';
 import { PowerUpModel } from '../components/PowerUpModel';
 import type { RaceEventHost } from './race-event-host';
 import type { initialRaceHud } from './RaceScene';
 
-const impulseLabels:Record<ReturnType<typeof encounterKind>,string>={
+const impulseLabels:Record<Exclude<ReturnType<typeof encounterKind>,'observation'>,string>={
   gravityWell:'GRAVITY SHIFT!',debrisShower:'DEBRIS HIT!',repulsionBurst:'SHOCKWAVE!',protectiveZone:'PROTECTION ACTIVE!',
   stampede:'EQUIPMENT CONTACT!',rapids:'CURRENT BOOST!',pinball:'BOUNCE!',buddy:'BUDDY ASSIST!',
-  orbit:'SLINGSHOT!',reconstruction:'ECHO CONTACT!',observation:'MOVEMENT FLAG!',
+  orbit:'SLINGSHOT!',reconstruction:'ECHO CONTACT!',
 };
 
 // Presentation only: model transforms never change the host's pickup/collision bounds.
@@ -60,7 +61,7 @@ function TrophyModel({spec}:{spec:RaceEncounter}) {
   return <group ref={frame}><group ref={content}><PowerUpModel spec={spec}/></group></group>;
 }
 
-export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockText,blockedReason,inputNotice,microphone}:{enabled:boolean;host:RaceEventHost;paused:boolean;finished:boolean;marker:typeof initialRaceHud.creationMarker;live:boolean;mockText:string;blockedReason:string;inputNotice:{id:number;text:string;phase:string};microphone:RecorderSnapshot}) {
+export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockText,blockedReason,inputNotice,microphone,steeringKeys}:{steeringKeys:string;enabled:boolean;host:RaceEventHost;paused:boolean;finished:boolean;marker:typeof initialRaceHud.creationMarker;live:boolean;mockText:string;blockedReason:string;inputNotice:{id:number;text:string;phase:string};microphone:RecorderSnapshot}) {
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
   const opportunity=useSyncExternalStore(host.subscribe,host.getSnapshot);
   const event=host.race.events!.getSnapshot();
@@ -109,14 +110,14 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
     :state.message;
   return <>
     {event.phase==='active'&&event.instance&&<>
-      {playerHit&&<div className={'event-screen-cue '+kind} aria-hidden="true"/>}
-      <div className={'race-event-status active '+kind} role="status">
+      {playerHit&&kind!=='observation'&&<div className={'event-screen-cue '+kind} aria-hidden="true"/>}
+      {!finished&&<EffectCue event={event} position={host.race.snapshot(host.race.racers[0]).position} steeringKeys={steeringKeys}/>}
+      {finished&&<div className={'race-event-status active '+kind} role="status">
         <strong>{event.instance.spec.version===4&&!effectLabel.startsWith('Mandatory ')?'MANDATORY · ':''}{effectLabel.toUpperCase()} · {event.remainingSeconds.toFixed(1)} s</strong>
         <span>{event.instance.spec.displayName} · {triggerer==='You'?'You activated it':triggerer+' activated it'}</span>
         <span>{event.impact?.affectedRacerIds.length??0}/{event.impact?.participants.length??0} racers affected · {playerHit?'DRILL INTERACTION RECORDED':'Choose your route'}</span>
-        <small>{encounterInstruction(event.instance.spec)}</small>
-      </div>
-      {playerImpulses>0&&<div key={event.instance.instanceId+'-'+playerImpulses} className="event-hit-callout" aria-hidden="true">
+      </div>}
+      {playerImpulses>0&&kind!=='observation'&&<div key={event.instance.instanceId+'-'+playerImpulses} className="event-hit-callout" aria-hidden="true">
         {kind&&impulseLabels[kind]}
       </div>}
     </>}

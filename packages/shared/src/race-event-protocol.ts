@@ -51,10 +51,20 @@ export type DrillObserver = {
   id:number;position:EventVector;direction:EventVector;range:number;cosHalfAngle:number;
   watching:boolean;warning:boolean;
 };
+/** Read-only feedback for one active racer, using the same cone and motion rules as inspection. */
+export type DrillObservation = {
+  watching:boolean;warning:boolean;moving:boolean;
+  /** Accumulated movement exposure divided by the authored grace period, clamped to [0, 1]. */
+  exposureFraction:number;
+  cooldownSeconds:number;protected:boolean;
+  /** Whether the last penalty was blocked; retained only during that penalty's cooldown. */
+  penaltyBlocked:boolean;
+};
 export type DrillSnapshot = {
   actors:readonly DrillActor[];currents:readonly DrillCurrent[];
   warningSeconds:number;
   tethers?:readonly DrillTether[];orbits?:readonly DrillOrbit[];observers?:readonly DrillObserver[];
+  observations?:Readonly<Record<string,DrillObservation>>;
 };
 export type DrillImpact = {
   collisions:Record<string,number>;blockedCollisions:Record<string,number>;

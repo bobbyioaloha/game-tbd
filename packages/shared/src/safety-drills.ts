@@ -180,8 +180,8 @@ function drillPresentation(recipe: SafetyDrillRecipe): DrillPresentation {
         alternating: 'Inspection cones alternate across the course.',
       } satisfies Record<Extract<SafetyDrillRecipe, {family: 'observation'}>['scan'], string>;
       const temperament = {
-        patient: ' Cross lanes while unobserved; lateral motion in the light earns a shove.',
-        strict: ' Shorter grace: lateral motion in the light earns a shove. Fall straight or leave it.',
+        patient: ' Red light: release steering and fall straight. Steer in blue or outside cones.',
+        strict: ' Short grace! Red light: release steering and fall straight. Steer in blue or outside cones.',
       } satisfies Record<Extract<SafetyDrillRecipe, {family: 'observation'}>['temperament'], string>;
       return {label: 'Unscheduled Observation', instruction: scan[recipe.scan] + temperament[recipe.temperament]};
     }

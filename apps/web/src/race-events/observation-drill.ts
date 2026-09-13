@@ -1,5 +1,5 @@
 import { SAFETY_DRILL_LIMITS, RACE_EVENT_LIMITS, type SafetyDrillRecipe, type EventRacer,
-  type EventVector, type RacerSegment, type DrillSnapshot, type DrillObserver } from '@sky/shared';
+  type EventVector, type RacerSegment, type DrillSnapshot, type DrillObserver, type DrillObservation } from '@sky/shared';
 import { createDrillBands, emptyDrillImpact, emptyStepInputs, increment, inDrillCourse,
   insideObservationCone, type DrillMechanic } from './drill-mechanics';
 import { add, subtract, scale, direction, dot, clampLength, seededRandom } from './math';
@@ -54,16 +54,24 @@ export class ObservationDrill implements DrillMechanic {
   private readonly report=emptyDrillImpact();
   private readonly exposure=new Map<string,number>();
   private readonly cooldown=new Map<string,number>();
+  private readonly blockedPenalty=new Set<string>();
+  private readonly observations=new Map<string,DrillObservation>();
+  private readonly motionThreshold:number;
+  private readonly movementGrace:number;
   private age=0;
   private dt=0;
   private resolved=true;
   constructor(private readonly recipe:Recipe,seed:number,racers:readonly EventRacer[]) {
+    const strict=recipe.temperament==='strict';
+    this.motionThreshold=strict?OBSERVATION_LIMITS.strictThreshold:OBSERVATION_LIMITS.patientThreshold;
+    this.movementGrace=strict?OBSERVATION_LIMITS.strictGrace:OBSERVATION_LIMITS.patientGrace;
     const random=seededRandom(seed);
     for(const band of createDrillBands(racers))for(let row=0;row<2&&this.inspectors.length<OBSERVATION_LIMITS.maxObservers;row++) {
       const side=row%2?1:-1;
       this.inspectors.push({id:this.inspectors.length,side,phase:random()*Math.PI*2,
         position:inDrillCourse(add(band.origin,[side*12,30-row*120,row?5:-5]),3)});
     }
+    this.captureObservations(racers);
   }
   private observer(inspector:Inspector):DrillObserver {
     const strict=this.recipe.temperament==='strict';
@@ -80,38 +88,64 @@ export class ObservationDrill implements DrillMechanic {
       watching:enabled&&phase<watch,
       warning:this.age<SAFETY_DRILL_LIMITS.warningSeconds||(enabled&&turning)};
   }
+  private captureObservations(racers:readonly EventRacer[],segments:readonly RacerSegment[]=[]) {
+    this.observations.clear();
+    if(this.age>=SAFETY_DRILL_LIMITS.durationSeconds)return;
+    const observers=this.inspectors.map(inspector=>this.observer(inspector));
+    const byId=new Map(segments.map(segment=>[segment.id,segment]));
+    for(const racer of racers) {
+      const segment=byId.get(racer.id);
+      if(racer.finished||(segment?.endFraction??1)<1)continue;
+      // Coverage describes the current endpoint; exposure below still follows swept contact time.
+      const position=segment?.to??racer.position;
+      const covering=observers.filter(observer=>insideObservationCone(position,observer));
+      const cooldownSeconds=Math.max(0,Math.min(OBSERVATION_LIMITS.cooldownSeconds,(this.cooldown.get(racer.id)??0)-this.age));
+      this.observations.set(racer.id,{
+        watching:covering.some(observer=>observer.watching),warning:covering.some(observer=>observer.warning),
+        moving:Math.hypot(racer.velocity[0],racer.velocity[2])>this.motionThreshold,
+        exposureFraction:Math.max(0,Math.min(1,(this.exposure.get(racer.id)??0)/this.movementGrace)),
+        cooldownSeconds,protected:racer.protected===true,
+        penaltyBlocked:cooldownSeconds>0&&this.blockedPenalty.has(racer.id),
+      });
+    }
+  }
   prepareStep(age:number,dt:number,racers:readonly EventRacer[]) {
     this.age=age;this.dt=dt;this.resolved=false;
     const active=new Set(racers.filter(racer=>!racer.finished).map(racer=>racer.id));
     for(const id of this.exposure.keys())if(!active.has(id))this.exposure.delete(id);
     for(const id of this.cooldown.keys())if(!active.has(id))this.cooldown.delete(id);
+    for(const id of this.blockedPenalty)if(!active.has(id)||this.age>=(this.cooldown.get(id)??0))this.blockedPenalty.delete(id);
+    this.captureObservations(racers);
     return emptyStepInputs(racers);
   }
   resolveContacts(segments:readonly RacerSegment[],racers:readonly EventRacer[]) {
     const pending=new Map<string,EventVector>();
-    if(this.resolved||this.age<SAFETY_DRILL_LIMITS.warningSeconds||this.age>=SAFETY_DRILL_LIMITS.durationSeconds)return pending;
+    if(this.resolved)return pending;
+    if(this.age<SAFETY_DRILL_LIMITS.warningSeconds||this.age>=SAFETY_DRILL_LIMITS.durationSeconds) {
+      this.captureObservations(racers,segments);return pending;
+    }
     this.resolved=true;
     const observers=this.inspectors.map(inspector=>this.observer(inspector)).filter(observer=>observer.watching);
     const byId=new Map(racers.map(racer=>[racer.id,racer]));
-    const strict=this.recipe.temperament==='strict';
-    const threshold=strict?OBSERVATION_LIMITS.strictThreshold:OBSERVATION_LIMITS.patientThreshold;
-    const grace=strict?OBSERVATION_LIMITS.strictGrace:OBSERVATION_LIMITS.patientGrace;
     for(const segment of segments) {
       const racer=byId.get(segment.id);if(!racer||racer.finished)continue;
-      const moving=Math.hypot(racer.velocity[0],racer.velocity[2])>threshold;
+      const moving=Math.hypot(racer.velocity[0],racer.velocity[2])>this.motionThreshold;
       const fraction=moving?watchedFraction(segment,observers):0;
       if(fraction===0||this.age<(this.cooldown.get(racer.id)??0)){this.exposure.delete(racer.id);continue;}
       const exposure=(this.exposure.get(racer.id)??0)+this.dt*fraction;
-      this.exposure.set(racer.id,exposure);if(exposure<grace)continue;
+      this.exposure.set(racer.id,exposure);if(exposure<this.movementGrace)continue;
       this.exposure.delete(racer.id);this.cooldown.set(racer.id,this.age+OBSERVATION_LIMITS.cooldownSeconds);
-      if(racer.protected){increment(this.report.blockedObservations,racer.id);continue;}
+      this.blockedPenalty.delete(racer.id);
+      if(racer.protected){this.blockedPenalty.add(racer.id);increment(this.report.blockedObservations,racer.id);continue;}
       const lateral:EventVector=[-racer.velocity[0],8,-racer.velocity[2]];
       pending.set(racer.id,clampLength(scale(direction(lateral),OBSERVATION_LIMITS.impulse),RACE_EVENT_LIMITS.maxVelocityDelta));
       increment(this.report.observationFlags,racer.id);
     }
+    this.captureObservations(racers,segments);
     return pending;
   }
   getSnapshot():DrillSnapshot {return {actors:[],currents:[],observers:this.inspectors.map(inspector=>this.observer(inspector)),
+    observations:Object.fromEntries([...this.observations].map(([id,observation])=>[id,{...observation}])),
     warningSeconds:Math.max(0,SAFETY_DRILL_LIMITS.warningSeconds-this.age)};}
   getImpact(){return {...this.report,observationFlags:{...this.report.observationFlags},blockedObservations:{...this.report.blockedObservations}};}
 }

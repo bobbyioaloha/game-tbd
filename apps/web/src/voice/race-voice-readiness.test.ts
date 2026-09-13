@@ -159,7 +159,8 @@ function hudSetup(phase='prompted') {
   const modules:Record<string,unknown>={
     react:{useState:(initial:unknown)=>[initial,()=>{}],useEffect:()=>{},useSyncExternalStore:(_:unknown,get:()=>unknown)=>get()},
     'react/jsx-runtime':{jsx,jsxs:jsx},'@react-three/fiber':{},three:{},'@sky/shared':{},
-    '../race-events/RaceEventRenderer':{},'./drill-feedback':{drillAssessment},'./race-event-config':{RACE_VOICE_ATTEMPTS},'../components/PowerUpModel':{},
+    '../race-events/RaceEventRenderer':{},'./drill-feedback':{drillAssessment},'./EffectCue':{},
+    './race-event-config':{RACE_VOICE_ATTEMPTS},'../components/PowerUpModel':{},
   };
   const sandbox={exports:{} as {RaceCreationHud:(props:unknown)=>unknown},
     require:(id:string)=>{assert.ok(id in modules,'Unexpected import: '+id);return modules[id];},
