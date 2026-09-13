@@ -2,7 +2,7 @@
 import argparse, json, math, struct, zlib
 from pathlib import Path
 parser=argparse.ArgumentParser(description='Build the shared dinosaur style and character rig.')
-parser.add_argument('--character',choices=('greg','linda'),default='greg')
+parser.add_argument('--character',choices=('greg','linda','steve'),default='greg')
 character=parser.parse_args().character
 display_name=character.title()
 out=Path('apps/web/public/models');out.mkdir(parents=True,exist_ok=True)
@@ -26,6 +26,8 @@ palette=[(155,83,44),(188,149,97),(43,47,43),(151,158,149),
          (223,174,37),(155,83,44),(155,83,44),(155,83,44)]
 if character=='linda':
     palette[0]=(114,85,132);palette[1]=(171,143,165);palette[9]=(83,62,101)
+if character=='steve':
+    palette[0]=(70,116,105);palette[1]=(147,168,130);palette[9]=(49,78,73)
 def noise(x,y,seed=0):
     n=((x*374761393+y*668265263+seed*1442695041)&0xffffffff)
     n=((n^(n>>13))*1274126177)&0xffffffff
@@ -56,6 +58,14 @@ def rect(tile,x,y,w,h,color):
             atlas[offset:offset+3]=bytes(color)
 glyphs={
  '0':['01110','11011','11011','11011','11011','11011','01110'],
+ '3':['11110','00001','00001','01110','00001','00001','11110'],
+ 'D':['11110','10001','10001','10001','10001','10001','11110'],
+ 'G':['01111','10000','10000','10111','10001','10001','01111'],
+ 'N':['10001','11001','11001','10101','10011','10011','10001'],
+ 'O':['01110','10001','10001','10001','10001','10001','01110'],
+ 'P':['11110','10001','10001','11110','10000','10000','10000'],
+ 'U':['10001','10001','10001','10001','10001','10001','01110'],
+ 'Y':['10001','10001','01010','00100','00100','00100','00100'],
  '2':['01110','10001','00001','00010','00100','01000','11111'],
  '1':['00100','01100','00100','00100','00100','00100','01110'],
  'H':['10001','10001','10001','11111','10001','10001','10001'],
@@ -84,7 +94,7 @@ for tile in (7,8):
         rect(tile,inset,254-inset,256-2*inset,2,(167,153,112))
         rect(tile,inset,inset,2,256-2*inset,(167,153,112))
         rect(tile,254-inset,inset,2,256-2*inset,(167,153,112))
-lettering(7,'001' if character=='greg' else '002',70,11,(224,218,191))
+lettering(7,{'greg':'001','linda':'002','steve':'003'}[character],70,11,(224,218,191))
 rect(7,40,177,176,3,(154,155,137))
 lettering(8,'FALL',65,7,(32,31,27))
 lettering(8,'RISK',125,7,(32,31,27))
@@ -106,6 +116,17 @@ if character=='linda':
     lettering(11,'HR',40,17,(40,42,38))
     rect(11,25,183,206,4,(40,42,38))
     lettering(11,'002',202,4,(40,42,38))
+if character=='steve':
+    rect(10,0,0,256,256,(20,37,33))
+    lettering(10,'DIAG',22,6,(140,205,167))
+    lettering(10,'RETRY',184,5,(216,184,68))
+    for x in range(25,231):
+        y=117+int(18*math.sin(x*.09))
+        rect(10,x,y,2,3,(83,200,143))
+    rect(11,0,0,256,256,(224,182,57))
+    lettering(11,'IT',23,16,(40,42,38))
+    lettering(11,'SUPPORT',156,5,(40,42,38))
+    lettering(11,'003',216,4,(40,42,38))
 pixels=bytearray()
 for y in range(HEIGHT):
     pixels.append(0);pixels.extend(atlas[y*WIDTH*3:(y+1)*WIDTH*3])
@@ -267,6 +288,34 @@ def swept_piece(name,controls,color,joint,segments=24,steps=4,reference=(1,0,0))
     meshes.append({'name':name,'primitives':[{'attributes':attributes,'material':0}]})
     nodes.append({'name':name,'mesh':len(meshes)-1,'skin':0});nodes[0]['children'].append(len(nodes)-1)
 
+def back_plate(name,center,width,height,side,joint=root):
+    # Broad keratin blades, with a shallow ridge rather than a paper-thin face.
+    origin=origins[joints.index(joint)]
+    outline=[(-.5,0),(-.60,.34),(-.17,1),(.19,.92),(.58,.30),(.45,0)]
+    vertices=[];normals=[];uv=[]
+    rings=[]
+    for face_side in (-1,1):
+        rings.append([(center[0]+side*h*height*.18+face_side*.025,
+                       center[1]+h*height,center[2]+z*width) for z,h in outline])
+    triangles=[]
+    for face_side,ring in zip((-1,1),rings):
+        ridge=(center[0]+side*height*.08+face_side*.09,center[1]+height*.44,center[2])
+        for i in range(len(ring)):triangles.append((ridge,ring[i],ring[(i+1)%len(ring)]))
+    for i in range(len(outline)):
+        j=(i+1)%len(outline)
+        triangles.extend([(rings[0][i],rings[1][i],rings[0][j]),(rings[1][i],rings[1][j],rings[0][j])])
+    for triangle in triangles:
+        a,b,c=triangle;u=[b[k]-a[k] for k in range(3)];v=[c[k]-a[k] for k in range(3)]
+        n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]]
+        midpoint=[sum(p[k] for p in triangle)/3 for k in range(3)]
+        outward=[midpoint[0]-center[0]-side*height*.08,midpoint[1]-center[1]-height*.44,midpoint[2]-center[2]]
+        if sum(n[k]*outward[k] for k in range(3))<0:triangle=(a,c,b);n=[-x for x in n]
+        length=math.sqrt(sum(x*x for x in n))
+        for point in triangle:
+            vertices.extend(point[k]+origin[k] for k in range(3));normals.extend(x/length for x in n)
+            uv.extend(texture_uv(9,.5+(point[2]-center[2])/(width*1.3),.05+.9*(point[1]-center[1])/height))
+    emit_piece(name,vertices,normals,uv,joint)
+
 if character=='greg':
     piece('ribcage',(0,.25,0),(.55,.82,.57),0)
     piece('lower belly',(0,-.18,.14),(.47,.46,.43),1)
@@ -300,7 +349,7 @@ if character=='greg':
         (.04,-.14,-1.10,.175),(.075,-.07,-1.46,.105),
         (.10,-.01,-1.78,.046),(.105,.05,-1.98,.004),
     ],0,tail)
-else:
+elif character=='linda':
     piece('stocky ribcage',(0,.02,-.14),(.63,.52,1.00),0)
     piece('pale lower belly',(0,-.23,-.08),(.48,.30,.81),1)
     piece('thick throat',(0,.12,.63),(.43,.39,.44),1)
@@ -345,13 +394,52 @@ else:
     tail=bone('tail',(0,.09,-1.00),root)
     swept_piece('short tapered tail',[(0,0,.10,.34),(0,-.025,-.25,.30),(.035,-.11,-.57,.215),(.07,-.15,-.89,.125),(.10,-.13,-1.18,.053),(.105,-.08,-1.39,.004)],0,tail)
 
+else:
+    piece('arched torso',(0,.05,-.20),(.65,.59,1.04),0)
+    piece('pale underside',(0,-.22,-.12),(.49,.32,.83),1)
+    piece('sloping neck',(0,-.15,.73),(.31,.30,.52),0)
+    head=bone('head',(0,-.20,1.10),root)
+    piece('small low skull',(0,.025,.12),(.30,.27,.38),0,head,boxy=.9)
+    piece('long muzzle',(0,-.055,.42),(.235,.18,.31),0,head,boxy=.85)
+    piece('beak',(0,-.06,.65),(.175,.12,.12),6,head,boxy=.8)
+    piece('lower jaw',(0,-.19,.38),(.20,.065,.28),1,head)
+    for side in (-1,1):
+        piece('distracted eye',(side*.281,.08,.21),(.022,.043,.06),5,head,16,10)
+        piece('heavy eyelid',(side*.270,.135,.20),(.038,.032,.10),0,head)
+        piece('nostril',(side*.12,.025,.68),(.018,.017,.014),5,head,12,8)
+        leg=bone('leg '+str(side),(side*.46,.03,-.82),root)
+        piece('powerful hind thigh',(0,-.27,0),(.31,.44,.34),0,leg)
+        piece('long hind shin',(0,-.85,.02),(.20,.39,.22),0,leg)
+        piece('hind foot',(0,-1.23,.15),(.25,.145,.30),0,leg,boxy=.8)
+        arm=bone('arm '+str(side),(side*.43,-.27,.61),root)
+        piece('front shoulder',(0,-.19,0),(.24,.30,.27),0,arm)
+        piece('short front shin',(0,-.61,.02),(.18,.29,.20),0,arm)
+        piece('front foot',(0,-.93,.13),(.225,.145,.28),0,arm,boxy=.8)
+        for limb,y,z in [(leg,-1.24,.42),(arm,-.94,.39)]:
+            for toe in (-1,0,1):piece('blunt toenail',(toe*.13,y,z),(.06,.06,.085),6,limb,16,10,boxy=.7)
+    for side in (-1,1):
+        for index,(z,y,height,width) in enumerate([(.65,.35,.35,.34),(.24,.52,.65,.44),(-.22,.58,.83,.52),(-.70,.48,.72,.48),(-1.12,.23,.43,.36)]):
+            back_plate('back plate '+str(side)+' '+str(index),(side*.20,y,z+side*.08),width,height,side)
+    diagnostic=bone('diagnostic',(.25,-.53,.11),arm)
+    start=len(meshes)
+    piece('diagnostic handset',(0,0,0),(.16,.23,.043),2,diagnostic,20,16,boxy=.3)
+    patch('diagnostic display',(0,.035,-.045),(.27,.30),10,diagnostic)
+    piece('reboot button',(0,-.17,-.052),(.035,.024,.012),4,diagnostic,12,8)
+    piece('antenna',(.10,.30,0),(.015,.10,.016),2,diagnostic,12,8)
+    transform_parts(start,diagnostic,lambda x,y,z:((-x-z)/math.sqrt(2),y,(x-z)/math.sqrt(2)))
+    tail=bone('tail',(0,.09,-1.06),root)
+    swept_piece('long spiked tail',[(0,0,.12,.31),(0,-.025,-.32,.26),(.02,-.08,-.76,.18),(.04,-.08,-1.18,.105),(.06,-.01,-1.58,.047),(.08,.06,-1.88,.004)],0,tail)
+    for side in (-1,1):
+        for index,z in enumerate((-1.03,-1.43)):
+            swept_piece('tail spike '+str(side)+' '+str(index),[(side*.08,-.04,z,.073),(side*.30,.065,z-.13,.052),(side*.60,.19,z-.30,.003)],6,tail,segments=16,steps=4,reference=(0,1,0))
+
 equipment_start=len(meshes)
 piece('waist webbing',(0,-.1,0),(.56,.085,.595),2,root,32,16,boxy=.7)
 piece('waist buckle',(0,-.1,.58),(.12,.095,.04),3,root,16,12,boxy=.3)
 piece('buckle inset',(0,-.1,.621),(.081,.057,.012),2,root,12,8,boxy=.3)
 piece('parachute pack',(0,.49,-.53),(.38,.46,.22),2,root,32,24,boxy=.35)
 piece('pack flap',(0,.80,-.744),(.345,.115,.025),2,root,24,12,boxy=.3)
-patch('inspection warning',(-.22,.66,-.779),(.16,.17),8)
+if character!='steve':patch('inspection warning',(-.22,.66,-.779),(.16,.17),8)
 # Deliberately beyond the tiny arms, visible from behind.
 piece('ripcord mounting',(0,.86,-.78),(.11,.10,.045),3,root,8,4)
 piece('yellow ripcord top',(0,.97,-.83),(.13,.035,.035),4,root,8,4)
@@ -364,7 +452,7 @@ swept_piece('ripcord cable',[
 ],3,root,segments=8,reference=(0,0,1))
 piece('ripcord cable guide',(.29,.90,-.74),(.055,.055,.065),2,root,8,5)
 
-patch('personnel number',(0,.35,-.755),(.40,.26),7)
+if character!='steve':patch('personnel number',(0,.35,-.755),(.40,.26),7)
 if character=='linda':
     # Rotate the complete pack onto the quadruped's back, labels facing up.
     transform_parts(equipment_start,root,lambda x,y,z:(x,-z,y),(0,0,-.46))
@@ -373,6 +461,15 @@ if character=='linda':
     start=len(meshes)
     patch('Human resources badge',(0,0,0),(.33,.28),11)
     transform_parts(start,root,lambda x,y,z:(-z,y,x),(.66,.11,-.24))
+
+if character=='steve':
+    # Side-mounted pack and counterweight pouch leave the dorsal plates clear.
+    transform_parts(equipment_start,root,lambda x,y,z:(-z,y,x),(.22,-.18,-.26))
+    for z in (-.52,.34):piece('belly webbing',(0,.04,z),(.675,.605,.065),2,root,32,24,boxy=.75)
+    piece('counterweight tool pouch',(-.70,.17,-.24),(.12,.24,.30),2,root,20,16,boxy=.35)
+    start=len(meshes)
+    patch('IT support badge',(0,0,0),(.44,.38),11)
+    transform_parts(start,root,lambda x,y,z:(-z,y,x),(.986,.15,-.26))
 
 inverse=[]
 for x,y,z in origins:inverse.extend([1,0,0,0,0,1,0,0,0,0,1,0,-x,-y,-z,1])
@@ -391,10 +488,17 @@ def anim(name,tracks):
 arms=[i for i in joints if nodes[i]['name'].startswith('arm')]
 if character=='greg':
     anim('Stand',[(root,[quat(),quat()],[0,1])])
-    anim('Dive',[(root,[quat(math.pi/2),quat(math.pi/2)],[0,1])])
-    anim('Brake',[(root,[quat(.85),quat(.85)],[0,1])])
-    anim('Bank left',[(root,[quat(math.pi/2,z=.3),quat(math.pi/2,z=.3)],[0,1]),(tail,[quat(z=-.3),quat(z=-.3)],[0,1])])
-    anim('Bank right',[(root,[quat(math.pi/2,z=-.3),quat(math.pi/2,z=-.3)],[0,1]),(tail,[quat(z=.3),quat(z=.3)],[0,1])])
+    greg_falling=[]
+    for joint in joints:
+        name=nodes[joint]['name']
+        if name.startswith('arm ') or name.startswith('leg '):
+            side=int(name.split()[-1])
+            rotation=quat(-.15 if name.startswith('arm ') else .12,z=side*(.90 if name.startswith('arm ') else .62))
+            greg_falling.append((joint,[rotation,rotation],[0,1]))
+    anim('Dive',[(root,[quat(math.pi/2),quat(math.pi/2)],[0,1])]+greg_falling)
+    anim('Brake',[(root,[quat(.85),quat(.85)],[0,1])]+greg_falling)
+    anim('Bank left',[(root,[quat(math.pi/2,z=.3),quat(math.pi/2,z=.3)],[0,1]),(tail,[quat(z=-.3),quat(z=-.3)],[0,1])]+greg_falling)
+    anim('Bank right',[(root,[quat(math.pi/2,z=-.3),quat(math.pi/2,z=-.3)],[0,1]),(tail,[quat(z=.3),quat(z=.3)],[0,1])]+greg_falling)
     anim('Reach',[(arms[1],[quat(),quat(),quat(2.2),quat(2.3),quat(2.3),quat()],[0,.7,1.8,2.3,3.3,4.4]),(head,[quat(),quat(y=.3),quat(y=.3),quat()],[0,1,3.4,4.4])])
     anim('Impact',[(root,[quat(math.pi/2),quat(.8),quat(2),quat(math.pi/2)],[0,.2,.55,1.2])])
 else:
@@ -412,13 +516,24 @@ else:
     anim('Brake',[(root,[quat(-.12),quat(-.12)],[0,1])]+falling_limbs)
     anim('Bank left',[(root,[quat(.10,z=.22),quat(.10,z=.22)],[0,1])]+falling_limbs)
     anim('Bank right',[(root,[quat(.10,z=-.22),quat(.10,z=-.22)],[0,1])]+falling_limbs)
-    checklist_tracks=[
-        (arms[1],[quat(),quat(),quat(-1.10),quat(-1.10),quat(-1.10),quat(-1.10),quat(),quat()],[0,.6,1.5,2.2,3.0,3.6,4.4,5.2]),
-        (head,[quat(),quat(),quat(.20,y=.30),quat(.30,y=.30),quat(.17,y=.30),quat(y=-.15),quat(),quat()],[0,.6,1.5,2.2,2.7,3.6,4.4,5.2]),
-        (clipboard,[quat(),quat(),quat(z=-.12),quat(z=-.12),quat(),quat()],[0,.6,1.5,3.6,4.4,5.2]),
-    ]
-    anim('Checklist',checklist_tracks)
-    anim('Reach',checklist_tracks)
+    if character=='linda':
+        checklist_tracks=[
+            (arms[1],[quat(),quat(),quat(-1.10),quat(-1.10),quat(-1.10),quat(-1.10),quat(),quat()],[0,.6,1.5,2.2,3.0,3.6,4.4,5.2]),
+            (head,[quat(),quat(),quat(.20,y=.30),quat(.30,y=.30),quat(.17,y=.30),quat(y=-.15),quat(),quat()],[0,.6,1.5,2.2,2.7,3.6,4.4,5.2]),
+            (clipboard,[quat(),quat(),quat(z=-.12),quat(z=-.12),quat(),quat()],[0,.6,1.5,3.6,4.4,5.2]),
+        ]
+        anim('Checklist',checklist_tracks)
+        anim('Reach',checklist_tracks)
+    else:
+        # Two quick pokes, a long troubleshooting pause, then a pleased head lift.
+        diagnostic_tracks=[
+            (arms[1],[quat(),quat(),quat(-.95),quat(-.95),quat(-.95),quat(),quat()],[0,.5,1.25,3.8,4.3,5.0,5.6]),
+            (arms[0],[quat(),quat(),quat(-.65,z=1.0),quat(-.75,z=1.2),quat(-.65,z=1.0),quat(-.75,z=1.2),quat(),quat()],[0,1.1,1.5,1.7,1.95,2.15,2.65,5.6]),
+            (head,[quat(),quat(.16,y=.24),quat(.29,y=.24),quat(.13,y=.24),quat(.27,y=.24),quat(.16,y=.24),quat(-.12,y=-.16),quat(),quat()],[0,1.1,1.7,1.95,2.15,2.7,3.9,5.0,5.6]),
+            (diagnostic,[quat(),quat(),quat(z=.10),quat(z=-.09),quat(),quat(z=-.09),quat(),quat()],[0,1.4,1.55,1.7,1.95,2.15,2.4,5.6]),
+        ]
+        anim('Diagnostics',diagnostic_tracks)
+        anim('Reach',diagnostic_tracks)
     anim('Impact',[(root,[quat(.10),quat(.25),quat(-.08),quat(.10)],[0,.2,.55,1.2])])
 
 # Merge the authored parts into one skinned draw call, retaining all bone weights.

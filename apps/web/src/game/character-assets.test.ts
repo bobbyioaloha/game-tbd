@@ -32,3 +32,22 @@ test('Linda carries her checklist with the animated right foreleg',()=>{
   assert.ok(intro.channels.some(channel=>channel.target.node===foreleg));
   assert.ok(intro.channels.some(channel=>model.nodes[channel.target.node].name==='head'));
 });
+
+test('Steve carries his diagnostic device and animates both forelegs during troubleshooting',()=>{
+  const model=asset('steve');
+  const device=model.nodes.findIndex(node=>node.name==='diagnostic');
+  const right=model.nodes.findIndex(node=>node.name==='arm 1');
+  assert.ok(device>=0&&right>=0);
+  assert.ok(model.nodes[right].children?.includes(device));
+  const intro=model.animations.find(clip=>clip.name==='Diagnostics')!;
+  for(const name of ['arm -1','arm 1','head','diagnostic'])
+    assert.ok(intro.channels.some(channel=>model.nodes[channel.target.node].name===name),name);
+});
+test('Greg spreads all four limbs during freefall and banking',()=>{
+  const model=asset('greg');
+  for(const name of ['Dive','Brake','Bank left','Bank right']){
+    const clip=model.animations.find(clip=>clip.name===name)!;
+    for(const limb of ['arm -1','arm 1','leg -1','leg 1'])
+      assert.ok(clip.channels.some(channel=>model.nodes[channel.target.node].name===limb),`${name}: ${limb}`);
+  }
+});

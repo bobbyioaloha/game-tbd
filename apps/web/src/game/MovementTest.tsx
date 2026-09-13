@@ -1,5 +1,5 @@
 import { Preview } from '../pages/CharacterPage';
-import { CHARACTERS } from './characters';
+import { CHARACTERS, DEFAULT_CHARACTER_ANGLE } from './characters';
 import type { DinosaurCharacter, GregPose } from './GregModel';
 import { raceEventFixtures } from '@sky/shared';
 import { RaceEventRuntime } from '../race-events/runtime';
@@ -33,7 +33,7 @@ export function MovementTest() {
   const [settings,setSettings]=useState(false);
   const screenRef=useRef(screen);screenRef.current=screen;
   const settingsRef=useRef(settings);settingsRef.current=settings;
-  const [angle,setAngle]=useState(35),[zoom,setZoom]=useState(8);
+  const [angle,setAngle]=useState(DEFAULT_CHARACTER_ANGLE),[zoom,setZoom]=useState(8);
   const [pose,setPose]=useState<GregPose>('Stand'),[previewPaused,setPreviewPaused]=useState(false),[take,setTake]=useState(0);
   const [race]=useState(()=>new PracticeRace(true,Math.random,new RaceEventRuntime({pickupContactRadius:RACE_CREATION_PICKUP_RADIUS})));
   const voice=useRaceVoice(race);
@@ -70,6 +70,8 @@ export function MovementTest() {
   };
 
   const startCountdown=()=>{
+    runtime.race.selectCharacter(inspected);
+    setHud({...initialHud,standings:runtime.race.standings()});
     // Starting a prepared run must keep its loaded fixture and voice setup.
     setSettings(false);setBinding(null);setCountdown(3);setScreen('countdown');
   };
@@ -158,26 +160,26 @@ export function MovementTest() {
         </div>
         <div className="in-game-display">
         <Canvas camera={{position: [0,32,0], up: [0,0,-1], fov: 65, far: 5000}} fallback={<p>WebGL is unavailable. Enable hardware acceleration to run this test.</p>}>
-          {screen==='race'||screen==='countdown'?<RaceScene runtime={runtime} report={setHud}/>:<Preview character={inspected} key={screen+inspected+take} angle={screen==='selection'?(inspected==='greg'?-90:35):angle} zoom={zoom} pose={screen==='selection'?(person.introPose??'Stand'):pose} paused={screen==='selection'?false:previewPaused} loop={screen==='selection'||pose==='Checklist'} chase={false} inGame/>}
+          {screen==='race'||screen==='countdown'?<RaceScene runtime={runtime} report={setHud}/>:<Preview character={inspected} key={screen+inspected+take} angle={screen==='selection'?DEFAULT_CHARACTER_ANGLE:angle} zoom={zoom} pose={screen==='selection'?(person.introPose??'Stand'):pose} paused={screen==='selection'?false:previewPaused} loop={screen==='selection'||pose==='Checklist'||pose==='Diagnostics'} chase={false} inGame/>}
         </Canvas>
         {(screen==='selection'||screen==='viewer')&&!settings&&<div className="in-game-personnel">
           <span className="safety-label">{screen==='viewer'?'EQUIPMENT INSPECTION':'MANDATORY ATTENDANCE'}</span>
           <h1>{screen==='viewer'?'Inspect personnel':'Select personnel'}</h1>
           <h2>{person.name} <small>{employee} / {person.department}</small></h2>
           <p>{person.personality}</p>
-          <div className="in-game-roster">{CHARACTERS.map(character=><button key={character.id} disabled={!character.model} aria-pressed={character.id===person.id} onClick={()=>{if(character.model){setInspected(character.model);setPose(character.introPose??'Stand');setPreviewPaused(false);setTake(value=>value+1);}}}>
-            <strong>{character.name}</strong><span>{character.species}</span><small>{screen==='viewer'&&character.id===person.id?'INSPECTING':character.ready?'PLAYER':character.model?'RIVAL · EQUIPPED':'AWAITING EQUIPMENT'}</small>
+          <div className="in-game-roster">{CHARACTERS.map(character=><button key={character.id} disabled={!character.model} aria-pressed={character.id===person.id} onClick={()=>{if(character.model){setInspected(character.model);setAngle(DEFAULT_CHARACTER_ANGLE);setPose(character.introPose??'Stand');setPreviewPaused(false);setTake(value=>value+1);}}}>
+            <strong>{character.name}</strong><span>{character.species}</span><small>{screen==='viewer'&&character.id===person.id?'INSPECTING':character.id===person.id?'SELECTED':character.model?'PLAYABLE':'AWAITING EQUIPMENT'}</small>
           </button>)}</div>
           {screen==='viewer'&&<div className="in-game-inspection">
             <label>Rotate<input aria-label="Rotate character" type="range" min="-180" max="180" value={angle} onChange={event=>setAngle(Number(event.target.value))}/></label>
             {screen==='viewer'&&<label>Zoom<input aria-label="Character preview zoom" type="range" min="5" max="12" step=".1" value={zoom} onChange={event=>setZoom(Number(event.target.value))}/></label>}
-            <label>Procedure<select aria-label="Character procedure" value={pose} onChange={event=>{setPose(event.target.value as GregPose);setPreviewPaused(false);setTake(value=>value+1);if(event.target.value==='Reach')setAngle(150);}}>
-              {(screen==='viewer'?['Stand','Dive','Reach','Brake','Bank left','Bank right','Impact',...(inspected==='linda'?['Checklist']:[])]:['Stand','Reach']).map(value=><option key={value}>{value}</option>)}
+            <label>Procedure<select aria-label="Character procedure" value={pose} onChange={event=>{setPose(event.target.value as GregPose);setPreviewPaused(false);setTake(value=>value+1);}}>
+              {(screen==='viewer'?['Stand','Dive','Reach','Brake','Bank left','Bank right','Impact',...(inspected==='linda'?['Checklist']:inspected==='steve'?['Diagnostics']:[])]:['Stand','Reach']).map(value=><option key={value}>{value}</option>)}
             </select></label>
             {screen==='viewer'&&<div><button aria-pressed={previewPaused} onClick={()=>setPreviewPaused(value=>!value)}>{previewPaused?'Play':'Pause preview'}</button><button onClick={()=>{setPreviewPaused(false);setTake(value=>value+1);}}>Replay</button></div>}
           </div>}
           <p>{steeringHelp}<br/>{actionHelp}</p>
-          <button className="begin-exercise" onClick={()=>{if(runtime.race.elapsed===0)startCountdown();else beginExercise();}}>{inspected!=='greg'?'Begin as Greg →':'Begin exercise →'}</button>
+          <button className="begin-exercise" onClick={()=>{if(runtime.race.elapsed===0)startCountdown();else beginExercise();}}>{'Begin as '+person.name+' →'}</button>
           <small>Attendance is not optional.</small>
         </div>}
         {screen==='countdown'&&<div className="exercise-start-screen" role="status" aria-live="polite" aria-atomic="true">
