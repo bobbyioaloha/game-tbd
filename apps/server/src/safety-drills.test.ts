@@ -50,7 +50,7 @@ test('drill numeric overrides and unsupported combinations fail before geometry 
     assert.equal(calls, 1);
   }
 });
-test('real free mock stages preserve the six fixture recipes and distinct object appearances', async () => {
+test('real free mock stages preserve every fixture recipe and distinct object appearance', async () => {
   const pipeline = new CreationPipeline(pipelineProfiles({}), {mock: mockStageTransport});
   await Promise.all(safetyDrillFixtures.map(async item => {
     const spec = await pipeline.runDrill({text: item.prompt, profileId: 'mock', geometryMode: 'primitives'});
@@ -233,6 +233,20 @@ test('provider schema matches every shared recipe combination and rejects unsupp
   for (const layout of ['winding', 'forked', 'alternating']) for (const flow of ['steady', 'pulsing']) {
     for (const modifier of ['none', 'eddies']) expectBoth({family: 'rapids', layout, flow, modifier}, true);
   }
+  // Enumerate the actual provider branches, including each new family's variants.
+  // This catches SDK schema drift without maintaining a second recipe definition.
+  const validRecipes: Record<string, unknown>[] = [];
+  for (const branch of branches) {
+    let candidates: Record<string, unknown>[] = [{}];
+    for (const [key, node] of Object.entries(branch.properties)) {
+      candidates = candidates.flatMap(recipe => choices(node).map(value => ({...recipe, [key]: value})));
+    }
+    candidates.forEach(recipe => expectBoth(recipe, true));
+    validRecipes.push(...candidates);
+  }
+  assert.equal(validRecipes.length, 74);
+  assert.deepEqual([...new Set(validRecipes.map(recipe => recipe.family))].sort(),
+    ['stampede', 'rapids', 'pinball', 'buddy', 'orbit', 'reconstruction', 'observation'].sort());
   for (const branch of branches) {
     assert.equal(branch.type, 'object'); assert.equal(branch.additionalProperties, false);
     assert.deepEqual([...branch.required].sort(), Object.keys(branch.properties).sort());
@@ -249,4 +263,22 @@ test('provider schema matches every shared recipe combination and rejects unsupp
       expectBoth({...item.design.drill, [key]: 1}, false);
     }
   }
+});
+
+test('all five new drills pass the free voice pipeline with their transcript, recipe and geometry intact', async () => {
+  const pipeline = new CreationPipeline(pipelineProfiles({}), {mock: mockStageTransport});
+  for (const item of safetyDrillFixtures.slice(6)) {
+    const events: SafetyDrillVoiceEvent[] = [];
+    const result = await pipeline.runVoiceDrill({bytes: Buffer.from('RIFF1234WAVEaudio'), mimeType: 'audio/wav'},
+      {profileId: 'mock', geometryMode: 'primitives', captureMs: 500, mockText: item.prompt},
+      {emit: event => events.push(event)});
+    assert.equal(result.result.text, item.prompt);
+    assert.ok(result.spec);
+    assert.deepEqual(result.spec.drill, item.spec.drill);
+    assert.deepEqual(result.spec.appearance, item.spec.appearance);
+    assert.equal(result.spec.description, item.spec.description);
+    events.forEach(event => SafetyDrillVoiceEventSchema.parse(event));
+    assert.equal(events.filter(event => event.type === 'complete').length, 1);
+  }
+  assert.equal(pipeline.liveUsage.attemptsUsed, 0);
 });

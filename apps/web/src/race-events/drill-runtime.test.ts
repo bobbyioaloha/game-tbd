@@ -198,7 +198,13 @@ test('every supported recipe combination stays within actor, current, and force 
       for(const modifier of ['none','eddies'] as const)recipes.push({family:'rapids',layout,flow,modifier});
     }
   }
-  const racers=Array.from({length:8},(_,index)=>racer(String(index),[0,-index*300,0]));
+  for(const layout of ['staggered','funnel'] as const)for(const bounce of ['springy','ricochet'] as const)recipes.push({family:'pinball',layout,bounce});
+  for(const pairing of ['nearest','crossfield'] as const)for(const tether of ['elastic','pulsing'] as const)recipes.push({family:'buddy',pairing,tether});
+  for(const direction of ['clockwise','counterclockwise'] as const)for(const pull of ['gentle','clingy'] as const)recipes.push({family:'orbit',direction,pull});
+  for(const pattern of ['trail','mirror'] as const)for(const cadence of ['steady','bursts'] as const)recipes.push({family:'reconstruction',pattern,cadence});
+  for(const scan of ['sweep','alternating'] as const)for(const temperament of ['patient','strict'] as const)recipes.push({family:'observation',scan,temperament});
+  assert.equal(recipes.length,74);
+  const racers=Array.from({length:16},(_,index)=>racer(String(index),[index%2?15:-15,-Math.floor(index/4)*150,0]));
   for(const recipe of recipes) {
     const runtime=new SafetyDrillRuntime(recipe,42,racers);
     for(let tick=0;tick<=120;tick++) {
@@ -206,7 +212,9 @@ test('every supported recipe combination stays within actor, current, and force 
       const snapshot=runtime.getSnapshot();
       assert.ok(snapshot.actors.length<=SAFETY_DRILL_LIMITS.maxActors);
       assert.ok(snapshot.currents.length<=SAFETY_DRILL_LIMITS.maxCurrents);
-      assert.equal(snapshot.actors.length>0,recipe.family==='stampede');
+      assert.ok((snapshot.tethers?.length??0)<=SAFETY_DRILL_LIMITS.maxTethers);
+      assert.ok((snapshot.orbits?.length??0)<=SAFETY_DRILL_LIMITS.maxOrbits);
+      assert.ok((snapshot.observers?.length??0)<=SAFETY_DRILL_LIMITS.maxObservers);
       assert.equal(snapshot.currents.length>0,recipe.family==='rapids');
       for(const actor of snapshot.actors) {
         assert.ok(actor.position.every(Number.isFinite));

@@ -31,19 +31,37 @@ export type DrillWake = {position:EventVector;from:EventVector;to:EventVector;ra
 export type DrillActor = {
   id:number;position:EventVector;radius:number;velocity:EventVector;
   state:'warning'|'moving'|'charging'|'scattering';wake?:DrillWake;
+  /** Omission preserves the original herd actor presentation. */
+  kind?:'bumper'|'echo';
   telegraph?:{from:EventVector;to:EventVector};
 };
 export type DrillCurrent = {
   id:number;bandId:number;pathId:number;position:EventVector;from:EventVector;to:EventVector;
   radius:number;direction:EventVector;kind:'flow'|'fast'|'eddy';strength:number;
 };
+export type DrillTether = {
+  id:number;racerIds:readonly [string,string];from:EventVector;to:EventVector;
+  restLength:number;tension:number;active:boolean;
+};
+export type DrillOrbit = {
+  id:number;position:EventVector;radius:number;coreRadius:number;height:number;
+  direction:1|-1;active:boolean;
+};
+export type DrillObserver = {
+  id:number;position:EventVector;direction:EventVector;range:number;cosHalfAngle:number;
+  watching:boolean;warning:boolean;
+};
 export type DrillSnapshot = {
   actors:readonly DrillActor[];currents:readonly DrillCurrent[];
   warningSeconds:number;
+  tethers?:readonly DrillTether[];orbits?:readonly DrillOrbit[];observers?:readonly DrillObserver[];
 };
 export type DrillImpact = {
   collisions:Record<string,number>;blockedCollisions:Record<string,number>;
   draftSeconds:Record<string,number>;currentSeconds:Record<string,number>;reactions:number;
+  bounces?:Record<string,number>;tetherSeconds?:Record<string,number>;
+  orbitSeconds?:Record<string,number>;orbitReleases?:Record<string,number>;
+  observationFlags?:Record<string,number>;blockedObservations?:Record<string,number>;
 };
 export type RaceEventImpact = {
   participants:string[];

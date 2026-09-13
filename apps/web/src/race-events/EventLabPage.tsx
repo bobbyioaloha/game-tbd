@@ -12,7 +12,7 @@ export function EventLabPage() {
   return <main className="lab event-lab">
     <span className="eyebrow">SAFETY DEPARTMENT / DRILL REHEARSAL</span>
     <h1>Report a hazard. Reproduce the concern.</h1>
-    <p>Try three identical hippos with different behavior, then compare a herd with a river. Local fixtures and replay are free; everyone faces the same drill.</p>
+    <p>Try seven drill families: herds, rapids, bumpers, buddy links, orbits, path echoes, and watchful inspectors. Local fixtures and replay are free; everyone faces the same drill.</p>
     <div className="event-fixtures" aria-label="Local safety drill fixtures">{safetyDrillFixtures.map(fixture=><button key={fixture.spec.id}
       aria-pressed={spec.id===fixture.spec.id} disabled={busy} onClick={()=>{setFixturePrompt(fixture.prompt);load(fixture.spec);}}>
       <strong>{fixture.spec.displayName}</strong><span>{fixture.spec.description}</span>
