@@ -19,7 +19,7 @@ export function LabHistory({history, busy, onInspect, onRate}: {
     <div className="lab-actions"><button disabled={!history.length} onClick={() => setExportText(serializeLabHistory(history))}>Export comparison JSON</button></div>
     {exportText && <div className="comparison-export">
       <p>Snapshot of the attempts at export time. Download it or select and copy the JSON below.</p>
-      {exportUrl && <a href={exportUrl} download="mandatory-safety-exercise-generation-comparison.json">Download comparison JSON</a>}
+      {exportUrl && <a href={exportUrl} download="falling-standards-generation-comparison.json">Download comparison JSON</a>}
       <textarea aria-label="Comparison JSON" readOnly value={exportText} onFocus={event => event.target.select()} rows={7}/>
     </div>}
     {summarizeAttempts(history).map((group, index) => <p key={index}>

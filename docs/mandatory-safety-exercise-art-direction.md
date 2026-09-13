@@ -1,11 +1,11 @@
-# Mandatory Safety Exercise
+# Falling Standards
 
 ## Art direction and Three.js implementation handoff
 
 **Status:** Design vision, partially implemented. See [the current character guide](dinosaur-art-direction.md) for shipped assets; scene ideas and acceptance targets below are not a feature-completion list.
 **Audience:** Artists, animators, and contributors developing the game's visual identity
 **Runtime:** Three.js through React Three Fiber  
-**Working title:** *Mandatory Safety Exercise*
+**Working title:** *Falling Standards*
 
 ## One-sentence pitch
 

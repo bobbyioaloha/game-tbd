@@ -1,11 +1,11 @@
 {
   "remote.portsAttributes": {
     "3001": {
-      "label": "Mandatory Safety Exercise API",
+      "label": "Falling Standards API",
       "onAutoForward": "silent"
     },
     "5173": {
-      "label": "Mandatory Safety Exercise game",
+      "label": "Falling Standards game",
       "onAutoForward": "openBrowserOnce"
     }
   }
