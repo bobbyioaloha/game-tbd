@@ -6,7 +6,7 @@ Built during the 100-hour TAI x OpenAI Hackathon in September 2026, with Codex a
 
 ## Play the game
 
-Choose Greg the Tyrannosaurus, Linda the Triceratops, or Steve the Stegosaurus, then race three computer-controlled opponents to the finish. Susan is on the roster but still uses a placeholder and cannot be selected. The game currently targets desktop Chrome and Edge with a keyboard.
+Choose Greg the Tyrannosaurus, Linda the Triceratops, Steve the Stegosaurus, or Susan the Parasaurolophus, then race three computer-controlled opponents to the finish. The game currently targets desktop Chrome and Edge with a keyboard.
 
 Ordinary items help you compete. The yellow **Inspection Request** gives you one chance to report a hazard:
 
