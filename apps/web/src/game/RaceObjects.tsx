@@ -20,24 +20,34 @@ function Block({position=[0,0,0],size,color}:{position?:[number,number,number];s
 }
 function ObstacleModel({kind}:{kind:ObstacleKind}){
   const surface=useContext(SurfaceContext);
-  if(kind==='rock')return <mesh><dodecahedronGeometry args={[2,0]}/><meshStandardMaterial map={surface} roughness={.92} color="#777362" flatShading/></mesh>;
-  if(kind==='piano')return <group>
-    <Block size={[5,2,2.7]} color="#282936"/>
-    <Block position={[0,1.2,0]} size={[5.2,0.25,3]} color="#121621"/>
-    {Array.from({length:12},(_,i)=><Block key={i} position={[-2.2+i*0.4,0.2,1.5]} size={[0.35,0.15,0.6]} color={i%3?'#fff4dc':'#242738'}/>)}
-    {[-2,2].map(x=><Block key={x} position={[x,-1.3,0]} size={[0.4,1,0.4]} color="#242738"/>)}
+  if(kind==='cone')return <group>
+    <Block position={[0,-1.35,0]} size={[3,.3,3]} color="#28333b"/>
+    <mesh><coneGeometry args={[1.25,2.7,8]}/><meshStandardMaterial color="#f48637" roughness={.8}/></mesh>
+    <mesh position={[0,.1,0]}><cylinderGeometry args={[.43,.68,.5,8]}/><meshStandardMaterial color="#fff4d3"/></mesh>
   </group>;
-  if(kind==='toilet')return <group>
-    <Block position={[0,0.6,-1]} size={[2.2,2.1,0.8]} color="#d0cdbb"/>
-    <mesh position={[0,-0.1,0.4]} scale={[1,0.65,1.4]}><sphereGeometry args={[1.1,16,10]}/><meshStandardMaterial map={surface} roughness={.92} color="#b9bdae"/></mesh>
-    <mesh position={[0,0.5,0.4]} rotation={[-Math.PI/2,0,0]} scale={[1,1.3,1]}><torusGeometry args={[0.8,0.2,8,24]}/><meshStandardMaterial map={surface} roughness={.92} color="#ded9c5"/></mesh>
-    <Block position={[0,-1.1,0]} size={[1,1,1.3]} color="#b9bdae"/>
+  if(kind==='extinguisher')return <group>
+    <mesh position={[0,-.15,0]}><cylinderGeometry args={[.7,.7,2.8,12]}/><meshStandardMaterial color="#c83f35" roughness={.65}/></mesh>
+    <Block position={[0,1.4,0]} size={[.9,.2,.45]} color="#303d46"/>
+    <Block position={[.75,.2,0]} size={[.18,2,.22]} color="#25323c"/>
+    <Block position={[0,0,.7]} size={[.65,1,.05]} color="#fff0cd"/>
+    <Block position={[0,0,.74]} size={[.12,.65,.03]} color="#c83f35"/>
+    <Block position={[0,0,.74]} size={[.45,.12,.03]} color="#c83f35"/>
   </group>;
-  if(kind==='duck')return <group>
-    <mesh scale={[1.4,0.85,1.1]}><sphereGeometry args={[1.45,16,12]}/><meshStandardMaterial map={surface} roughness={.92} color="#b8a14d"/></mesh>
-    <mesh position={[0,1.2,-0.7]}><sphereGeometry args={[0.9,16,12]}/><meshStandardMaterial map={surface} roughness={.92} color="#c4b164"/></mesh>
-    <Block position={[0,1,-1.55]} size={[1.1,0.25,0.8]} color="#a86837"/>
-    {[-0.6,0.6].map(x=><mesh key={x} position={[x,1.45,-1.2]}><sphereGeometry args={[0.13,8,6]}/><meshStandardMaterial map={surface} roughness={.92} color="#242939"/></mesh>)}
+  if(kind==='barrier')return <group>
+    <Block position={[0,.35,0]} size={[5,1.35,.3]} color="#ffd04b"/>
+    {[-2,-1,0,1,2].map(x=><group key={x} position={[x,.35,.18]} rotation={[0,0,-.35]}><Block size={[.4,1.2,.06]} color="#283640"/></group>)}
+    {[-1.9,1.9].map(x=><group key={x}><Block position={[x,-.65,0]} size={[.18,1.7,.25]} color="#bcc9c5"/><Block position={[x,-1.4,0]} size={[.6,.2,1.6]} color="#36454c"/></group>)}
+  </group>;
+  if(kind==='crate')return <group>
+    <Block size={[3.4,3.4,3.4]} color="#9e8455"/>
+    {[-1.3,1.3].map(x=><Block key={x} position={[x,0,0]} size={[.2,3.5,3.5]} color="#43545b"/>)}
+    <CargoLabel position={[0,0,1.71]} scale={1.5}/>
+  </group>;
+  if(kind==='capsule')return <group>
+    <mesh position={[0,.25,0]}><cylinderGeometry args={[.9,2,3.6,10]}/><meshStandardMaterial color="#d1d5cc" map={surface} roughness={.85}/></mesh>
+    <mesh position={[0,-1.8,0]}><cylinderGeometry args={[2,1.8,.55,10]}/><meshStandardMaterial color="#394655"/></mesh>
+    <mesh position={[0,.7,1.1]} rotation={[Math.PI/2,0,0]}><cylinderGeometry args={[.55,.55,.12,10]}/><meshStandardMaterial color="#5794b8" metalness={.3} roughness={.3}/></mesh>
+    <CargoLabel position={[0,-.7,1.77]} scale={.8}/>
   </group>;
   if(kind==='duct')return <group>
     {[-6.5,6.5].map(x=><Block key={'x'+x} position={[x,0,0]} size={[1,24,14]} color="#7b8581"/>)}
@@ -66,8 +76,8 @@ function ObstacleModel({kind}:{kind:ObstacleKind}){
     <mesh position={[0,2,0]} rotation={[Math.PI,0,0]}><coneGeometry args={[1.4,0.8,16,1,true]}/><meshStandardMaterial map={surface} roughness={.92} color="#f5e9bc" side={2}/></mesh>
   </group>;
   if(kind==='balloon')return <group>
-    <mesh position={[0,1,0]} scale={[1,1.3,1]}><sphereGeometry args={[2,16,12]}/><meshStandardMaterial map={surface} roughness={.92} color="#b8a081"/></mesh>
-    <Block position={[0,-2.4,0]} size={[1.2,0.8,1.2]} color="#98774c"/>
+    <mesh position={[0,1,0]} scale={[1,1.3,1]}><sphereGeometry args={[2,16,12]}/><meshStandardMaterial map={surface} roughness={.92} color="#e1e3d6"/></mesh>
+    <Block position={[0,-2.4,0]} size={[1.2,0.8,1.2]} color="#d69c43"/>
     {[-0.5,0.5].map(x=><Block key={x} position={[x,-1.4,0]} size={[0.04,1.4,0.04]} color="#eee3ca"/>)}
   </group>;
   return <group>

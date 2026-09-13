@@ -1,3 +1,5 @@
+import { RaceCreations } from './RaceCreations';
+import { MusicControls, useGameMusic } from './GameMusic';
 import { Preview } from '../pages/CharacterPage';
 import { CHARACTERS, DEFAULT_CHARACTER_ANGLE } from './characters';
 import type { DinosaurCharacter, GregPose } from './GregModel';
@@ -27,7 +29,7 @@ const interactingWithUi = (target: EventTarget | null) => target instanceof HTML
 const initialHud = initialRaceHud;
 
 export function MovementTest() {
-  const [screen,setScreen]=useState<'selection'|'viewer'|'setup'|'race'|'countdown'>('selection');
+  const [screen,setScreen]=useState<'title'|'selection'|'viewer'|'setup'|'race'|'countdown'>('title');
   const [inspected,setInspected]=useState<DinosaurCharacter>('greg');
   const person=CHARACTERS.find(character=>character.id===inspected)!;
   const employee=String(CHARACTERS.indexOf(person)+1).padStart(3,'0');
@@ -50,6 +52,11 @@ export function MovementTest() {
   const [fixtureNotice,setFixtureNotice]=useState('');
   const [quickFixture,setQuickFixture]=useState(true);
   const [hud, setHud] = useState(initialHud);
+  const music = useGameMusic({
+    track: screen==='race' ? (hud.finish!==null ? 'results' : 'race') : screen==='countdown' ? 'race' : 'menu',
+    paused: screen==='race'&&paused,
+    recording: microphone.phase==='preparing'||microphone.phase==='recording',
+  });
   const [bindings, setBindings] = useState<Bindings>({...defaults});
   const steeringHelp=`${label(bindings.forward)} / ${label(bindings.left)} / ${label(bindings.backward)} / ${label(bindings.right)} to steer · hold ${label(bindings.brake)} to brake`;
   const actionHelp=`${label(bindings.boost)} boost (needs fuel) · ${label(bindings.dodge)} dodge · ${label(bindings.use)} use item · hold ${label(bindings.look)} to look up · Esc pause`;
@@ -158,11 +165,19 @@ export function MovementTest() {
     };
   }, [runtime, binding, pause, startCountdown]);
 
-  return <section className="movement-test">
+  return <>
+    {screen==='title' ? <section className="training-title" aria-label="Falling Standards">
+    <img src="/images/falling-standards.png" alt="Falling Standards. Your continued existence is mandatory. Four dinosaur trainees skydive past a refrigerator and sofa toward a forest landing target."/>
+    <div className="training-title-actions">
+      <button autoFocus className="commence-training" onClick={()=>setScreen('selection')}>Commence Training <span aria-hidden="true">→</span></button>
+      <MusicControls music={music} compact/>
+      <details><summary>Training essentials</summary><p>{steeringHelp}<br/>{actionHelp}</p><p>Choose your trainee, then complete the briefing. Voice creation is optional.</p></details>
+    </div>
+  </section> : <section className="movement-test">
     <div className="movement-layout">
       <div className={'movement-stage packaged-game '+(screen!=='race'?'personnel-menu':'')}>
         <div className="in-game-toolbar">
-          <span>⚠ FALLING STANDARDS</span>
+          <button className="training-home" onClick={()=>{pause(true);voice.recorder.cancel();setSettings(false);setScreen('title');}}>⚠ FALLING STANDARDS</button>
           <div>
             {screen==='race'?<><button onClick={()=>{if(runtime.paused&&runtime.race.elapsed===0)startCountdown();else pause(!runtime.paused);}} disabled={binding!==null||settings}>{paused?'Resume':'Pause'}</button><button onClick={prepareRun}>Restart</button></>:null}
             <button aria-pressed={screen==='selection'} onClick={returnToPersonnel}>Personnel</button>
@@ -209,7 +224,7 @@ export function MovementTest() {
         <div className="race-place">{hud.place} / 4 <small>POSITION</small></div>
         <RaceOverlay hud={hud} paused={paused} useKey={label(bindings.use)} boostKey={label(bindings.boost)} dodgeKey={label(bindings.dodge)}/>
         {!paused && hud.finish === null && hud.remaining <= 100 && <div className="race-countdown">{Math.ceil(hud.remaining)} m<br/><small>PREPARE FOR LANDING</small></div>}
-        {!paused && hud.finish !== null && <div className="race-result"><strong>EXERCISE COMPLETE · {hud.place} / 4</strong><span>{hud.incidents===0?'Safety inspection: exemplary preparedness.':'Safety inspection: '+hud.incidents+(hud.incidents===1?' incident.':' incidents.')+' Refresher training assigned.'}</span><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={prepareRun}>Race again</button></div>}
+        {!paused && hud.finish !== null && <div className="race-result"><strong>EXERCISE COMPLETE · {hud.place} / 4</strong><span>{hud.incidents===0?'Safety inspection: exemplary preparedness.':'Safety inspection: '+hud.incidents+(hud.incidents===1?' incident.':' incidents.')+' Refresher training assigned.'}</span><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={prepareRun}>Race again</button><RaceCreations creations={voice.host.creations} racers={race.racers}/></div>}
         <RaceCreationHud enabled={voice.enabled} key={voice.host.runId} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && !settings && <div className="movement-pause"><span className="safety-caution">⚠ CAUTION</span><h2>Mandatory fall protection training</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
           <p>{voice.enabled?'Collect ★, then hold Space to report a hazard.':'Voice creation is off for this run.'}<br/>Pausing during a voice attempt cancels it.</p>
@@ -218,6 +233,7 @@ export function MovementTest() {
         </>}
       {settings&&<div className="race-dashboard in-game-settings" role="dialog" aria-label="Game settings">
         <div className="settings-heading"><h2>Game settings</h2><button onClick={()=>{setSettings(false);setBinding(null);}}>Close settings</button></div>
+        <MusicControls music={music}/>
         {import.meta.env.DEV&&<RaceEventReport host={voice.host} canReplay={paused||race.finished} onReplay={()=>{
           const spec=voice.host.report?.instance?.spec;if(!spec)return;
           reset();voice.host.loadFixture(spec,true);setScreen('race');setFixtureNotice(spec.displayName+' is 30 m ahead. Resume to replay without API calls.');
@@ -260,5 +276,6 @@ export function MovementTest() {
         </div>
       </div>
     </div>
-  </section>;
+  </section>}
+  </>;
 }

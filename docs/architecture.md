@@ -65,6 +65,12 @@ Generated appearance can be a recipe of boxes, spheres, cylinders, and cones, or
 
 Game coordinates are measured in meters, with +Y up and falling toward -Y. Generated model coordinates are local to the object: +X right, +Y up, +Z toward its front; rotations use XYZ Euler radians. The renderer fits the model for gameplay, while the game sets an independent 10 m collection radius. A bigger model therefore does not secretly get a bigger hitbox. See [visual bounds](prompt-to-mesh-pipeline.md#visual-contracts-and-rendering) for exact limits.
 
+## Music and post-race inspection
+
+`GameMusic.tsx` keeps playback mounted through screen changes. Music controls sit below the title actions and inside Game settings, outside the gameplay HUD. `music-player.ts` applies a 0.85 gain to Ready Aim Fire; menu and results music keep their usual level. Pause, hidden tabs, and microphone capture suspend playback.
+
+The results screen opens `RaceCreations` to inspect the current run's generated models with drag, rotation, tilt, and zoom controls. `RaceEventHost.creations` retains both validated creations and their cumulative outcome snapshots through slot replacement and landing. It distinguishes waiting, activated, missed, and discarded creations, and continues reflecting other racers' effects after the player lands. Starting a new run or disposing the host clears this in-memory history; audio and transcripts are never included. Existing development replay remains separate.
+
 ## Which data contract should I use?
 
 | Contract | Used for | Reference |

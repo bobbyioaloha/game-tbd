@@ -162,6 +162,17 @@
 .race-result span{min-width:0;overflow-wrap:anywhere;line-height:1.5}
 @media(max-width:700px){.race-result{flex-direction:column;align-items:flex-start;font-size:11px;padding:12px}.race-result strong{font-size:14px}}
 
+/* Keep the approved title illustration uncropped at every viewport size. */
+.training-title{position:relative;min-height:100svh;background:#102438;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 0 24px;isolation:isolate}
+.training-title>img{display:block;width:100%;max-height:calc(100svh - 160px);object-fit:contain}
+.training-title-actions{display:grid;justify-items:center;gap:12px;margin-top:18px;padding:0 18px;text-align:center;color:#fff1ce}
+.commence-training{border:2px solid #fff0a8;border-radius:8px;background:#ffcd46;color:#172c43;padding:17px 36px;font-size:clamp(18px,2vw,25px);font-weight:900;box-shadow:0 5px 0 #9a6823;cursor:pointer}
+.commence-training:hover{background:#ffe48c;transform:translateY(-2px)}
+.commence-training:focus-visible,.training-title summary:focus-visible{outline:3px solid white;outline-offset:5px}
+.training-title summary{cursor:pointer;font-size:13px;letter-spacing:.06em}.training-title details p{max-width:640px;font-size:14px;line-height:1.7}.training-title details[open]{padding-bottom:16px}
+.training-home{font-weight:800;color:#ffe39a!important}
+@media(prefers-reduced-motion:reduce){.commence-training:hover{transform:none}}
+
 /* Generated safety drills share the existing readable encounter banner. */
 .race-event-status.stampede { border-color: #ffc35c; }
 .race-event-status.rapids { border-color: #62e9eb; }

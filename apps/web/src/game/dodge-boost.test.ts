@@ -93,7 +93,7 @@ test('threat detection separates lock acquisition from incoming missiles',()=>{
 });
 test('course has varied junk and non-row box arrangements',()=>{
   const kinds=new Set(makeCourse().map(o=>o.kind));
-  for(const kind of ['duck','piano','toilet','rock'])assert.ok(kinds.has(kind as never));
+  for(const kind of ['cone','extinguisher','barrier','crate','capsule'])assert.ok(kinds.has(kind as never));
   const race=new PracticeRace();assert.equal(race.rings.length,4);
   assert.ok(new Set(race.boxes.slice(0,5).map(b=>b.position[2])).size>2);
 });

@@ -7,6 +7,7 @@ import { obstaclePose, segmentSphere } from './race-course';
 import type { Position } from './player-controller';
 import type { PromptCapture } from '../voice/types';
 import type { AudioCreationClient } from '../voice/voice-client';
+import { RaceCreationHistory } from './race-creation-history';
 
 /** Course-owned placement. Never delete obstacles as a side effect of generation. */
 export function eventPlacement(race:PracticeRace,durationSeconds=10):{position:Position;pickupLifetimeSeconds:number} {
@@ -49,13 +50,17 @@ export class RaceEventHost {
     if(raceCreationTimeRemaining(position,fallSpeed)<raceVoiceTimeRequired(stage))return 'Not enough race remains to create and collect another object.';
   }
   private lastEvent?:RaceEventSnapshot;
+  private readonly history=new RaceCreationHistory();
+  private readonly unsubscribeAttempt:()=>void;
+  get creations() { return this.history.creations; }
   private readonly events:RaceEventPort;
   get report():RaceEventSnapshot|undefined {
     const current=this.events.getSnapshot();
     return current.instance?current:this.lastEvent;
   }
   private remember(current=this.events.getSnapshot()) {
-    // Keep only the latest creation and counters in memory; never retain audio.
+    this.history.observe(current,this.race.finished);
+    // Retain the latest result separately for the existing development replay.
     if(current.instance)this.lastEvent={...current,debris:[],drill:undefined};
     else if(this.race.finished&&this.lastEvent)this.lastEvent={...this.lastEvent,phase:'expired',remainingSeconds:0,expirationReason:'complete'};
   }
@@ -68,6 +73,7 @@ export class RaceEventHost {
     }},capture,{
       parse:value=>RaceEncounterSchema.parse(value),
       spawnCreation:(id,spec)=>{
+        this.history.add(id,spec,'voice',this.attemptNumber);
         // Check even while queued: speed changes must not leave a ready result
         // waiting until the finish, or replace an event other racers still use.
         if(this.creation||this.loop.getSnapshot().phaseSeconds<CREATION_REVEAL_DELAY_SECONDS){
@@ -81,6 +87,10 @@ export class RaceEventHost {
       // The runtime has already resolved the shared contact and owns activation.
       activate:()=>{},
     },client);
+    this.unsubscribeAttempt=this.loop.subscribe(()=>{
+      const state=this.loop.getSnapshot();
+      if(state.phase==='failed'||state.phase==='ended')this.history.discardReady(state.message);
+    });
     this.reset();
   }
   get creation() {
@@ -94,17 +104,21 @@ export class RaceEventHost {
     const placement=quick?{position:[player.position[0],player.position[1]-30,player.position[2]] as Position,pickupLifetimeSeconds:60}:eventPlacement(this.race,encounterDurationSeconds(spec));
     // Separate deterministic stream: debris never consumes the inventory/rival RNG.
     const seed=Math.imul(++this.spawnSerial,2654435761)>>>0;
+    this.remember();
     this.events.spawn({instanceId,creatorId:'0',spec,seed,...placement});this.remember();
   }
   loadFixture(spec:RaceEncounter,quick=false) {
     // Called only by the development fixture panel while paused, before starting.
     this.opportunitiesClosed=true;this.nextStarAt=undefined;
     this.loop.end('Local event fixture loaded. No microphone or API calls.');this.voice=undefined;
-    this.spawn(spec,'fixture-'+this.loop.getSnapshot().session,quick);
+    const instanceId='fixture-'+this.loop.getSnapshot().session;
+    this.spawn(spec,instanceId,quick);
+    this.history.add(instanceId,this.events.getSnapshot().instance!.spec,'fixture');this.remember();
   }
   reset() {
     this.remember();
     if(this.lastEvent&&this.lastEvent.phase!=='expired')this.lastEvent={...this.lastEvent,phase:'expired',remainingSeconds:0,expirationReason:'reset'};
+    this.history.clear();
     this.runId++;this.attemptNumber=1;this.nextStarAt=undefined;this.opportunitiesClosed=false;
     this.loop.reset();this.race.eventBridge!.reset();this.spawnSerial=0;
     const player=this.race.snapshot(this.race.racers[0]);
@@ -119,7 +133,7 @@ export class RaceEventHost {
   }
   start(){this.loop.start();}
   pause(){this.loop.cancelRecording();}
-  dispose(){this.opportunitiesClosed=true;this.nextStarAt=undefined;this.loop.dispose();this.voice=undefined;this.race.eventBridge!.reset();}
+  dispose(){this.opportunitiesClosed=true;this.nextStarAt=undefined;this.unsubscribeAttempt();this.loop.dispose();this.voice=undefined;this.history.clear();this.race.eventBridge!.reset();}
   private offerNextStar() {
     if(this.voice||this.opportunitiesRemaining===0||!this.loop.getSnapshot().running)return;
     if(!['activated','missed','failed'].includes(this.loop.getSnapshot().phase))return;

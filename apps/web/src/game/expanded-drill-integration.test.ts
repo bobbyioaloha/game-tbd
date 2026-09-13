@@ -106,6 +106,8 @@ function rivalTarget(drill:DrillSnapshot) {
   const event:RaceEventSnapshot={...noop.getSnapshot(),phase:'active',drill};
   const race=new PracticeRace(false,()=>0.42,{...noop,getSnapshot:()=>event});
   const rival=race.racers[1];rival.controller=new FreefallController(36,0,0);rival.controller.setFallSpeed(30);
+  // Hold the normal wandering target still so this test isolates visible drill cues.
+  rival.wander=[0,0];rival.maneuverUntil=Infinity;
   for(const obstacle of race.obstacles)obstacle.active=false;
   for(const box of race.boxes)box.active=false;
   for(const ring of race.rings)ring.used.add(rival.id);
