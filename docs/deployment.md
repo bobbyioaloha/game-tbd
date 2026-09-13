@@ -91,6 +91,7 @@ The app keeps its separate budgets: 8 seconds capture, 10 seconds upload/transcr
 | --- | --- |
 | `framework is set to services, but no services are declared` | Root Directory must be the repository root, where `vercel.json` declares both services. Then redeploy the current commit. |
 | `Cannot use import statement outside a module` in `/var/task/app.js` | Deploy the config containing API `entrypoint: "src/vercel.ts"` and `outputDirectory: "."`. This keeps Vercel from mistaking the compiled app factory for the handler. |
+| `/api/health` hangs, then fails with `INTERNAL_FUNCTION_INVOCATION_FAILED` | Check the deployment includes the non-blocking listener in `apps/server/src/vercel.ts`. A top-level `await app.listen(...)` deadlocks Vercel's load-then-listen adapter. |
 | Game loads, but AI is unavailable | Open health/profiles and inspect function logs first. A crashed API can look like disabled AI. Then check Production-scoped variables and whether you redeployed after saving them. |
 | Live request rejected for origin | Use the canonical URL and check `APP_ORIGIN` matches exactly, without a trailing slash. Direct deployment URLs can have a different origin. |
 | Preview remains mock-only | Expected: live AI is restricted to production. |
