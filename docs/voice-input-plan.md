@@ -23,9 +23,9 @@ Run `bun install` and `bun run dev` from the repository root, then open [the loc
 5. After collecting it, hold Space, speak, and release. The HUD shows the simulated transcript and creation progress.
 6. Keep racing and follow the radar to the generated object. It appears later in the course, not immediately beside you. Fly through its glowing halo; the first racer to reach it activates the effect.
 
-You have 10 gameplay seconds after collection to start speaking. Recording auto-submits after 8 seconds. One star grants one attempt; failure or cancellation consumes it. Restart returns to setup for a fresh run. **Play without voice** lets you skip all microphone setup.
+You have 10 gameplay seconds after collection to start speaking. Recording auto-submits after 8 seconds. Each run offers up to two stars, with one fresh attempt per star; failure, cancellation, or missing a star consumes that opportunity. After the first creation activates/expires or the first attempt ends, a second star can appear after four gameplay seconds, 120 m ahead, provided enough race remains. Restart returns to setup and clears consent. **Play without voice** lets you skip all microphone setup.
 
-Main-race objects have a 10 m collection radius and a fitted 12 m model diameter. Their normal placement is in the last 40% of the course, with at least 30 m of lead and normally 300 m ahead once that far down. Contact size comes from the game, independently of the generated mesh. See [placement details](race-events-handoff.md#placement-and-lifecycle).
+Main-race objects have a 10 m collection radius and a fitted 12 m model diameter. Normal v3 placement is roughly eight seconds ahead of the player (240 m at normal fall speed), with room left for collection and the effect before the finish. A completed result waits two gameplay seconds before appearing, and longer if the current shared event is still active; it is not announced as spawned until placed. Contact size comes from the game, independently of the generated mesh. See [placement details](race-events-handoff.md#placement-and-lifecycle).
 
 ## Try the Generation lab
 
@@ -35,6 +35,8 @@ Open [the local lab](http://localhost:5173/#/dev/generation). It is available du
 - **Asset generation** is the v2 text/voice-to-3D comparison tool. Select **Voice**, keep **Mock two-stage pipeline**, choose a comparison prompt, enable the microphone, then hold and release the record button. **Speak and create** makes a preview; **Transcribe only** returns the simulated text without generation.
 
 In Asset generation, **Use transcript as typed input** copies the recognized or simulated text into the text form without submitting it. The lab shows words, timings, stages, errors, and the last valid visual. Comparison exports can include transcripts and generated specs, but never audio. History lasts only while the page is mounted.
+
+New requests need time for the existing 8/10/30-second budgets, the two-second reveal buffer, approach, and the effect. The host checks before offering the second star, before recording, and again before submitting audio. Braking does not inflate the time estimate; later boosts can still make a completed creation too late to place. Such results are discarded with a message, not retried or carried into another run. There is no encore or in-run reuse.
 
 ## Enable live AI locally
 
@@ -54,7 +56,7 @@ Skip this section for normal development or mock testing. One server-side key se
    bun run dev:live
    ```
 
-4. In race setup, enable the microphone, select **Live AI**, and allow the run's one paid voice attempt before choosing **Start with voice**. In the lab, choose a live profile and confirm that specific paid attempt before recording or generating.
+4. In race setup, enable the microphone, select **Live AI**, and allow up to two paid voice attempts for the run (up to six API calls total) before choosing **Start with voice**. In the lab, choose a live profile and confirm that specific paid attempt before recording or generating.
 
 `bun run dev`, builds, tests, and the ordinary server start keep paid mode disabled even if a key is present. Starting `dev:live` exposes the paid option; it does not itself make a provider call. Refreshing profiles reports local configuration, not whether the provider accepts your key or model.
 
@@ -70,7 +72,7 @@ Live development binds to localhost and does not restart the backend on file cha
 
 Local live mode defaults to **3 dispatched attempts per server start**, shared across the race, lab, profiles, and browser tabs. `LIVE_MAX_ATTEMPTS` accepts 1-100. Only one paid attempt runs at a time per server instance, and repeat attempt IDs are rejected. Restarting resets the count. Failed or cancelled dispatched work consumes the allowance and may still incur charges; there are no automatic retries.
 
-Consent clears after an attempt or relevant configuration changes. A new race must be armed again. Invalid metadata and missing consent are rejected before dispatch. If a paid transcription returns empty or overlong text, the attempt is consumed and generation does not start.
+In the main race, consent authorizes up to two fresh attempts. Each started attempt consumes one authorization and uses its own UUID; collecting a star never dispatches automatically. Reset and relevant configuration changes clear consent. The lab still confirms each attempt separately. Server allowance is checked independently and may run out before the second race attempt. Invalid metadata and missing consent are rejected before dispatch. If a paid transcription returns empty or overlong text, the attempt is consumed and generation does not start.
 
 The configured transcription model comes from `TRANSCRIPTION_MODEL` in the server environment; its default is `gpt-transcribe`. Generation profiles and output limits are documented in [the lab guide](prompt-to-mesh-pipeline.md#models-and-budgets).
 
@@ -86,7 +88,7 @@ Record: up to 8 s
 
 Design has an 8-second cap inside the generation window. If design takes 6 seconds, geometry has about 24 seconds left. A total voice attempt longer than 30 seconds can therefore be expected even when generation stays within its own budget.
 
-In the race, pausing, losing focus, restarting, finishing, or leaving cancels pending work, releases the microphone, and rejects late results. An already spawned shared object remains available to racers still falling. Pausing freezes its effect time; resetting clears it.
+In the race, pausing, losing focus, restarting, finishing, or leaving cancels pending work (including a ready result awaiting placement), releases the microphone, and rejects late results. An already spawned shared object remains available to racers still falling. Pausing freezes its effect time; resetting clears it.
 
 In the lab, losing focus cancels microphone capture. After submission, requests can continue in the background. Explicit cancellation or leaving the page aborts pending requests. Audio stays in memory only for capture and the request; it is never written to files, logs, or comparison history.
 
@@ -102,7 +104,7 @@ In the lab, losing focus cancels microphone capture. After submission, requests 
 | `TRANSCRIPTION_TIMEOUT` | Upload/transcription exceeded its separate budget. Generation may not have started. |
 | `TIMEOUT` in design or geometry | The design cap or shared 30-second generation deadline was reached. See [latency testing](prompt-to-mesh-pipeline.md#testing-against-the-30-second-limit). |
 | Object generated, but no effect yet | The object is waiting for a racer to collect it. Follow the radar and glowing halo. |
-| Attempt consumed after a failure | This is the one-attempt rule. Restart for another opportunity; paid dispatched failures still count. |
+| Attempt consumed after a failure | Each star grants one attempt. Watch for the second star if enough race remains; paid dispatched failures still count. |
 
 Reusing a recognized transcript in the typed lab avoids another transcription call, but a new live generation still requires a separate paid attempt.
 

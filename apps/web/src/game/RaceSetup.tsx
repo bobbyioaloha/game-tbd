@@ -11,7 +11,7 @@ export function RaceBriefing({steeringHelp, actionHelp}: {steeringHelp: string; 
   return <>
     <p>Race three rivals to the finish. Steer around obstacles.</p>
     <ol className="race-briefing-steps">
-      <li><strong>Collect the yellow star.</strong> It grants one creation attempt.</li>
+      <li><strong>Collect the yellow star.</strong> Each star grants one attempt; up to two stars can appear per run.</li>
       <li><strong>Hold Space and speak.</strong> Describe something in 10 words or fewer. Release to submit; recording stops after 8 seconds.</li>
       <li><strong>Keep racing.</strong> Your object appears ahead when it is ready.</li>
       <li><strong>Fly through its glowing halo.</strong> The first racer to reach it activates the effect. It can help or hurt anyone, including you.</li>
@@ -58,7 +58,7 @@ export function RaceSetup({voice, steeringHelp, actionHelp, onStart, onSkipVoice
         <button onClick={() => begin(onSkipVoice)}>Play without voice</button>
         <button onClick={onBack}>Back to personnel</button>
       </div>
-      <small>Playing without voice removes the yellow star for this run. You can still race and use ordinary items.</small>
+      <small>Playing without voice removes the yellow stars for this run. You can still race and use ordinary items.</small>
     </div>
   </section>;
 }

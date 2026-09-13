@@ -7,6 +7,7 @@ import { raceEventFixtures, PipelineProfilesSchema, type VoiceRequest } from '@s
 import { PracticeRace } from '../game/practice-race';
 import { RaceEventRuntime } from '../race-events/runtime';
 import { RaceEventHost } from '../game/race-event-host';
+import { RACE_VOICE_ATTEMPTS } from '../game/race-event-config';
 import { paidVoiceAvailable, raceVoiceReadiness } from './race-voice-readiness';
 import type { RaceVoiceController } from './RaceVoiceControls';
 
@@ -73,7 +74,7 @@ async function setup() {
   const requests:Array<Omit<VoiceRequest,'captureMs'>>=[];
   const modules:Record<string,unknown>={
     react:React,'react/jsx-runtime':{},'@sky/shared':{raceEventFixtures},
-    '../game/race-event-host':{RaceEventHost},'./recorder':{MicrophoneRecorder:Recorder},
+    '../game/race-event-host':{RaceEventHost},'../game/race-event-config':{RACE_VOICE_ATTEMPTS},'./recorder':{MicrophoneRecorder:Recorder},
     '../generation/pipeline-client':{loadPipelineProfiles:async()=>structuredClone(profiles)},
     './race-voice-readiness':{paidVoiceAvailable,raceVoiceReadiness},'./RecorderControls':{},
     './race-event-voice-client':{createAudioRaceEventClient:(getConfiguration:()=>Omit<VoiceRequest,'captureMs'>)=>({
@@ -92,7 +93,7 @@ async function setup() {
   return {race,render,requests,captures:()=>captures,close:()=>cleanups.forEach(cleanup=>cleanup?.())};
 }
 
-test('permission checking dispatches nothing; consent survives starting and is consumed once', async () => {
+test('permission checking dispatches nothing; two-attempt consent survives starting and clears on reset', async () => {
   const ui=await setup();
   let voice=ui.render();voice.reset();voice=ui.render();
   voice.setProfileId('fake-live');await voice.recorder.prepare();voice=ui.render();
@@ -104,7 +105,7 @@ test('permission checking dispatches nothing; consent survives starting and is c
   voice.host.start();voice=ui.render();
   assert.equal(voice.state.session,session);assert.equal(voice.armed,true);
   voice.host.loop.collectVoice();voice=ui.render();voice.start();await flush();
-  voice=ui.render();assert.equal(voice.armed,false);
+  voice=ui.render();assert.equal(voice.armed,true);assert.equal(voice.paidAttemptsRemaining,1);
   await voice.host.loop.finishRecording();
   assert.equal(ui.captures(),1);assert.equal(ui.requests.length,1);
   assert.equal(ui.requests[0].profileId,'fake-live');assert.equal(ui.requests[0].paidAttempt?.confirmed,true);
@@ -172,4 +173,23 @@ test('a pre-pickup Space warning cannot override the collected-star prompt', () 
   assert.match(result,/Hold Space/);assert.doesNotMatch(result,/Collect the yellow star first/);
   props.inputNotice={id:2,text:'Enable your microphone.',phase:'prompted'};
   assert.match(JSON.stringify(sandbox.exports.RaceCreationHud(props)),/Enable your microphone/);
+});
+
+test('one run consent admits only two separately identified requests, never duplicates on key repeat', async () => {
+  const ui=await setup();let voice=ui.render();
+  voice.setProfileId('fake-live');await voice.recorder.prepare();voice=ui.render();
+  voice.setArmed(true);voice=ui.render();voice.host.start();
+  voice.host.loop.collectVoice();voice=ui.render();voice.start();voice.start();await flush();
+  await voice.host.loop.finishRecording();
+  assert.equal(ui.requests.length,1);
+  // The race host rearms only the attempt; this isolates consent from event scheduling.
+  voice.host.loop.reset();voice.host.loop.start();voice.host.loop.collectVoice();
+  voice=ui.render();voice.start();voice.start();await flush();await voice.host.loop.finishRecording();
+  voice=ui.render();assert.equal(voice.paidAttemptsRemaining,0);assert.equal(voice.armed,false);
+  assert.equal(ui.requests.length,2);assert.equal(ui.captures(),2);
+  assert.notEqual(ui.requests[0].paidAttempt?.id,ui.requests[1].paidAttempt?.id);
+  assert.ok(ui.requests.every(request=>request.paidAttempt?.confirmed));
+  voice.host.loop.reset();voice.host.loop.start();voice.host.loop.collectVoice();
+  voice=ui.render();voice.start();await flush();
+  assert.equal(ui.requests.length,2);assert.equal(ui.captures(),2);ui.close();
 });

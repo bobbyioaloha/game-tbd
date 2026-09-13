@@ -10,7 +10,7 @@ Choose Greg the Tyrannosaurus, Linda the Triceratops, or Steve the Stegosaurus, 
 
 Ordinary items help you compete. The yellow **Voice Power Up** gives you one chance to create something:
 
-1. Fly into the yellow star.
+1. Fly into a yellow star (up to two per run, if time allows).
 2. Hold **Space** and describe an object in ten words or fewer.
 3. Release to submit. Keep racing while it generates.
 4. Follow the radar to the object ahead and fly through its glowing halo.
