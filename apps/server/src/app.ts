@@ -6,15 +6,15 @@ import { registerCreationRoutes } from './generation/routes.js';
 import type { CreationProvider } from './generation/provider.js';
 import Fastify from 'fastify';
 import { fixtures, GenerationRequestSchema, PowerUpSpecSchema } from '@sky/shared';
-export function buildApp(options: {liveEnabled?:boolean; creationProvider?: CreationProvider; creationTimeoutMs?: number; pipeline?: CreationPipeline} = {}) {
+export function buildApp(options: {liveEnabled?:boolean; allowedOrigin?:(origin:string|undefined)=>boolean; creationProvider?: CreationProvider; creationTimeoutMs?: number; pipeline?: CreationPipeline} = {}) {
   const app=Fastify({logger:{redact:['req.headers.authorization','req.headers.cookie']},bodyLimit:4096});
   const pipeline = options.pipeline ?? buildPipeline(process.env,options.liveEnabled ?? false);
-  registerLabRoutes(app, pipeline);
-  registerVoiceRoutes(app, pipeline);
+  registerLabRoutes(app, pipeline,options.allowedOrigin);
+  registerVoiceRoutes(app, pipeline,options.allowedOrigin);
   registerCreationRoutes(app, options.creationProvider ?? {
     mode:'mock', generate:(request, options) => pipeline.run({...request,profileId:'mock'},options),
   }, options.creationTimeoutMs);
-  app.get('/api/health',async () => ({status:'ok',mode:'mock'}));
+  app.get('/api/health',async () => ({status:'ok',mode:pipeline.liveEnabled ? 'live' : 'mock'}));
   app.post('/api/powerups',async (request,reply) => {
     const parsed=GenerationRequestSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({error:{code:'INVALID_REQUEST',message:'Provide text containing one to ten words, at most 200 characters.'}});

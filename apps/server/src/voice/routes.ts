@@ -29,7 +29,7 @@ async function readRecording(request:FastifyRequest) {
   validateAudio(audio);
   return {audio,options:parsed.data};
 }
-export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipeline) {
+export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipeline,allowedOrigin = isLocalOrigin) {
   app.register(async scope=>{
     await scope.register(multipart,{limits:{files:1,fields:1,parts:2,fieldSize:4096,fileSize:AUDIO_UPLOAD_LIMIT_BYTES,fieldNameSize:32}});
     const routes=[
@@ -43,6 +43,7 @@ export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipelin
         const started=performance.now(),controller=new AbortController();
         const disconnect=()=>{if (!reply.raw.writableEnded) controller.abort();};
         reply.raw.on('close',disconnect);
+        request.raw.on('error',disconnect);
         // A stalled upload must not retain memory or open a provider request.
         const uploadTimer=setTimeout(()=>{controller.abort();request.raw.destroy();},TRANSCRIPTION_DEADLINE_MS);
         try {
@@ -53,8 +54,8 @@ export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipelin
           if (transcriptionBudgetMs<=0) throw new PipelineFailure('TRANSCRIPTION_TIMEOUT','Audio upload exceeded the transcription budget.');
           const profile=pipeline.profiles.find(item=>item.id===options.profileId);
           if (!profile) throw new PipelineFailure('INVALID_REQUEST','Unknown pipeline profile.');
-          if (profile.mode==='live' && !isLocalOrigin(request.headers.origin)) return reply.code(403).send({error:{code:'INVALID_REQUEST',message:'Paid requests must originate from localhost.'}});
-          if (profile.mode==='live' && !pipeline.liveUsage.enabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
+          if (profile.mode==='live' && !allowedOrigin(request.headers.origin)) return reply.code(403).send({error:{code:'INVALID_REQUEST',message:'Paid requests must originate from the configured game site.'}});
+          if (profile.mode==='live' && !pipeline.liveEnabled) throw new PipelineFailure('LIVE_DISABLED','Paid generation is disabled. Start bun run dev:live to opt in.');
           if (profile.mode==='live' && !options.paidAttempt) throw new PipelineFailure('CONSENT_REQUIRED','Allow this paid attempt before submitting speech.');
           if (transcribeOnly) {
             const {result}=await pipeline.runVoice(audio,options,{signal:controller.signal,transcribeOnly:true,transcriptionBudgetMs});
@@ -75,7 +76,7 @@ export function registerVoiceRoutes(app:FastifyInstance,pipeline:CreationPipelin
             : ['LIVE_BUSY','DUPLICATE_ATTEMPT'].includes(safe.code) ? 409 : safe.code==='LIVE_LIMIT_REACHED' ? 429
             : ['INVALID_AUDIO','INVALID_REQUEST','INVALID_TRANSCRIPT','CONSENT_REQUIRED'].includes(safe.code) ? 400 : 502;
           if (!reply.raw.destroyed && !reply.sent) return reply.code(status).send({error:safe});
-        } finally {clearTimeout(uploadTimer);reply.raw.off('close',disconnect);}
+        } finally {clearTimeout(uploadTimer);reply.raw.off('close',disconnect);request.raw.off('error',disconnect);}
       });
     }
   });

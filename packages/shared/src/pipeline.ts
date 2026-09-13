@@ -41,7 +41,7 @@ export const PipelineProfileSchema = z.object({
 }).strict();
 export type PipelineProfile = z.infer<typeof PipelineProfileSchema>;
 export const LiveUsageSchema = z.object({
-  enabled:z.boolean(), maxAttempts:z.number().int().min(1).max(10),
+  enabled:z.boolean(), maxAttempts:z.number().int().min(1).max(100),
   attemptsUsed:z.number().int().nonnegative(), attemptsRemaining:z.number().int().nonnegative(), busy:z.boolean(),
 }).strict();
 export type LiveUsage = z.infer<typeof LiveUsageSchema>;
