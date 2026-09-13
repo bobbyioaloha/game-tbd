@@ -16,11 +16,16 @@ export function raceCreationSpawnPosition(player:Position):Position {
 
 export const RACE_VOICE_ATTEMPTS = 2;
 export const VOICE_STAR_LEAD_METERS = 120;
+export const VOICE_STAR_APPROACH_SECONDS = 4;
 export const VOICE_STAR_DELAY_SECONDS = 4;
 export const CREATION_REVEAL_DELAY_SECONDS = 2;
 const APPROACH_SECONDS = 8;
 const MAX_EFFECT_SECONDS = 10;
 const FINISH_MARGIN_SECONDS = 2;
+
+export function raceVoiceStarLeadMeters(fallSpeed: number): number {
+  return Math.max(VOICE_STAR_LEAD_METERS, fallSpeed * VOICE_STAR_APPROACH_SECONDS);
+}
 
 // Braking must not make a near-finish request look affordable. Boosts may still
 // shorten a run after admission, so placement rechecks the available distance.
@@ -30,7 +35,7 @@ export function raceCreationTimeRemaining(position: Position, fallSpeed: number)
 
 export function raceVoiceTimeRequired(stage: 'star' | 'recording' | 'submission'): number {
   const capture = stage === 'submission' ? 0 : RECORDING_LIMIT_MS / 1000;
-  const invitation = stage === 'star' ? VOICE_STAR_LEAD_METERS / TERMINAL_SPEED + 10 : 0;
+  const invitation = stage === 'star' ? VOICE_STAR_APPROACH_SECONDS + 10 : 0;
   return invitation + capture + (TRANSCRIPTION_DEADLINE_MS + PIPELINE_DEADLINE_MS) / 1000 + CREATION_REVEAL_DELAY_SECONDS + APPROACH_SECONDS + MAX_EFFECT_SECONDS + FINISH_MARGIN_SECONDS;
 }
 

@@ -2,7 +2,7 @@ import { RaceEncounterSchema, mockSafetyDrillForText, mockRaceEventForText, enco
 import { CreationAttempt } from './creation-attempt';
 import { PracticeRace, ITEM_PICKUP_RADIUS, LANE_HALF_WIDTH } from './practice-race';
 import { BRAKE_SPEED } from './freefall-controller';
-import { RACE_CREATION_PICKUP_RADIUS, RACE_VOICE_ATTEMPTS, VOICE_STAR_LEAD_METERS, VOICE_STAR_DELAY_SECONDS, CREATION_REVEAL_DELAY_SECONDS, raceEventSpawnPosition, raceCreationTimeRemaining, raceVoiceTimeRequired } from './race-event-config';
+import { RACE_CREATION_PICKUP_RADIUS, RACE_VOICE_ATTEMPTS, VOICE_STAR_DELAY_SECONDS, CREATION_REVEAL_DELAY_SECONDS, raceEventSpawnPosition, raceCreationTimeRemaining, raceVoiceTimeRequired, raceVoiceStarLeadMeters } from './race-event-config';
 import { obstaclePose, segmentSphere } from './race-course';
 import type { Position } from './player-controller';
 import type { PromptCapture } from '../voice/types';
@@ -123,15 +123,16 @@ export class RaceEventHost {
   private offerNextStar() {
     if(this.voice||this.opportunitiesRemaining===0||!this.loop.getSnapshot().running)return;
     if(!['activated','missed','failed'].includes(this.loop.getSnapshot().phase))return;
-    if(this.events.getSnapshot().phase==='collectible')return;
+    // Start recovery only after the shared encounter ends for every racer.
+    if(this.creation){this.nextStarAt=undefined;return;}
     this.nextStarAt??=this.race.elapsed+VOICE_STAR_DELAY_SECONDS;
     if(this.race.elapsed<this.nextStarAt)return;
     if(this.requestBlockedReason('star')){this.opportunitiesClosed=true;return;}
-    const [x,y,z]=this.race.snapshot(this.race.racers[0]).position;
+    const {position:[x,y,z],fallSpeed}=this.race.snapshot(this.race.racers[0]);
     this.attemptNumber++;this.nextStarAt=undefined;
     // Reset only the completed attempt, never the shared event or its RNG.
     this.loop.reset();
-    this.voice={kind:'voice',instanceId:'voice-'+this.loop.getSnapshot().session,position:[x,y-VOICE_STAR_LEAD_METERS,z]};
+    this.voice={kind:'voice',instanceId:'voice-'+this.loop.getSnapshot().session,position:[x,y-raceVoiceStarLeadMeters(fallSpeed),z]};
     this.loop.start();
   }
   step(dt:number,from:Position,to:Position) {
