@@ -76,13 +76,17 @@ export const PipelineErrorSchema = z.object({
   provider:ProviderDiagnosticSchema.optional(),
 }).strict();
 export type PipelineErrorData = z.infer<typeof PipelineErrorSchema>;
-export const PipelineEventSchema = z.discriminatedUnion('type', [
-  z.object({type:z.literal('stage'), stage:PipelineStageSchema, elapsedMs:z.number().nonnegative()}).strict(),
-  z.object({type:z.literal('design'), design:CreationDesignSchema, metric:StageMetricSchema}).strict(),
-  z.object({type:z.literal('geometry'), metric:StageMetricSchema}).strict(),
-  z.object({type:z.literal('complete'), spec:GeneratedCreationSchema, elapsedMs:z.number().nonnegative(), metrics:z.array(StageMetricSchema)}).strict(),
-  z.object({type:z.literal('failed'), stage:PipelineStageSchema, error:PipelineErrorSchema, elapsedMs:z.number().nonnegative(), metrics:z.array(StageMetricSchema)}).strict(),
-]);
+/** Keep progress envelopes identical while each API retains its own payload schema. */
+export function createPipelineEventSchema<D extends z.ZodTypeAny, S extends z.ZodTypeAny>(design: D, spec: S) {
+  return z.discriminatedUnion('type', [
+    z.object({type:z.literal('stage'), stage:PipelineStageSchema, elapsedMs:z.number().nonnegative()}).strict(),
+    z.object({type:z.literal('design'), design, metric:StageMetricSchema}).strict(),
+    z.object({type:z.literal('geometry'), metric:StageMetricSchema}).strict(),
+    z.object({type:z.literal('complete'), spec, elapsedMs:z.number().nonnegative(), metrics:z.array(StageMetricSchema)}).strict(),
+    z.object({type:z.literal('failed'), stage:PipelineStageSchema, error:PipelineErrorSchema, elapsedMs:z.number().nonnegative(), metrics:z.array(StageMetricSchema)}).strict(),
+  ]);
+}
+export const PipelineEventSchema = createPipelineEventSchema(CreationDesignSchema, GeneratedCreationSchema);
 export type PipelineEvent = z.infer<typeof PipelineEventSchema>;
 
 const coordinate = z.number().finite().min(-3).max(3);

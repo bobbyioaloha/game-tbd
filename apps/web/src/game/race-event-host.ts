@@ -1,4 +1,4 @@
-import { RaceEventCreationSchema, mockRaceEventForText, type RaceEventCreation, type RaceEventSnapshot, type RaceEventPort, type VoicePickup } from '@sky/shared';
+import { RaceEncounterSchema, mockSafetyDrillForText, mockRaceEventForText, encounterDurationSeconds, type RaceEncounter, type RaceEventSnapshot, type RaceEventPort, type VoicePickup } from '@sky/shared';
 import { CreationAttempt } from './creation-attempt';
 import { PracticeRace, ITEM_PICKUP_RADIUS, LANE_HALF_WIDTH } from './practice-race';
 import { BRAKE_SPEED } from './freefall-controller';
@@ -29,7 +29,7 @@ export function eventPlacement(race:PracticeRace,durationSeconds=10):{position:P
 
 /** Schedules voice opportunities and placement; never moves racers or resets a shared event between attempts. */
 export class RaceEventHost {
-  readonly loop:CreationAttempt<RaceEventCreation>;
+  readonly loop:CreationAttempt<RaceEncounter>;
   voice?:VoicePickup;
   private spawnSerial=0;
   runId=0;
@@ -56,23 +56,23 @@ export class RaceEventHost {
   }
   private remember(current=this.events.getSnapshot()) {
     // Keep only the latest creation and counters in memory; never retain audio.
-    if(current.instance)this.lastEvent={...current,debris:[]};
+    if(current.instance)this.lastEvent={...current,debris:[],drill:undefined};
     else if(this.race.finished&&this.lastEvent)this.lastEvent={...this.lastEvent,phase:'expired',remainingSeconds:0,expirationReason:'complete'};
   }
-  constructor(readonly race:PracticeRace,capture:PromptCapture,client?:AudioCreationClient<RaceEventCreation>) {
+  constructor(readonly race:PracticeRace,capture:PromptCapture,client?:AudioCreationClient<RaceEncounter>) {
     if(!race.events)throw new Error('Race event runtime is required.');
     this.events=race.events;
     this.loop=new CreationAttempt({async generate({text}) {
-      const fixture=mockRaceEventForText(text);
-      return fixture?{ok:true,spec:fixture.spec}:{ok:false,error:{message:'Choose one of the four event mock prompts.'}};
+      const fixture=mockSafetyDrillForText(text) ?? mockRaceEventForText(text);
+      return fixture?{ok:true,spec:fixture.spec}:{ok:false,error:{message:'Choose a prepared safety-drill prompt.'}};
     }},capture,{
-      parse:value=>RaceEventCreationSchema.parse(value),
+      parse:value=>RaceEncounterSchema.parse(value),
       spawnCreation:(id,spec)=>{
         // Check even while queued: speed changes must not leave a ready result
         // waiting until the finish, or replace an event other racers still use.
         if(this.creation||this.loop.getSnapshot().phaseSeconds<CREATION_REVEAL_DELAY_SECONDS){
           const player=this.race.snapshot(this.race.racers[0]);
-          raceEventSpawnPosition(player.position,player.fallSpeed,spec.effect.durationSeconds);
+          raceEventSpawnPosition(player.position,player.fallSpeed,encounterDurationSeconds(spec));
           return 'queued';
         }
         this.spawn(spec,id);
@@ -88,15 +88,15 @@ export class RaceEventHost {
     return state.instance&&(state.phase==='collectible'||state.phase==='active')
       ?{instanceId:state.instance.instanceId,spec:state.instance.spec,position:[...state.position] as Position}:undefined;
   }
-  spawn(spec:RaceEventCreation,instanceId:string,quick=false) {
+  spawn(spec:RaceEncounter,instanceId:string,quick=false) {
     if(this.race.racers[0].finishTime!==undefined)throw new Error('Race finished before generation completed.');
     const player=this.race.snapshot(this.race.racers[0]);
-    const placement=quick?{position:[player.position[0],player.position[1]-30,player.position[2]] as Position,pickupLifetimeSeconds:60}:eventPlacement(this.race,spec.effect.durationSeconds);
+    const placement=quick?{position:[player.position[0],player.position[1]-30,player.position[2]] as Position,pickupLifetimeSeconds:60}:eventPlacement(this.race,encounterDurationSeconds(spec));
     // Separate deterministic stream: debris never consumes the inventory/rival RNG.
     const seed=Math.imul(++this.spawnSerial,2654435761)>>>0;
     this.events.spawn({instanceId,creatorId:'0',spec,seed,...placement});this.remember();
   }
-  loadFixture(spec:RaceEventCreation,quick=false) {
+  loadFixture(spec:RaceEncounter,quick=false) {
     // Called only by the development fixture panel while paused, before starting.
     this.opportunitiesClosed=true;this.nextStarAt=undefined;
     this.loop.end('Local event fixture loaded. No microphone or API calls.');this.voice=undefined;

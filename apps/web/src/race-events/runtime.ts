@@ -1,8 +1,9 @@
 import {
-  RaceEventCreationSchema, RACE_EVENT_LIMITS as limits,
+  RaceEncounterSchema, encounterDurationSeconds, RACE_EVENT_LIMITS as limits,
   type EventVector, type EventRacer, type EventSpawn, type EventStepInputs, type RacerSegment,
   type RacerEventInput, type RaceEventSnapshot, type RaceEventPort,
 } from '@sky/shared';
+import { SafetyDrillRuntime } from './drill-runtime';
 import { add, subtract, scale, length, direction, clampLength, contactTime, seededRandom, finiteVector } from './math';
 
 type Particle={id:number;origin:EventVector;velocity:EventVector;kick:EventVector;born:number;collidable:boolean};
@@ -18,6 +19,7 @@ export class RaceEventRuntime implements RaceEventPort {
     if(!Number.isFinite(radius)||radius<0.1||radius>limits.maxPickupContactRadius)throw new Error('Invalid pickup contact radius.');
     this.pickupContactRadius=radius;
   }
+  private drill?:SafetyDrillRuntime;
   private pickupLifetime(){return this.instance?.pickupLifetimeSeconds??limits.collectibleLifetime;}
   private instance?:EventSpawn;
   private phase:RaceEventSnapshot['phase']='empty';
@@ -41,7 +43,7 @@ export class RaceEventRuntime implements RaceEventPort {
   private markAffected(id:string){this.affected.add(id);this.reached.add(id);}
   private count(counts:Map<string,number>,id:string){counts.set(id,(counts.get(id)??0)+1);}
   recordObstacleBlock(racerId:string,obstacleId:number) {
-    if(this.phase!=='active'||this.instance?.spec.effect.type!=='protectiveZone')return;
+    if(this.phase!=='active'||this.instance?.spec.version!==3||this.instance.spec.effect.type!=='protectiveZone')return;
     const key=JSON.stringify([racerId,obstacleId]);
     if(!this.blockedObstacles.has(key)){this.blockedObstacles.add(key);this.count(this.obstacleBlocks,racerId);}
   }
@@ -52,7 +54,7 @@ export class RaceEventRuntime implements RaceEventPort {
     if(this.phase==='collectible'||this.phase==='active')throw new Error('An event creation is already present.');
     if(!input.instanceId||!input.creatorId||!finiteVector(input.position)||!Number.isInteger(input.seed)||input.seed<0||input.seed>0xffffffff)throw new Error('Invalid event spawn metadata.');
     if(input.pickupLifetimeSeconds!==undefined&&(!Number.isFinite(input.pickupLifetimeSeconds)||input.pickupLifetimeSeconds<1||input.pickupLifetimeSeconds>600))throw new Error('Invalid pickup lifetime.');
-    const spec=RaceEventCreationSchema.parse(input.spec);
+    const spec=RaceEncounterSchema.parse(input.spec);
     this.reset();this.instance={...input,spec,position:[...input.position]};this.phase='collectible';
   }
   reset() {
@@ -60,7 +62,7 @@ export class RaceEventRuntime implements RaceEventPort {
     this.triggerer=undefined;this.racers=[];this.particles=[];this.hit.clear();this.affected.clear();
     this.pending.clear();this.awaitingContacts=false;this.expirationReason=undefined;
     this.participants=[];this.reached.clear();this.impulseCounts.clear();this.debrisHits.clear();
-    this.blockedDebrisHits.clear();this.obstacleBlocks.clear();this.blockedObstacles.clear();this.waves=0;
+    this.blockedDebrisHits.clear();this.obstacleBlocks.clear();this.blockedObstacles.clear();this.waves=0;this.drill=undefined;
   }
   private burstRadius(age:number,radius:number,duration:number) {
     // Expand quickly so falling racers cannot outrun the front.
@@ -77,7 +79,13 @@ export class RaceEventRuntime implements RaceEventPort {
   }
   private activate(racerId:string) {
     this.phase='active';this.triggerer=racerId;this.age=0;this.previousAge=0;this.affected.clear();
-    const effect=this.instance!.spec.effect;
+    const spec=this.instance!.spec;
+    this.participants=this.racers.map(racer=>racer.id);
+    if(spec.version===4) {
+      this.drill=new SafetyDrillRuntime(spec.drill,this.instance!.seed,this.racers);
+      return;
+    }
+    const effect=spec.effect;
     // A burst stays at contact depth. Persistent fields descend at the pack's activation-time velocity.
     if(effect.type!=='repulsionBurst') {
       const average=this.racers.reduce((sum,racer)=>sum+racer.velocity[1],0)/Math.max(1,this.racers.length);
@@ -116,7 +124,9 @@ export class RaceEventRuntime implements RaceEventPort {
     return scale(direction(outward),impulse);
   }
   private emitDebrisWave() {
-    const effect=this.instance!.spec.effect;
+    const spec=this.instance!.spec;
+    if(spec.version!==3)return;
+    const effect=spec.effect;
     if(effect.type!=='debrisShower'||!this.racers.length)return;
     const wave=this.waves++,random=seededRandom((this.instance!.seed+Math.imul(wave,2654435761))>>>0);
     // Three finite waves. Each racer's first rock aims at their current trajectory;
@@ -157,6 +167,15 @@ export class RaceEventRuntime implements RaceEventPort {
     this.previousAge=this.age;this.age+=dt;
     if(this.phase==='collectible') {
       if(this.age>=this.pickupLifetime())this.expire('lifetime');
+      return inputs;
+    }
+    if(this.instance.spec.version===4) {
+      this.age=Math.min(this.age,encounterDurationSeconds(this.instance.spec));
+      const drillInputs=this.drill!.prepareStep(this.age,dt,this.racers);
+      for(const racer of this.racers) {
+        inputs[racer.id].acceleration=drillInputs[racer.id].acceleration;
+        if(length(inputs[racer.id].acceleration)>0)this.markAffected(racer.id);
+      }
       return inputs;
     }
     const effect=this.instance.spec.effect;
@@ -206,6 +225,14 @@ export class RaceEventRuntime implements RaceEventPort {
       return;
     }
     if(this.phase!=='active')return;
+    if(this.instance.spec.version===4) {
+      for(const [id,kick] of this.drill!.resolveContacts(active,this.racers)) {
+        this.pending.set(id,clampLength(add(this.pending.get(id)??[0,0,0],kick),limits.maxVelocityDelta));
+        this.reached.add(id);
+      }
+      if(this.age>=encounterDurationSeconds(this.instance.spec))this.expire('complete');
+      return;
+    }
     const effect=this.instance.spec.effect;
     if(effect.type==='debrisShower')for(const particle of this.particles) {
       if(!particle.collidable||this.age-particle.born>limits.debrisLifetime)continue;
@@ -225,14 +252,17 @@ export class RaceEventRuntime implements RaceEventPort {
   }
   getSnapshot():RaceEventSnapshot {
     const active=this.phase==='active';
-    const effect=this.instance?.spec.effect;
+    const effect=this.instance?.spec.version===3?this.instance.spec.effect:undefined;
+    const duration=this.instance?encounterDurationSeconds(this.instance.spec):0;
     return {phase:this.phase,instance:this.instance,triggererId:this.triggerer,position:this.center(),
-      elapsedSeconds:this.age,remainingSeconds:this.phase==='collectible'?Math.max(0,this.pickupLifetime()-this.age):active&&effect?Math.max(0,effect.durationSeconds-this.age):0,
+      elapsedSeconds:this.age,remainingSeconds:this.phase==='collectible'?Math.max(0,this.pickupLifetime()-this.age):active?Math.max(0,duration-this.age):0,
       radius:active&&effect&&'radiusMeters'in effect?(effect.type==='repulsionBurst'?this.burstRadius(this.age,effect.radiusMeters,effect.durationSeconds):effect.radiusMeters):0,
       debris:active?this.particles.filter(particle=>this.age-particle.born<=limits.debrisLifetime).map(particle=>({id:particle.id,position:this.particlePosition(particle),collidable:particle.collidable})):[],
       affectedRacerIds:[...this.affected].sort(),expirationReason:this.expirationReason,
+      drill:active?this.drill?.getSnapshot():undefined,
       impact:{participants:[...this.participants],affectedRacerIds:[...this.reached].sort(),
         impulseCounts:Object.fromEntries(this.impulseCounts),debrisHits:Object.fromEntries(this.debrisHits),
-        blockedDebrisHits:Object.fromEntries(this.blockedDebrisHits),obstacleBlocks:Object.fromEntries(this.obstacleBlocks)}};
+        blockedDebrisHits:Object.fromEntries(this.blockedDebrisHits),obstacleBlocks:Object.fromEntries(this.obstacleBlocks),
+        drill:this.drill?.getImpact()}};
   }
 }

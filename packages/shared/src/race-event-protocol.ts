@@ -1,4 +1,4 @@
-import type { RaceEventCreation } from './race-events.js';
+import type { RaceEncounter } from './safety-drills.js';
 
 /** World meters, +Y up. Velocity/delta velocity in m/s, acceleration in m/s². */
 export type EventVector = readonly [number,number,number];
@@ -21,11 +21,30 @@ export type RacerEventInput = {
 };
 export type EventStepInputs = Readonly<Record<string,RacerEventInput>>;
 export type EventSpawn = {
-  instanceId:string;creatorId:string;spec:RaceEventCreation;position:EventVector;seed:number;
+  instanceId:string;creatorId:string;spec:RaceEncounter;position:EventVector;seed:number;
   /** Game-authored pickup budget; independent of the generated effect duration. */
   pickupLifetimeSeconds?:number;
 };
 export type EventDebris = {id:number;position:EventVector;collidable:boolean};
+/** Authored collision/force volumes, independent of the generated appearance. */
+export type DrillWake = {position:EventVector;from:EventVector;to:EventVector;radius:number};
+export type DrillActor = {
+  id:number;position:EventVector;radius:number;velocity:EventVector;
+  state:'warning'|'moving'|'charging'|'scattering';wake?:DrillWake;
+  telegraph?:{from:EventVector;to:EventVector};
+};
+export type DrillCurrent = {
+  id:number;bandId:number;pathId:number;position:EventVector;from:EventVector;to:EventVector;
+  radius:number;direction:EventVector;kind:'flow'|'fast'|'eddy';strength:number;
+};
+export type DrillSnapshot = {
+  actors:readonly DrillActor[];currents:readonly DrillCurrent[];
+  warningSeconds:number;
+};
+export type DrillImpact = {
+  collisions:Record<string,number>;blockedCollisions:Record<string,number>;
+  draftSeconds:Record<string,number>;currentSeconds:Record<string,number>;reactions:number;
+};
 export type RaceEventImpact = {
   participants:string[];
   affectedRacerIds:string[];
@@ -33,6 +52,7 @@ export type RaceEventImpact = {
   debrisHits:Record<string,number>;
   blockedDebrisHits:Record<string,number>;
   obstacleBlocks:Record<string,number>;
+  drill?:DrillImpact;
 };
 export type RaceEventSnapshot = {
   phase:'empty'|'collectible'|'active'|'expired';
@@ -41,6 +61,7 @@ export type RaceEventSnapshot = {
   debris:readonly EventDebris[];affectedRacerIds:readonly string[];
   expirationReason?:'passed'|'lifetime'|'complete'|'reset';
   impact?:RaceEventImpact;
+  drill?:DrillSnapshot;
 };
 /** Call both methods once per existing fixed tick, in this order. No internal clock. */
 export interface RaceEventPort {

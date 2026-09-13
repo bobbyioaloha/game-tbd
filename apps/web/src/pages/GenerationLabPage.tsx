@@ -212,7 +212,7 @@ function AssetGenerationLabPage() {
 export function GenerationLabPage() {
   const [view,setView]=useState<'events'|'assets'>('events');
   return <><div className="generation-tabs" aria-label="Generation lab views">
-    <button aria-pressed={view==='events'} onClick={()=>setView('events')}>Race events</button>
+    <button aria-pressed={view==='events'} onClick={()=>setView('events')}>Safety drills</button>
     <button aria-pressed={view==='assets'} onClick={()=>setView('assets')}>Asset generation</button>
   </div>{view==='events'?<EventLabPage/>:<AssetGenerationLabPage/>}</>;
 }

@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
-import { Color, DoubleSide } from 'three';
+import { useMemo, type RefObject } from 'react';
+import { Color, DoubleSide, type BufferGeometry, type InstancedMesh } from 'three';
 import { compilePrimitiveAppearance } from '../generation/compile-primitives';
-import type { CreationSpec, MeshAppearance, PrimitiveAppearance, PowerUpSpec, RaceEventCreation } from '@sky/shared';
+import type { CreationSpec, MeshAppearance, PrimitiveAppearance, PowerUpSpec, RaceEventCreation, SafetyDrillSpec } from '@sky/shared';
 
 function MeshModel({appearance}: {appearance: MeshAppearance}) {
   const {positions, colors} = useMemo(() => {
@@ -37,7 +37,7 @@ function ProceduralModel({appearance}: {appearance: PrimitiveAppearance}) {
   </mesh>;
 }
 // Callers validate external data before rendering. Appearance never sets collision bounds.
-export function PowerUpModel({spec}: {spec: PowerUpSpec | CreationSpec | RaceEventCreation}) {
+export function PowerUpModel({spec}: {spec: PowerUpSpec | CreationSpec | RaceEventCreation | SafetyDrillSpec}) {
   if ('type' in spec.appearance && spec.appearance.type === 'mesh') {
     return <MeshModel key={spec.id} appearance={spec.appearance}/>;
   }
@@ -54,4 +54,39 @@ export function PowerUpModel({spec}: {spec: PowerUpSpec | CreationSpec | RaceEve
       <meshStandardMaterial color={part.color} roughness={0.45}/>
     </mesh>
   )}</group>;
+}
+
+function fitInstanceGeometry(geometry:BufferGeometry) {
+  geometry.computeBoundingBox();
+  const bounds=geometry.boundingBox;
+  if(bounds){
+    const width=bounds.max.x-bounds.min.x,height=bounds.max.y-bounds.min.y,depth=bounds.max.z-bounds.min.z;
+    const scale=1/Math.max(Math.hypot(width,height,depth),0.001);
+    geometry.center();geometry.scale(scale,scale,scale);
+  }
+  geometry.computeVertexNormals();
+}
+
+/** Compile once for every instance of an encounter's generated appearance. */
+export function PowerUpInstances({appearance,meshRef,capacity}:{
+  appearance:MeshAppearance|PrimitiveAppearance;
+  meshRef:RefObject<InstancedMesh|null>;
+  capacity:number;
+}) {
+  const attributes=useMemo(()=>{
+    if(appearance.type==='primitives')return compilePrimitiveAppearance(appearance);
+    const positions:number[]=[],colors:number[]=[];
+    appearance.triangles.forEach((triangle,face)=>{
+      const color=new Color(appearance.faceColors[face]);
+      for(const index of triangle){positions.push(...appearance.vertices[index]);colors.push(color.r,color.g,color.b);}
+    });
+    return {positions:new Float32Array(positions),colors:new Float32Array(colors)};
+  },[appearance]);
+  return <instancedMesh ref={meshRef} args={[undefined,undefined,capacity]} count={0} frustumCulled={false}>
+    <bufferGeometry key={appearance.type} onUpdate={fitInstanceGeometry}>
+      <bufferAttribute attach="attributes-position" args={[attributes.positions,3]}/>
+      <bufferAttribute attach="attributes-color" args={[attributes.colors,3]}/>
+    </bufferGeometry>
+    <meshStandardMaterial vertexColors roughness={0.5} flatShading side={DoubleSide}/>
+  </instancedMesh>;
 }

@@ -1,10 +1,12 @@
-# Shared race effects: testing and technical reference
+# Legacy v3 shared effects and race integration
+
+The main race and lab now generate [v4 safety drills](safety-drills.md). This reference documents the retained v3 effects and the integration shared by both versions.
 
 A generated object waits in the course until a racer reaches it. That contact activates one shared effect: a gravity vortex, debris storm, shockwave, or protective slipstream. This guide covers free testing and the detailed implementation. For a first look at the project, start with [the architecture tour](architecture.md).
 
 ## Status and ownership
 
-The v3 event runtime, renderer, fixtures and typed/voice API paths are integrated into the main four-racer game. `RaceEventHost` uses the existing microphone controls through `createAudioRaceEventClient`. `CreationAttempt<T>` shares recording, cancellation and one-attempt logic with the legacy v2 `CreationLoop` adapter. The old creation demo and Asset generation lab remain compatible.
+The shared runtime, renderer and host accept v3 and v4. Main-race microphone controls now use `createAudioSafetyDrillClient`; `createAudioRaceEventClient` and v3 typed/voice endpoints retain their original behavior. `CreationAttempt<T>` shares recording, cancellation and one-attempt logic with the legacy v2 `CreationLoop` adapter. The old creation demo and Asset generation lab remain compatible.
 
 | Owner | Files / responsibilities |
 | --- | --- |
@@ -16,7 +18,7 @@ The integration is already implemented. Coordinate changes to its shared interfa
 
 ## Try it without credits
 
-Run `bun run dev`, open the Generation lab, and choose **Race events**. The four fixture buttons work without a server. Choose Run simulation, Step 0.5 s while paused, or Replay same seed. First racer changes which scripted racer reaches the object first. Gold fragments have collisions; small blue fragments are cosmetic. Debug shows field bounds and gravity vectors. Simulations stop after 15 seconds.
+Run `bun run dev`, open the Generation lab, and choose **Safety drills**, then expand **Legacy v3 fixtures**. The four legacy fixture buttons work without a server. Choose Run simulation, Step 0.5 s while paused, or Replay same seed. First racer changes which scripted racer reaches the object first. Gold fragments have collisions; small blue fragments are cosmetic. Debug shows field bounds and gravity vectors. Simulations stop after 15 seconds.
 
 The local scene uses the real `RaceEventRuntime` and `RaceEventRenderer`, but its racer movement is intentionally simplified in `sandbox-model.ts`. Never import that model into the actual race. The **Asset generation** tab preserves the existing v2 lab and history.
 
@@ -41,7 +43,7 @@ All active racers participate, including creator and triggerer. Effects are spat
 
 `FreefallController` keeps steering/brake/boost integration intact and overlays an external velocity capped at 42 m/s with exponential drag of 0.65/s. Acceleration is in m/s² and impulses in m/s; an impulse is consumed once, not multiplied by dt. World +Y is up; `getWorldVelocity()` publishes signed velocity. The positive `fallSpeed` snapshot reflects downward motion. Outward external velocity stops at lane boundaries; reset/finish clears it.
 
-Protection is a per-tick `eventObstacleProtection` flag used only by normal obstacle collision. It does not overwrite inventory timers or grant projectile/sun immunity. Existing inventory/immunity protection is supplied to debris collision. Shared events do not change rival tactics or consume the race's item/reaction RNG.
+Protection is a per-tick `eventObstacleProtection` flag used only by normal obstacle collision. It does not overwrite inventory timers or grant projectile/sun immunity. Existing inventory/immunity protection is supplied to debris collision. V3 effects do not change rival tactics; v4 drills supply visible hazards and opportunities to the existing planner. Neither consumes the race's item/reaction RNG.
 
 `RaceCreations` retains the yellow star and mounts `RaceEventRenderer` with a world-height offset and instance key. Generated creations use a 10 m pickup contact radius and a matching visible halo. Meshes are recentered and fitted inside a 12 m presentation sphere, independent of the input geometry dimensions. The game settings live in `race-event-config.ts`; ordinary items and the yellow voice star retain their existing 3.5 m bounds. The existing radar and trophy show the shared object and actual triggerer; active event status can remain visible after the creator lands. The banner distinguishes waiting for pickup from activation and names the effect and affected racers. Colored racer auras, a screen-edge tint, impulse callouts and a widened camera FOV mark actual application. Non-debug field visuals use a maximum 34 m presentation radius; they are not the effect boundary. Debug shows the actual bounds.
 
@@ -60,7 +62,7 @@ Protection is a per-tick `eventObstacleProtection` flag used only by normal obst
 
 ## Free gameplay check
 
-Run `bun run dev`, open Game → Settings, expand Event fixtures, select a fixture before starting, then resume. **Quick encounter** defaults to spawning 30 m ahead so a check takes seconds; uncheck it to test normal player-relative placement. Follow the object radar and fly through the glowing pickup halo; braking gives more time to line up. Restart to select another. This development-only panel never records or calls a provider. For voice mocks, choose a character and Begin as [name], select one of the four prepared prompts in Mock mode, enable the microphone, and Start with voice. Restart returns to setup and clears paid consent. Play without voice removes both voice opportunities for that run. The lab remains available for quick replay and inspection.
+Run `bun run dev`, open Game → Settings, expand Safety drills & legacy fixtures, select a fixture before starting, then resume. **Quick encounter** defaults to spawning 30 m ahead so a check takes seconds; uncheck it to test normal player-relative placement. Follow the object radar and fly through the glowing pickup halo; braking gives more time to line up. Restart to select another. This development-only panel never records or calls a provider. For voice mocks, choose a character and Begin as [name], select a prepared drill prompt in Mock mode, enable the microphone, and Start with voice. Restart returns to setup and clears paid consent. Play without voice removes both voice opportunities for that run. The lab remains available for quick replay and inspection.
 
 The **Event result** panel in Setup retains the last creation, selected effect, triggerer, cumulative affected racers, impulse counts, actual debris hits, blocked debris and unique obstacle blocks after the effect expires. Pause (or finish), then choose **Restart & replay this creation nearby · free** to reuse its exact mesh/effect in a new race. Only the last result is held in memory; it survives a race restart, not page navigation, and contains no audio. Replay never calls transcription or generation. This manual development replay is separate from the two fresh voice opportunities; no in-run reuse is offered.
 

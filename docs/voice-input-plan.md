@@ -1,5 +1,7 @@
 # Voice: setup, testing, and troubleshooting
 
+Main-race voice now produces [v4 safety drills](safety-drills.md): the request chooses appearance and supported behavior. The v3 `/api/voice/events` endpoint remains compatible.
+
 Use this guide to try the microphone in the game or Generation lab. For the code's overall structure, start with [how the game works](architecture.md). Voice is implemented in the main race; the older creation demo remains simulated regression code.
 
 ## Choose how you want to play
@@ -127,7 +129,8 @@ Live options also require `paidAttempt: {id: <new UUID>, confirmed: true}`. No k
 
 | Route | Result |
 | --- | --- |
-| `POST /api/voice/events` | Main-race v3 event workflow, streamed as `RaceEventVoiceEventSchema`. |
+| `POST /api/voice/drills` | Main-race v4 drill workflow, streamed as `SafetyDrillVoiceEventSchema`. |
+| `POST /api/voice/events` | Retained v3 event workflow, streamed as `RaceEventVoiceEventSchema`. |
 | `POST /api/voice/creations` | Asset lab's v2 workflow, streamed as `VoiceEventSchema`. |
 | `POST /api/voice/transcriptions` | JSON `{text, metric}` only; no design or geometry. |
 
