@@ -43,7 +43,7 @@ Those two exact phrases are deterministic UX fixtures, not an offline content cl
 
 Run `bun run build`, `bun run typecheck`, and `bun run test`. Automated coverage uses fake credentials and intercepted transports for moderation, response validation, category mapping, individual output fields, route coverage, aborts, deadlines, consent, single-slot accounting, client refusal handling and history redaction.
 
-[content-safety-evaluation.json](content-safety-evaluation.json) is a labeled evaluation corpus for future, explicitly authorized live evaluation. It contains permitted/prohibited, contextual, multilingual and obfuscated requests. Its labels describe the desired end-to-end creation outcome, not claims that the moderation endpoint will flag every case. Mock tests establish enforcement behavior, not classifier recall or false-positive rate. Do not automatically send the corpus to a provider.
+Automated tests use neutral placeholders and mocked moderation flags. They verify enforcement behavior, not classifier recall or false-positive rate. Any live content-quality evaluation should be separately scoped and explicitly authorized; no evaluation prompt corpus is included.
 
 ## Limits and next step
 
