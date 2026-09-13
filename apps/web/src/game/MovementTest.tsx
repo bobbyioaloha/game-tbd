@@ -69,12 +69,12 @@ export function MovementTest() {
     setHud(initialHud);setFixtureNotice('');setVoiceInputNotice(current=>({id:current.id+1,text:'',phase:''}));
   };
 
-  const startCountdown=()=>{
+  const startCountdown=useCallback(()=>{
     runtime.race.selectCharacter(inspected);
     setHud({...initialHud,standings:runtime.race.standings()});
     // Starting a prepared run must keep its loaded fixture and voice setup.
     setSettings(false);setBinding(null);setCountdown(3);setScreen('countdown');
-  };
+  },[runtime,inspected]);
   const prepareRun=()=>{reset();setSettings(false);setBinding(null);setScreen('setup');};
   const startPreparedRun=(withVoice:boolean)=>{
     if(screenRef.current!=='setup'||runtime.race.elapsed!==0)return false;
@@ -116,7 +116,7 @@ export function MovementTest() {
       }
       if(screenRef.current!=='race'||settingsRef.current)return;
       if (event.code === 'Escape' && !event.repeat) {
-        event.preventDefault(); if(runtime.paused&&runtime.race.elapsed===0){setCountdown(3);setScreen('countdown');}else pause(!runtime.paused); return;
+        event.preventDefault(); if(runtime.paused&&runtime.race.elapsed===0)startCountdown();else pause(!runtime.paused); return;
       }
       if (interactingWithUi(event.target) || event.altKey || event.ctrlKey || event.metaKey) return;
       if (event.code==='Space') {
@@ -156,7 +156,7 @@ export function MovementTest() {
       runtime.keys.clear(); runtime.fireRequested=false;runtime.dodgeRequested=false; runtime.target=undefined;
       runtime.paused = true;
     };
-  }, [runtime, binding, pause]);
+  }, [runtime, binding, pause, startCountdown]);
 
   return <section className="movement-test">
     <div className="movement-layout">
