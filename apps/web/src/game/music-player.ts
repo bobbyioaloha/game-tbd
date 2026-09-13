@@ -1,9 +1,9 @@
 export type MusicTrack = 'menu' | 'race' | 'results';
 export const MUSIC_TRACKS = {
-  menu: {src: '/audio/music/sneaky-snitch.mp3', title: 'Sneaky Snitch', loop: true},
-  race: {src: '/audio/music/ready-aim-fire.mp3', title: 'Ready Aim Fire', loop: true},
-  results: {src: '/audio/music/winner-winner.mp3', title: 'Winner Winner!', loop: false},
-} satisfies Record<MusicTrack, {src: string; title: string; loop: boolean}>;
+  menu: {src: '/audio/music/sneaky-snitch.mp3', title: 'Sneaky Snitch', loop: true, gain: 1},
+  race: {src: '/audio/music/ready-aim-fire.mp3', title: 'Ready Aim Fire', loop: true, gain: .85},
+  results: {src: '/audio/music/winner-winner.mp3', title: 'Winner Winner!', loop: false, gain: 1},
+} satisfies Record<MusicTrack, {src: string; title: string; loop: boolean; gain: number}>;
 
 type AudioOutput = Pick<HTMLAudioElement, 'src' | 'loop' | 'volume' | 'currentTime' | 'paused' | 'ended' | 'play' | 'pause'>;
 
@@ -27,7 +27,7 @@ export class MusicPlayer {
       this.audio.loop = MUSIC_TRACKS[track].loop;
     }
     this.suspended = suspended;
-    this.audio.volume = Math.max(0, Math.min(1, volume));
+    this.audio.volume = Math.max(0, Math.min(1, volume)) * MUSIC_TRACKS[track].gain;
     this.sync();
   }
   unlock() {

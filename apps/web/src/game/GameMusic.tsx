@@ -2,15 +2,18 @@ import { useEffect, useRef, useState } from 'react';
 import { MusicPlayer, type MusicTrack } from './music-player';
 import './game-music.css';
 
-export function GameMusic({track, paused, recording}: {track: MusicTrack; paused: boolean; recording: boolean}) {
-  const audio = useRef<HTMLAudioElement>(null);
+type MusicPlayback = {track: MusicTrack; paused: boolean; recording: boolean};
+
+/** Keep playback alive while title controls and the settings panel come and go. */
+export function useGameMusic({track, paused, recording}: MusicPlayback) {
   const player = useRef<MusicPlayer | null>(null);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(35);
   const [status, setStatus] = useState('Click or press a key to start music.');
   useEffect(() => {
-    if (!audio.current) return;
-    const music = new MusicPlayer(audio.current, setStatus);
+    const audio = new Audio();
+    audio.preload = 'none';
+    const music = new MusicPlayer(audio, setStatus);
     player.current = music;
     const unlock = () => music.unlock();
     const visibility = () => music.setHidden(document.hidden);
@@ -29,16 +32,20 @@ export function GameMusic({track, paused, recording}: {track: MusicTrack; paused
   useEffect(() => {
     player.current?.update(track, paused || recording, muted ? 0 : volume / 100);
   }, [track, paused, recording, muted, volume]);
-  return <aside className="game-music" aria-label="Music controls">
-    <audio ref={audio} preload="none" aria-label="Game soundtrack"/>
-    <button aria-pressed={muted} onClick={() => setMuted(value => !value)}>{muted ? 'Unmute music' : 'Mute music'}</button>
-    <details>
-      <summary>Music &amp; credits</summary>
-      <div className="music-panel">
-        <h2>Music</h2>
-        <label>Music volume <input type="range" min="0" max="100" value={volume} onChange={event => setVolume(Number(event.target.value))}/>{volume}%</label>
-        <p role="status">{status}</p>
-        <h3>Music credits</h3>
+  return {muted, volume, status, setVolume, toggleMuted: () => setMuted(value => !value)};
+}
+
+export function MusicControls({music, compact = false}: {music: ReturnType<typeof useGameMusic>; compact?: boolean}) {
+  return <section className={'game-music' + (compact ? ' game-music-compact' : '')} aria-label="Music controls">
+    {!compact && <h3>Music</h3>}
+    <div className="music-controls-row">
+      <button type="button" aria-pressed={music.muted} onClick={music.toggleMuted}>{music.muted ? 'Unmute music' : 'Mute music'}</button>
+      <label>Music volume <input type="range" min="0" max="100" value={music.volume} onChange={event => music.setVolume(Number(event.target.value))}/><span>{music.volume}%</span></label>
+    </div>
+    {!compact && <>
+      <p className="music-status" role="status">{music.status}</p>
+      <details className="music-credits">
+        <summary>Music credits</summary>
         <ul>
           <li>Title &amp; character selection: “Sneaky Snitch”</li>
           <li>Race: “Ready Aim Fire”</li>
@@ -48,7 +55,7 @@ export function GameMusic({track, paused, recording}: {track: MusicTrack; paused
           Licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">Creative Commons: By Attribution 4.0</a>.
         </p>
         <p>Original recordings. Menu and race music repeat during play; playback volume is adjusted.</p>
-      </div>
-    </details>
-  </aside>;
+      </details>
+    </>}
+  </section>;
 }

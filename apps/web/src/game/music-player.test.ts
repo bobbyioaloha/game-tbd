@@ -49,7 +49,7 @@ test('pause, capture suspension, mute and hidden tab retain playback position', 
   player.update('race', false, 0);
   assert.equal(audio.paused, true);
   player.update('race', false, .6); await flush();
-  assert.equal(audio.volume, .6);
+  assert.equal(audio.volume, .6 * .85);
   player.dispose(); player.unlock();
   assert.equal(audio.paused, true);
   assert.equal(audio.src, '');
@@ -72,4 +72,28 @@ test('autoplay rejection is handled and a later gesture can retry', async () => 
   audio.play = async () => { audio.paused = false; };
   player.unlock(); await flush();
   assert.equal(statuses.at(-1), 'Playing: Sneaky Snitch');
+});
+test('race plays 15% quieter at the same user volume; other tracks retain their level', () => {
+  const {audio, player} = fixture();
+  player.update('menu', false, .4);
+  assert.equal(audio.volume, .4);
+  player.update('race', false, .4);
+  assert.equal(audio.volume, .4 * .85);
+  player.update('race', false, .8);
+  assert.equal(audio.volume, .8 * .85);
+  player.update('results', false, .8);
+  assert.equal(audio.volume, .8);
+  player.update('menu', false, .8);
+  assert.equal(audio.volume, .8);
+});
+test('track gain preserves mute and clamps the user volume before applying the mix', () => {
+  const {audio, player} = fixture();
+  player.update('race', false, 0);
+  assert.equal(audio.volume, 0);
+  player.update('race', false, 2);
+  assert.equal(audio.volume, .85);
+  player.update('menu', false, 2);
+  assert.equal(audio.volume, 1);
+  player.update('results', false, -1);
+  assert.equal(audio.volume, 0);
 });

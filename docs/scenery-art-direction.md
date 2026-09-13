@@ -1,6 +1,6 @@
-# Prehistoric Precautions scenery
+# Falling Standards scenery
 
-The approved title artwork is [prehistoric-precautions.png](../apps/web/public/images/prehistoric-precautions.png). It was created and iteratively edited with ImageGen from the supplied dinosaur skydiving image. Preserve the title, tagline, enlarged refrigerator and centered sofa. The title page uses the complete image without cropping, plus an accessible **Commence Training** button and expandable controls. The button opens personnel selection, then the existing mock/voice briefing. The toolbar title returns to the opening screen and cancels pending voice work.
+The approved title artwork is [falling-standards.png](../apps/web/public/images/falling-standards.png). It was created and iteratively edited with ImageGen from the supplied dinosaur skydiving image. Preserve the title, tagline, enlarged refrigerator and centered sofa. The approved Falling Standards revision preserves Linda’s original face, removes her extra limbs and restores her tail, uses a legible LUNCH LOCKER sign and plain yellow patches, and assigns Steve 03 / Susan 04. See [the final edit prompt](title-art-prompt.md). The title page uses the complete image without cropping, plus an accessible **Commence Training** button and expandable controls. The button opens personnel selection, then the existing mock/voice briefing. The toolbar title returns to the opening screen and cancels pending voice work.
 
 ## Training obstacles and placement
 
