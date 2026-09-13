@@ -67,9 +67,9 @@ Game coordinates are measured in meters, with +Y up and falling toward -Y. Gener
 
 ## Music and post-race inspection
 
-`LaunchScreen.tsx` shows the Blender launch artwork through the shared `LaunchArtwork` renderer. Its camera reserves landscape below the characters for Commence Training; selecting personnel unmounts the title canvas. The original illustration remains in the development comparison view, while an updated rendered still handles loading and unavailable WebGL. See [the launch-screen guide](launch-preview.md) for rebuilding assets.
+`LaunchScreen.tsx` shows the Blender launch artwork through the shared `LaunchArtwork` renderer. Its camera reserves landscape below the characters for Commence Training; selecting personnel unmounts the title canvas. The original illustration remains in the development comparison view, while a loading wheel waits for the first 3D frame and an updated rendered still handles unavailable WebGL. Music and volume sit in a compact overlay within the scene. See [the launch-screen guide](launch-preview.md) for rebuilding assets.
 
-`GameMusic.tsx` keeps playback mounted through screen changes. Music controls sit below the title actions and inside Game settings, outside the gameplay HUD. `music-player.ts` applies a 0.85 gain to Ready Aim Fire; menu and results music keep their usual level. Pause, hidden tabs, and microphone capture suspend playback.
+`GameMusic.tsx` keeps playback mounted through screen changes. Music controls sit in the launch overlay and inside Game settings, outside the gameplay HUD. `music-player.ts` applies a 0.85 gain to Ready Aim Fire; menu and results music keep their usual level. Pause, hidden tabs, and microphone capture suspend playback.
 
 The results screen opens `RaceCreations` to inspect the current run's generated models with drag, rotation, tilt, and zoom controls. `RaceEventHost.creations` retains both validated creations and their cumulative outcome snapshots through slot replacement and landing. It distinguishes waiting, activated, missed, and discarded creations, and continues reflecting other racers' effects after the player lands. Starting a new run or disposing the host clears this in-memory history; audio and transcripts are never included. Existing development replay remains separate.
 

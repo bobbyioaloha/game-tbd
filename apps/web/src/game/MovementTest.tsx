@@ -167,7 +167,7 @@ export function MovementTest() {
   }, [runtime, binding, pause, startCountdown]);
 
   return <>
-    {screen==='title' ? <LaunchScreen onCommence={()=>setScreen('selection')} music={music} steeringHelp={steeringHelp} actionHelp={actionHelp}/> : <section className="movement-test">
+    {screen==='title' ? <LaunchScreen onCommence={()=>setScreen('selection')} music={music}/> : <section className="movement-test">
     <div className="movement-layout">
       <div className={'movement-stage packaged-game '+(screen!=='race'?'personnel-menu':'')}>
         <div className="in-game-toolbar">

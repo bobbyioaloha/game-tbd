@@ -94,8 +94,14 @@ function Artwork({motion, controls, onReady}: {motion: boolean; controls: RefObj
     .map(object => ({object, y: object.position.y, zRotation: object.rotation.z} satisfies FloatingObject)), [model]);
   const elapsed = useRef(0);
   const lastReset = useRef(controls.current.reset);
-  useEffect(onReady, [onReady]);
+  const renderedFrames = useRef(0);
   useFrame((_, delta) => {
+    // Frame callbacks run before rendering. The second callback means the
+    // loaded model has completed one render, so revealing the canvas is safe.
+    if (renderedFrames.current < 2) {
+      renderedFrames.current++;
+      if (renderedFrames.current === 2) onReady();
+    }
     if (lastReset.current !== controls.current.reset) {
       elapsed.current = 0;
       lastReset.current = controls.current.reset;
@@ -187,10 +193,11 @@ export function LaunchArtwork({framing = 'reference', reservedBottom = 0, motion
     setDragging(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
-  const showStill = reference || failed || !ready;
+  const showStill = reference || failed;
+  const loading = !reference && !failed && !ready;
 
-  return <div className={'launch-artwork' + (dragging ? ' is-dragging' : '') + (reference || failed ? ' is-still' : '')}
-    role="group" aria-label={reference ? ORIGINAL_DESCRIPTION : ARTWORK_DESCRIPTION} tabIndex={reference || failed ? -1 : 0}
+  return <div className={'launch-artwork' + (dragging ? ' is-dragging' : '') + (reference || failed ? ' is-still' : '') + (loading ? ' is-loading' : '')}
+    role="group" aria-label={reference ? ORIGINAL_DESCRIPTION : ARTWORK_DESCRIPTION} tabIndex={reference || failed || !ready ? -1 : 0}
     onKeyDown={event => {
       if (reference || failed || !ready || event.altKey || event.ctrlKey || event.metaKey) return;
       const step = Math.PI / 180 * 2;
@@ -205,7 +212,7 @@ export function LaunchArtwork({framing = 'reference', reservedBottom = 0, motion
     onPointerLeave={() => { controls.current.pointerX = controls.current.pointerY = 0; }}>
     {showStill && <img className="launch-artwork-still" style={{height: framing === 'launch' ? 'calc(100% - ' + Math.max(0, reservedBottom) + 'px)' : '100%', objectPosition: framing === 'launch' ? 'center top' : 'center'}}
       src={reference ? ORIGINAL_ARTWORK : LAUNCH_STILL} alt={reference ? ORIGINAL_DESCRIPTION : ARTWORK_DESCRIPTION}/>}
-    {!failed && webglReady && <div className="launch-artwork-canvas" style={{visibility: showStill ? 'hidden' : 'visible'}}>
+    {!failed && webglReady && <div className="launch-artwork-canvas" style={{visibility: showStill || !ready ? 'hidden' : 'visible'}}>
       <SceneBoundary onError={fail}>
         <Canvas flat orthographic dpr={[1, 1.75]} camera={{position: [0, 0, 32], near: 0.1, far: 300}}
           frameloop={hidden || reference ? 'never' : 'always'} gl={{antialias: true, alpha: false}}
@@ -219,6 +226,10 @@ export function LaunchArtwork({framing = 'reference', reservedBottom = 0, motion
         </Canvas>
       </SceneBoundary>
     </div>}
-    {!reference && (!ready || failed) && <p className={framing === 'launch' ? 'launch-artwork-sr-status' : 'launch-artwork-status'} role="status">{failed ? 'Showing the launch illustration.' : 'Loading 3D artwork…'}</p>}
+    {loading && <div className="launch-artwork-loading" style={{bottom: framing === 'launch' ? Math.max(0, reservedBottom) : 0}} role="status" aria-live="polite" aria-atomic="true">
+      <span className="launch-artwork-spinner" aria-hidden="true"/>
+      <span>Loading…</span>
+    </div>}
+    {!reference && failed && <p className={framing === 'launch' ? 'launch-artwork-sr-status' : 'launch-artwork-status'} role="status">Showing the launch illustration.</p>}
   </div>;
 }

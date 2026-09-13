@@ -8,7 +8,7 @@ Run the ordinary mock development server from the repository root:
 bun run dev
 ```
 
-Open [the game](http://127.0.0.1:5173/#/) for the integrated launch screen. **Commence Training** sits over an extension of the landscape below the approved character composition. The camera reserves 104 screen pixels for that action, so resizing keeps Greg and the landing platform above it. Music and Training essentials remain available beneath the scene. Launch motion is subtle, respects reduced-motion preferences, and stops in hidden tabs; leaving the title unmounts its renderer.
+Open [the game](http://127.0.0.1:5173/#/) for the integrated launch screen. **Commence Training** sits over an extension of the landscape below the approved character composition. The camera reserves the measured height of the bottom controls, so resizing keeps Greg and the landing platform above them. A compact mute/volume HUD sits over the landscape at bottom-left and stacks beneath the main button on narrow screens. The launch screen has no Training essentials panel. Launch motion is subtle, respects reduced-motion preferences, and stops in hidden tabs; leaving the title unmounts its renderer.
 
 The shared renderer is [LaunchArtwork](../apps/web/src/launch/LaunchArtwork.tsx), and [LaunchScreen](../apps/web/src/launch/LaunchScreen.tsx) supplies the action and existing menu controls. [Camera framing](../apps/web/src/launch/launch-framing.ts) fits the artwork above the action dock without changing character proportions.
 
@@ -18,7 +18,7 @@ The shared renderer is [LaunchArtwork](../apps/web/src/launch/LaunchArtwork.tsx)
 - Drag the artwork or use arrow keys while it is focused to inspect the depth. Orbit is limited to 15 degrees in either direction.
 - **Reference** shows the original illustration at the same aspect ratio.
 - **Motion** enables small drifting movements and pointer parallax. The default is a still composition; system reduced-motion preferences disable this option.
-- The updated Blender still, `apps/web/public/images/launch-scene.png`, is the loading and WebGL/asset-error fallback. The training button remains usable while the scene loads or if 3D is unavailable.
+- Loading shows a wheel until the 3D scene has rendered its first frame; no still image is shown during normal loading. Commence Training becomes available once loading finishes. The updated Blender still, `apps/web/public/images/launch-scene.png`, is retained only for a WebGL/asset error; the original image remains available in Reference view.
 
 ## Editable source and rebuilding
 
@@ -37,7 +37,7 @@ The builder writes:
 - `art/launch-preview.blend` — editable, packed Blender scene.
 - `art/launch-preview.png` — rendered reference-camera still (with `--render`).
 - `apps/web/public/models/launch-preview.glb` — self-contained browser asset.
-- `apps/web/public/images/launch-scene.png` — copy of the rendered still for browser loading/fallback (with `--render`).
+- `apps/web/public/images/launch-scene.png` — copy of the rendered still for browser error fallback (with `--render`).
 
 On Windows, Blender may be invoked by its full executable path. For a WSL checkout, pass the script's `\\wsl.localhost\Ubuntu-24.04\home\elizabeth\game-tbd\scripts\build-launch-preview.py` path to Windows Blender. Repository build/typecheck/test commands still run inside WSL.
 
