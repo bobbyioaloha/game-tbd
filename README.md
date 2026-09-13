@@ -8,7 +8,9 @@ Controls and movement are isolated from voice/generation. Start with [the partne
 The Generation lab compares **procedural parts** with **raw mesh generation**, using a configurable design → visuals pipeline and a shared 30-second deadline. Try the duck, toaster, and shield in mock mode immediately; live OpenAI profiles need a server API key and explicit paid-mode startup. Twelve comparison prompts, distance previews, ratings, timing, and JSON export help evaluate the two approaches. See [setup and API details](docs/prompt-to-mesh-pipeline.md). Voice input is available in both the lab and main race; see [voice setup and API details](docs/voice-input-plan.md).
 
 ## Current skeleton
-The default **Generation lab** supports typed or recorded prompts, visual methods, pipeline profiles, a 3D preview, cancellation, and exportable comparison history. **Game → Movement test** integrates microphone capture into the main race: collect a Voice Power Up, hold Space, release to transcribe and generate, then any racer can collect the creation to activate its shared effect. The separate **Voice / creation demo** remains a deterministic simulated regression scene.
+The app opens directly into the **Game**. Choose **Play as Greg** to review the briefing and microphone setup, then **Start with voice** or **Play without voice**. Collect the yellow star, hold Space, release to transcribe and generate, then any racer can collect the creation to activate its shared effect. Restart and Race again return to setup and clear paid consent. Only the briefing-seen preference is remembered.
+
+The **Generation lab** is available at `/#/dev/generation` (also linked from the game toolbar in development). It supports typed or recorded prompts, visual methods, pipeline profiles, a 3D preview, cancellation, and exportable comparison history. The standalone Fixtures tab/viewer has been removed; fixture data, tests, and the v1 API remain compatible.
 
 Everything defaults to mock mode. Real speech recognition and generation require a server key, explicit `bun run dev:live` startup, and consent for each attempt. See [voice testing](docs/voice-input-plan.md) and [the creation contract](docs/creation-skeleton.md).
 
@@ -28,7 +30,7 @@ bun run dev
 
 Commit bun.lock for reproducible installs; use bun install --frozen-lockfile in CI. Bun manages dependencies and scripts; the backend and existing tests still run on Node. Use bun run test to run the project test script.
 
-Open http://localhost:5173. One command builds shared types first and starts the shared watcher, Vite, and Fastify. Ctrl+C stops all three. The server defaults to http://127.0.0.1:3001; GET /api/health reports mock mode. No credentials are needed. Vite proxies /api to port 3001; if you change PORT, also update the proxy target in apps/web/vite.config.ts.
+Open http://localhost:5173 for the game, or http://localhost:5173/#/dev/generation for the Generation lab. One command builds shared types first and starts the shared watcher, Vite, and Fastify. Ctrl+C stops all three. The server defaults to http://127.0.0.1:3001; GET /api/health reports mock mode. No credentials are needed. Vite proxies /api to port 3001; if you change PORT, also update the proxy target in apps/web/vite.config.ts.
 
 ```sh
 bun run build
@@ -56,7 +58,8 @@ For a deployed backend, inject the key through the host's secret manager, never 
 ## Test voice input
 
 - **Mock lab:** Input source → Voice, select a comparison prompt, Enable microphone, then hold/release the button. Mock mode uses that simulated transcript; it does not recognize audio. Transcribe only returns text without generating.
-- **Mock race:** Game → Movement test. Before starting, choose a simulated transcript and Enable microphone. Stay at the starting X/Z for the gold pickup at 180 m, then hold Space and release. Falling continues, and the creation spawns ahead for collection.
+- **Mock race:** Play as Greg → Mock mode → choose a prepared prompt → Enable microphone → Start with voice. Mock mode does not interpret speech. Stay at the starting X/Z for the gold pickup at 180 m, then hold Space and release. Falling continues, and the creation spawns ahead for collection.
+- **Without voice:** Play as Greg → Play without voice. No microphone or generation service is needed; the star is removed for that run.
 - **Paid:** start `bun run dev:live`, select a live profile, and allow that voice attempt (or arm one attempt before a race). Speech-only makes up to 1 API call; speech-to-creation up to 3. Reuse the existing key. `TRANSCRIPTION_MODEL` defaults to `gpt-transcribe`.
 
 Desktop Chrome/Edge, English first. Limits: 8 s recording, 10 s upload/transcription, then 30 s generation. Empty or over-ten-word transcripts stop the attempt. Pause/focus loss/reset/navigation cancels active work. Audio is held in memory for the request and never saved in lab history or exports. See [voice architecture and contracts](docs/voice-input-plan.md).
@@ -65,7 +68,7 @@ Desktop Chrome/Edge, English first. Limits: 8 s recording, 10 s upload/transcrip
 - `packages/shared/src/schema.ts`: versioned Zod contract and inferred types; no React or server dependencies.
 - `packages/shared/src/fixtures.ts`: three validated models.
 - `apps/web/src/components/PowerUpModel.tsx`: appearance-only renderer.
-- `apps/web/src/pages/PlaygroundPage.tsx`: fixture selection, rotation, and mock text requests.
+- `apps/web/src/game/RaceSetup.tsx`: player briefing, microphone setup, and explicit no-voice start.
 - `apps/web/src/pages/GamePage.tsx` and `apps/web/src/game`: falling demo, injectable controls, world integration, and the separate creation lifecycle.
 - `apps/web/src/pages/GenerationLabPage.tsx`: isolated prompt-to-mesh testing.
 - `apps/server/src/generation`: two-stage pipeline, model transport, configuration, and HTTP routes.
@@ -126,7 +129,7 @@ Errors return `{"error":{"code":"INVALID_REQUEST","message":"..."}}`.
 - 502 INVALID_SPEC: provider output does not pass PowerUpSpecSchema.
 - 500 GENERATION_FAILED: internal/provider failure. Future provider timeouts should also use this structured error contract.
 
-Messages must be safe, 1–200 characters; never expose credentials or provider internals. The typed GenerationClient converts HTTP success/error responses into an ok-discriminated result and validates the response again. The default playground uses mockGenerationClient; swap to httpGenerationClient to exercise the server. Both choose ghost for text containing “ghost”, sun for “sun”, “angry”, or “clear”, otherwise jellyfish; they do not interpret arbitrary ideas. Fixture ids are reusable templates, not unique world-instance ids. Gameplay must allocate separate instance ids.
+Messages must be safe, 1–200 characters; never expose credentials or provider internals. The typed GenerationClient converts HTTP success/error responses into an ok-discriminated result and validates the response again. The legacy mockGenerationClient and httpGenerationClient remain available to exercise this contract. Both choose ghost for text containing “ghost”, sun for “sun”, “angry”, or “clear”, otherwise jellyfish; they do not interpret arbitrary ideas. Fixture ids are reusable templates, not unique world-instance ids. Gameplay must allocate separate instance ids.
 
 Keep OPENAI_API_KEY in apps/server/.env; never put secrets in VITE_ variables. The legacy AI_API_KEY is a fallback when OPENAI_API_KEY is unset or blank. Parse and validate AI output as declarative JSON; never evaluate it as JavaScript.
 
@@ -134,7 +137,7 @@ Keep OPENAI_API_KEY in apps/server/.env; never put secrets in VITE_ variables. T
 1. Gameplay: refine pickup placement, HUD, controls, and effect feedback through the race modules. Preserve the single movement loop and semantic voice actions; see the controls handoff.
 2. Generation: deliberately test real English speech and evaluate recognition, latency, and mesh quality in the lab. Extend effects by changing the shared schema and typed race handlers together.
 
-The original v1 fixture playground and the simulated creation demo remain available.
+The v1 fixture data and simulated creation demo remain in the codebase for regression coverage; the standalone fixture viewer is no longer routed.
 
 
 ## Shared race-event sandbox
@@ -145,6 +148,6 @@ The new panel also supports mock or explicitly opted-in live text/voice generati
 
 The main race now uses v3 shared events through its existing microphone controls. Gravity, debris, repulsion, and protection affect all racers in range, including the creator and triggerer. The old creation demo and Asset generation lab retain v2 compatibility.
 
-For a free gameplay check: run `bun run dev`, open **Game → Setup → Event fixtures**, choose an object while paused before the first fall, and resume. This bypasses microphone/API calls. Quick encounter defaults to 30 m ahead; uncheck it to test the normal later-course placement (last 40%, normally 300 m ahead). Event result in Setup retains the selected effect, activation and impact counters. Pause and use the free replay button to reuse the exact creation nearby in a new race. Normal voice-generated placement is unchanged. The fixture panel is development-only.
+For a free gameplay check: run `bun run dev`, open **Game → Settings → Event fixtures**, choose an object while paused before the first fall, and resume. This bypasses microphone/API calls. Quick encounter defaults to 30 m ahead; uncheck it to test the normal later-course placement (last 40%, normally 300 m ahead). Event result in Settings retains the selected effect, activation and impact counters. Pause and use the free replay button to reuse the exact creation nearby in a new race. Normal voice-generated placement is unchanged. The fixture panel is development-only.
 
 For the real microphone path, select one of the four event mock transcripts or explicitly opt into a live profile before starting. Collect the yellow star and hold/release Space as before. Mock speech uses the selected transcript; paid calls remain disabled under ordinary `bun run dev`. See [the implementation and gameplay handoff](docs/race-events-handoff.md) for ownership, units, exact hooks, lifecycle rules, and verification.

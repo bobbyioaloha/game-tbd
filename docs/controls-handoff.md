@@ -4,13 +4,13 @@
 
 The actual game uses `MovementTest`, `RaceScene`, `PracticeRace`, and `freefall-controller.ts`.
 
-- `MovementTest.tsx` owns keyboard input and rebinding. Space press/release invokes `useRaceVoice` actions; WASD/K/I/J remain in the existing handler. Do not add a second movement listener for voice.
+- `MovementTest.tsx` owns the selection → setup → countdown → race flow, keyboard input and rebinding. New runs reset before setup; countdown only starts the prepared run, preserving its consent. `RaceSetup.tsx` presents the briefing and reuses `RaceVoiceSetup`; gameplay movement stays in its existing owner. Space press/release invokes `useRaceVoice` actions; WASD/K/I/J remain in the existing handler. Do not add a second movement listener for voice.
 - `RaceScene.tsx` retains the sole 120 Hz fixed-step integration. Inside `race.step`, the event bridge supplies optional forces/impulses/protection and resolves all-racer movement segments. Afterwards `RaceEventHost.step` receives the player segment for the authored voice star and attempt timing.
 - `PracticeRace` applies optional per-racer event inputs through the controller; keep inventory and combat timers separate. `applyCreationEffects` remains for legacy v2 regression coverage.
 - `race-event-host.ts` owns the authored voice pickup and v3 request lifecycle. It reads the latest player position when spawning; the race event runtime owns the shared collectible, contacts and effect lifetime. The old `race-creation-host.ts` is a v2 compatibility adapter.
 - `voice/RaceVoiceControls.tsx` owns microphone/profile setup and per-run paid consent. Pause, reset, finish, and unmount must cancel active voice work and invalidate late results.
 
-Manual check: Game → Setup → Voice setup → Enable microphone before the run → keep the default mock profile → start falling without steering → collect the gold pickup at 180 m → hold/release Space → follow the radar to the creation later in the course; any racer can activate it. The same input works through the hold button. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
+Manual check: open the game → Play as Greg → keep Mock mode → choose a prepared prompt → Enable microphone → Start with voice → fall without steering → collect the gold pickup at 180 m → hold/release Space → follow the radar to the creation later in the course; any racer can activate it. Play without voice removes the star, clears consent, and leaves the normal race running. Restart returns to setup with fresh consent required. The Generation lab remains at `/#/dev/generation`; the standalone Fixtures tab is removed. Mock audio uses the selected simulated transcript, not speech recognition. See [voice testing and contracts](voice-input-plan.md).
 
 ## Separate regression demo
 
