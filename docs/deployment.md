@@ -28,6 +28,8 @@ The configuration builds the web service from `apps/web` and API from `apps/serv
 
 Keep `/api/lab/profiles` and the event APIs: the game needs them even though the lab page is absent.
 
+Automatic Git deployments are disabled for `main` by `git.deploymentEnabled` in `vercel.json`. Other branches still create automatic preview deployments. To release new code, push or merge it to `main`, then open **Deployments > Create Deployment** in Vercel and select the latest `main` commit. See [Vercel Git deployment controls](https://vercel.com/docs/project-configuration/git-configuration#git.deploymentEnabled) and [creating a deployment from a Git reference](https://vercel.com/docs/git#creating-a-deployment-from-a-git-reference).
+
 ## 3. Check the mock deployment
 
 Open the production URL in Chrome or Edge and check:
@@ -73,7 +75,7 @@ Saving a variable does not update an existing deployment. In Vercel:
 4. Confirm the production environment and redeploy.
 5. Wait for Ready, then reload the canonical game URL matching `APP_ORIGIN`.
 
-These steps rebuild the selected commit. To include code changes, first push those commits to the connected production branch (currently `main`) and check that the new deployment uses them. Redeploying an old commit will not pick up newer code. See [Vercel's redeployment guide](https://vercel.com/docs/deployments/managing-deployments#redeploy-a-project).
+These steps rebuild the selected commit. To include code changes, first push those commits to the connected production branch (currently `main`), then use **Create Deployment** to deploy the latest `main` commit; pushes to `main` do not deploy automatically. Redeploying an old commit will not pick up newer code. See [Vercel's redeployment guide](https://vercel.com/docs/deployments/managing-deployments#redeploy-a-project).
 
 Verify health/profiles again. When you intentionally want a paid test, select Live AI, enable the microphone, confirm the run's paid attempt, and try one short prompt. The free checks above do not test provider credentials or model access.
 
