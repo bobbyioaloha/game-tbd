@@ -128,3 +128,31 @@
 @keyframes event-hit { 0%{opacity:1;transform:translate(-50%,-50%) scale(1.2)} 65%{opacity:1} 100%{opacity:0;transform:translate(-50%,-70%) scale(1)} }
 @media(prefers-reduced-motion:reduce) { .event-hit-callout { animation-name:event-hit-still; } }
 @keyframes event-hit-still { 0%,65%{opacity:1} 100%{opacity:0} }
+
+/* Player entry and pre-race setup reuse the game's safety-exercise palette. */
+.movement-test:has(.packaged-game){padding:14px}
+.packaged-game{height:calc(100dvh - 28px);min-height:620px}
+.in-game-toolbar a{color:#eaf0f8;text-decoration:none;padding:7px 10px;border:1px solid #71818a;font:11px Arial,sans-serif}
+.race-setup{position:absolute;inset:16px;z-index:3;display:flex;flex-direction:column;overflow:hidden;box-sizing:border-box;padding:24px;background:#172c3ef5;border:2px solid #f0c928;color:#eef0e4}
+.race-setup h1{font:700 28px Arial,sans-serif;letter-spacing:0;margin:16px 0 22px}
+.race-setup h1:focus{outline:none}
+.race-setup-columns{flex:1;min-height:0;overflow:auto;padding-right:8px;overscroll-behavior:contain;display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,1fr);gap:32px}
+.race-setup summary{font-weight:700;cursor:pointer;padding:8px 0}
+.race-setup p,.race-briefing-steps{color:#d5dfdf;font-size:14px;line-height:1.6}
+.race-briefing-steps{padding-left:22px;margin:10px 0 18px}
+.race-briefing-steps li{padding:6px 0}
+.race-briefing-steps strong{color:#fff0a2}
+.race-essential-controls{padding:12px;border-left:3px solid #f0c928;background:#233b4a}
+.race-voice-setup{border-left:1px solid #71818a;padding-left:24px}
+.race-voice-setup h2{font-size:20px;margin:0 0 16px}
+.race-voice-setup label{display:block;font-size:13px}
+.race-voice-setup select{display:block;width:100%;box-sizing:border-box;margin:8px 0 12px;padding:10px;border:1px solid #789097;background:#243b49;color:#fff;font:inherit}
+.race-voice-setup .voice-consent{display:flex;gap:10px;align-items:center;margin:14px 0}
+.race-voice-setup .voice-mode-notice{padding:10px;margin:10px 0;border-radius:0}
+.race-microphone-check{margin:0 0 16px;padding-bottom:14px;border-bottom:1px solid #71818a}
+.race-microphone-check p{margin:8px 0}
+.race-voice-limits{display:block;margin-top:12px}
+.race-setup-actions{flex:none;border-top:1px solid #71818a;margin-top:22px;padding-top:8px}
+.race-setup-actions>div{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.race-setup .begin-exercise{background:#f0c928;color:#172c3e;font-weight:700}
+@media(max-width:800px){.race-setup{inset:8px;padding:16px}.race-setup-columns{grid-template-columns:1fr;gap:20px}.race-voice-setup{border-left:0;border-top:1px solid #71818a;padding:20px 0 0}.race-setup h1{font-size:24px}.race-setup-actions>div{flex-direction:column}.packaged-game{min-height:620px}}

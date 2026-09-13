@@ -82,6 +82,13 @@ export class RaceEventHost {
     const player=this.race.snapshot(this.race.racers[0]);
     this.voice={kind:'voice',instanceId:'voice-'+this.loop.getSnapshot().session,position:[player.position[0],-180,player.position[2]]};
   }
+  disableForRun() {
+    if (this.race.elapsed !== 0 || this.loop.getSnapshot().running || this.creation) {
+      throw new Error('Voice can only be disabled before the race.');
+    }
+    this.voice = undefined;
+    this.loop.end('Voice creation is off for this run.');
+  }
   start(){this.loop.start();}
   pause(){this.loop.cancelRecording();}
   dispose(){this.loop.dispose();this.voice=undefined;this.race.eventBridge!.reset();}

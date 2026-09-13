@@ -17,13 +17,13 @@ Implemented in the main race and the Generation lab. The separate Voice / creati
 
 Run `bun install` then `bun run dev`. Open http://localhost:5173.
 
-**Generation lab:** select Input source → Voice, keep Mock two-stage pipeline, choose a comparison prompt, and Enable microphone. Use Hold to test mock and release. The notice shows the exact simulated transcript. Mock mode captures audio but returns the selected simulated transcript; it does not recognize speech. Speak and create previews the corresponding fixture. Transcribe only returns text without generating; Use transcript as typed input copies it into the editable text form without submitting.
+**Generation lab (`/#/dev/generation`):** select Input source → Voice, keep Mock two-stage pipeline, choose a comparison prompt, and Enable microphone. Use Hold to test mock and release. The notice shows the exact simulated transcript. Mock mode captures audio but returns the selected simulated transcript; it does not recognize speech. Speak and create previews the corresponding fixture. Transcribe only returns text without generating; Use transcript as typed input copies it into the editable text form without submitting.
 
 The lab shows the transcript, word count, capture/transcription/stage/total timing, the separate shared generation elapsed time, safe provider diagnostics, and the last valid visual. History/JSON export includes voice mode, selected models, transcript, timing, outcomes, and structured errors. Audio is never included. History lasts only while this page is mounted.
 
-**Game → Movement test:** while paused before the first fall, select a simulated transcript and Enable microphone. Resume/start fall. Stay at the starting X/Z to collect the gold pickup at depth 180 m (roughly 7.5 seconds). Hold Space, speak, then release. The HUD shows progress and the recognized/simulated text. Stay in the path of the creation to collect it. Restart for another opportunity.
+**Game:** choose Play as Greg, keep Mock mode, select a prepared prompt, Enable microphone, and Start with voice. Stay at the starting X/Z to collect the gold pickup at depth 180 m (roughly 7.5 seconds). Hold Space, speak, then release. The HUD shows progress and the recognized/simulated text. Stay in the path of the creation to collect it. Restart returns to setup for another opportunity. **Play without voice** removes the star for that run and requires no microphone or generation service.
 
-The original **Game → Voice / creation demo** still uses text-based simulated speech and no server calls.
+The original creation demo remains in the codebase for regression coverage. The standalone Fixtures tab/viewer has been removed; its fixture data remains available to tests and legacy adapters.
 
 ## Deliberate paid tests
 
@@ -32,7 +32,7 @@ Reuse `OPENAI_API_KEY` in the ignored `apps/server/.env`. No new key is necessar
 Stop the default dev process and explicitly start `bun run dev:live`. This server runs without automatic watch/restart. Keeping a key in `.env` never enables paid mode by itself.
 
 - **Lab:** select a live profile and Voice, choose Transcribe only or Speak and create, and check Allow this paid voice attempt before holding to speak.
-- **Race:** before starting, select a live voice profile and arm Allow this run's one paid voice attempt. The arm clears on start of the attempt, restart, or configuration changes. The next run must be armed again.
+- **Race:** choose Play as Greg, enable the microphone, select Live AI, and check Allow this run’s one paid voice attempt before Start with voice. The arm clears on start of the attempt, restart, or configuration changes. The next run must be armed again.
 - Typed creation can make at most 2 provider calls; transcription-only at most 1; spoken creation at most 3 (speech, design, geometry).
 - All three entry points share one server allowance (default 3 dispatched attempts per start), unique attempt IDs, and a single live request slot. The voice workflow reserves that slot once for its full lifetime. Failed or cancelled calls may incur charges.
 - Invalid metadata/audio and missing consent are rejected before dispatch. A dispatched transcription producing empty or overlong text consumes its attempt and never starts generation.

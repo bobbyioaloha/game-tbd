@@ -52,7 +52,7 @@ function TrophyModel({spec}:{spec:RaceEventCreation}) {
   return <group ref={frame}><group ref={content}><PowerUpModel spec={spec}/></group></group>;
 }
 
-export function RaceCreationHud({host,paused,finished,marker,live,mockText,blockedReason,inputNotice,microphone}:{host:RaceEventHost;paused:boolean;finished:boolean;marker:typeof initialRaceHud.creationMarker;live:boolean;mockText:string;blockedReason:string;inputNotice:{id:number;text:string};microphone:RecorderSnapshot}) {
+export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockText,blockedReason,inputNotice,microphone}:{enabled:boolean;host:RaceEventHost;paused:boolean;finished:boolean;marker:typeof initialRaceHud.creationMarker;live:boolean;mockText:string;blockedReason:string;inputNotice:{id:number;text:string;phase:string};microphone:RecorderSnapshot}) {
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
   const event=host.race.events!.getSnapshot();
   const effectLabel=event.instance?raceEventPreset(event.instance.spec.effect.type).label:'';
@@ -84,8 +84,14 @@ export function RaceCreationHud({host,paused,finished,marker,live,mockText,block
   if(paused)return null;
   const busy=['preparing','recording','transcribing','generating'].includes(state.phase);
   const recording=microphone.phase==='recording';
-  const inputHint=notice&&!busy?inputNotice.text:'';
-  const showNotice=!finished&&(Boolean(inputHint)||(notice||busy)&&!['available','activated','spawned','ended'].includes(state.phase));
+  const inputHint=notice&&!busy&&inputNotice.phase===state.phase?inputNotice.text:'';
+  const showNotice=enabled&&!finished&&(Boolean(inputHint)||(notice||busy||state.phase==='prompted')&&!['activated','spawned','ended'].includes(state.phase));
+  const hint=state.phase==='available'?'Collect the yellow star to create something.'
+    :state.phase==='preparing'?'Opening microphone…'
+    :state.phase==='transcribing'?(live?'Understanding your request—keep racing.':'Loading the prepared prompt—keep racing.')
+    :state.phase==='generating'?'Creating your object—keep racing.'
+    :state.phase==='missed'?'You missed the pickup. Keep racing; try again next run.'
+    :state.phase==='failed'?'Creation attempt ended. Keep racing.':state.message;
   return <>
     {event.phase==='active'&&event.instance&&<>
       {playerHit&&<div className={'event-screen-cue '+event.instance.spec.effect.type} aria-hidden="true"/>}
@@ -111,14 +117,14 @@ export function RaceCreationHud({host,paused,finished,marker,live,mockText,block
       <strong>{announcement.name} created!</strong><span>AHEAD IN {announcement.distance} METERS!</span>
     </div>}
     {showNotice&&<div className={'creation-notice '+(recording?'is-recording':'')}>
-      <strong role='status'>{recording?'● Recording · release Space to submit':inputHint||(state.phase==='prompted'?(blockedReason?'★ Voice setup needed':'★ Voice ready · hold Space'):state.message)}</strong>
+      <strong role='status'>{recording?'● Recording · release Space to submit':inputHint||(state.phase==='prompted'?(blockedReason?'★ Voice unavailable':'★ Hold Space · 10 words or fewer'):hint)}</strong>
       {recording&&<div className="race-recording-meter">
         <div><span>MIC INPUT</span><span>{(microphone.elapsedMs/1000).toFixed(1)} / 8 s</span></div>
         <meter aria-label="Recording microphone input level" min={0} max={1} value={microphone.level}/>
         <span>{microphone.level>0.025?'Picking up sound':'Listening · no sound detected'}</span>
         {!live&&<small>Mock mode uses the selected transcript.</small>}
       </div>}
-      {state.phase==='prompted'&&<span>{blockedReason?'Restart, then finish voice setup before falling.':'Release to create · 10 words max'}<br/>{blockedReason|| (live?'Live speech':'Mock: '+mockText)}</span>}
+      {state.phase==='prompted'&&<span>{blockedReason?'Restart to review voice setup.':'Release to create · one attempt'}<br/>{blockedReason|| (live?'Live speech':'Mock: '+mockText)}</span>}
     </div>}
     {event.triggererId&&spec&&trophyAge<10&&<div className="creation-trophy" role="status" style={{opacity:Math.min(1,(10-trophyAge)/0.5)}}>
       <div className="creation-trophy-model" aria-hidden="true"><Canvas camera={{position:[0,1,4.5],fov:42}} dpr={[1,1.5]} fallback={<span>★</span>}>
