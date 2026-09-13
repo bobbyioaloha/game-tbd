@@ -126,7 +126,7 @@ export function MovementTest() {
           const reason=!voiceActions.current.enabled?'Voice creation is off for this run.'
             :phase==='available'?'Collect the yellow star first.'
             :phase==='prompted'?voiceBlocked.current
-            :['failed','missed','ended','activated'].includes(phase)?'Voice attempt finished. Restart the race for another star.':'';
+            :['failed','missed','ended','activated'].includes(phase)?voiceActions.current.host.nextOpportunityMessage:'';
           setVoiceInputNotice(current=>({id:current.id+1,text:reason,phase}));
           voiceActions.current.start();
         }
@@ -210,7 +210,7 @@ export function MovementTest() {
         <RaceOverlay hud={hud} paused={paused} useKey={label(bindings.use)} boostKey={label(bindings.boost)} dodgeKey={label(bindings.dodge)}/>
         {!paused && hud.finish === null && hud.remaining <= 100 && <div className="race-countdown">{Math.ceil(hud.remaining)} m<br/><small>PREPARE FOR LANDING</small></div>}
         {!paused && hud.finish !== null && <div className="race-result"><strong>EXERCISE COMPLETE · {hud.place} / 4</strong><span>{hud.incidents===0?'Safety inspection: exemplary preparedness.':'Safety inspection: '+hud.incidents+(hud.incidents===1?' incident.':' incidents.')+' Refresher training assigned.'}</span><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={prepareRun}>Race again</button></div>}
-        <RaceCreationHud enabled={voice.enabled} key={voice.state.session} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
+        <RaceCreationHud enabled={voice.enabled} key={voice.host.runId} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && !settings && <div className="movement-pause"><span className="safety-caution">⚠ CAUTION</span><h2>Mandatory fall protection training</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
           <p>{voice.enabled?'Collect ★, then hold Space to create.':'Voice creation is off for this run.'}<br/>Pausing during a voice attempt cancels it.</p>
           <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); if(runtime.race.elapsed===0)startCountdown();else pause(false);}}>Begin / resume exercise</button>
@@ -233,7 +233,7 @@ export function MovementTest() {
           <label><input type="checkbox" checked={quickFixture} disabled={!paused||race.elapsed!==0||!!voice.host.creation} onChange={event=>setQuickFixture(event.target.checked)}/>Quick encounter · spawn 30 m ahead</label>
           <div className="event-fixture-buttons">{raceEventFixtures.map(fixture=><button key={fixture.prompt}
             disabled={!paused||race.elapsed!==0||!!voice.host.creation}
-            onClick={()=>{try{voice.host.loadFixture(fixture.spec,quickFixture);setScreen('race');setFixtureNotice(fixture.spec.displayName+(quickFixture?' is 30 m ahead.':' is waiting later in the course.')+' Resume to race.');}
+            onClick={()=>{try{voice.host.loadFixture(fixture.spec,quickFixture);setScreen('race');setFixtureNotice(fixture.spec.displayName+(quickFixture?' is 30 m ahead.':' is waiting ahead in the course.')+' Resume to race.');}
               catch(error){setFixtureNotice(error instanceof Error?error.message:'Could not place fixture.');}}}>
             {fixture.spec.displayName}
           </button>)}</div>

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { raceEventFixtures, type RaceEventCreation, type RacerEventInput } from '@sky/shared';
 import { PracticeRace } from './practice-race';
 import { FreefallController } from './freefall-controller';
-import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
+import { RACE_CREATION_PICKUP_RADIUS, raceEventSpawnPosition } from './race-event-config';
 import { RaceEventRuntime } from '../race-events/runtime';
 import { RaceEventHost, eventPlacement } from './race-event-host';
 import type { AudioCreationClient } from '../voice/voice-client';
@@ -121,12 +121,12 @@ test('impulse integration is timestep independent and uses signed vertical veloc
     c.getSnapshot().position.forEach((v,i)=>assert.ok(Math.abs(v-results[0].getSnapshot().position[i])<1e-8));
   }
 });
-test('safe late-course placement preserves obstacles and budgets travel with braking',()=>{
+test('safe player-relative placement preserves obstacles and budgets travel with braking',()=>{
   const race=makeRace();place(race,0,0,200);
-  race.obstacles=[{id:1,kind:'fridge',rotation:[0,0,0],hitAt:-Infinity,position:[0,-2160,0],active:true}];
+  race.obstacles=[{id:1,kind:'fridge',rotation:[0,0,0],hitAt:-Infinity,position:[0,-440,0],active:true}];
   const placement=eventPlacement(race);
-  assert.equal(placement.position[1],-2160);assert.notEqual(placement.position[0]+placement.position[2],0);
-  assert.ok(placement.pickupLifetimeSeconds>=2160/8);
+  assert.equal(placement.position[1],-440);assert.notEqual(placement.position[0]+placement.position[2],0);
+  assert.ok(placement.pickupLifetimeSeconds>=440/8);
   assert.equal(race.obstacles[0].active,true);
   place(race,0,0,3520);assert.throws(()=>eventPlacement(race),/finish/);
 });
@@ -142,11 +142,14 @@ test('v3 microphone generation keeps falling, validates, spawns from latest posi
   const pending=host.loop.finishRecording();await flush();step(race,host,120);
   const before=race.snapshot(race.racers[0]).position[1];assert.ok(before<0);
   resolve(creation('gravityWell'));await pending;
-  assert.equal(calls,1);assert.equal(host.loop.getSnapshot().phase,'spawned');
-  assert.equal(host.creation?.spec.version,3);assert.equal(host.creation?.position[1],-2160);
+  assert.equal(calls,1);assert.equal(host.loop.getSnapshot().phase,'ready');
+  assert.equal(Boolean(host.creation),false);
+  // Stop at the first spawn tick to check placement from the latest position.
+  for(let tick=0;tick<300&&!host.creation;tick++)step(race,host);
+  assert.equal(host.loop.getSnapshot().phase,'spawned');
+  assert.equal(host.creation?.spec.version,3);assert.deepEqual(host.creation?.position,raceEventSpawnPosition(race.snapshot(race.racers[0]).position,race.snapshot(race.racers[0]).fallSpeed,8));
   assert.equal(race.racers[0].creationSlowUntil,0);
-  // Waiting for a distant pickup must not expire at the lab's old 20-second TTL.
-  step(race,host,120*25);assert.equal(race.events!.getSnapshot().phase,'collectible');
+  assert.ok(race.events!.getSnapshot().instance!.pickupLifetimeSeconds!>=30);
   host.dispose();
 });
 for(const action of ['pause','reset','finish','dispose'] as const)test(action+' aborts pending v3 generation and ignores late completion',async()=>{
@@ -165,7 +168,7 @@ test('shared creation survives its creator finishing and a rival can still activ
   const race=makeRace();
   const host=new RaceEventHost(race,{async start(){},async stop(){return 'hungry purple planet';},cancel(){}});
   host.start();host.spawn(creation('gravityWell'),'shared');
-  place(race,1,host.creation!.position[0],2157);
+  place(race,1,host.creation!.position[0],-host.creation!.position[1]-3);
   race.racers[0].finishTime=race.elapsed;
   step(race,host);
   assert.equal(race.events!.getSnapshot().triggererId,'1');

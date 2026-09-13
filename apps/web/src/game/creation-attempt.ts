@@ -2,7 +2,7 @@ import type { AudioCreationClient } from '../voice/voice-client';
 import { GenerationRequestSchema, type GenerationRequest } from '@sky/shared';
 import type { PromptCapture } from '../voice/types';
 
-export type Phase = 'available' | 'prompted' | 'preparing' | 'recording' | 'transcribing' | 'generating' | 'spawned' | 'activated' | 'missed' | 'failed' | 'ended';
+export type Phase = 'available' | 'prompted' | 'preparing' | 'recording' | 'transcribing' | 'generating' | 'ready' | 'spawned' | 'activated' | 'missed' | 'failed' | 'ended';
 export type CreationSnapshot = {
   session: number; running: boolean; phase: Phase; message: string; phaseSeconds: number; transcript?:string;
 };
@@ -12,7 +12,8 @@ export interface AttemptClient<T> {
 }
 export interface AttemptHost<T> {
   parse(value:unknown):T;
-  spawnCreation(instanceId:string,spec:T):void;
+  spawnCreation(instanceId:string,spec:T):void | 'queued';
+  checkRequest?(stage:'recording'|'submission'):string | undefined;
   activate(spec:T):void;
 }
 // Owns one-attempt voice/generation state only. No player, geometry, input bindings,
@@ -40,10 +41,10 @@ export class CreationAttempt<T extends {displayName:string}> {
     this.abort?.abort(); this.voice.cancel(); this.serial++; this.pendingCreation = undefined;
     this.state.running = false; this.state.phase = 'ended'; this.state.message = message; this.emit();
   };
-  dispose = () => { this.abort?.abort(); this.serial++; this.voice.cancel(); };
+  dispose = () => { this.abort?.abort(); this.serial++; this.voice.cancel(); this.pendingCreation = undefined; this.state.running = false; };
   private current(token: number) { return this.serial === token && this.state.running; }
   private fail(message: string) {
-    this.abort?.abort(); this.voice.cancel(); this.state.phase = 'failed';
+    this.abort?.abort(); this.voice.cancel(); this.pendingCreation = undefined; this.state.phase = 'failed';
     this.state.message = message+' Attempt consumed.'; this.emit();
   }
   // The world reports collisions. Duplicate events cannot grant extra attempts.
@@ -70,6 +71,8 @@ export class CreationAttempt<T extends {displayName:string}> {
   };
   startRecording = () => {
     if (!this.state.running || this.state.phase !== 'prompted') return;
+    const blocked = this.host.checkRequest?.('recording');
+    if (blocked) { this.fail(blocked); return; }
     const token = this.serial;
     const recordingActive = () => this.current(token) && ['preparing', 'recording', 'transcribing'].includes(this.state.phase);
     const audio='kind' in this.voice && this.voice.kind==='audio';
@@ -98,6 +101,8 @@ export class CreationAttempt<T extends {displayName:string}> {
       if (!this.current(token) || this.getSnapshot().phase !== 'transcribing') return;
       const captured = await this.voice.stop();
       if (!this.current(token) || this.getSnapshot().phase !== 'transcribing') return;
+      const blocked = this.host.checkRequest?.('submission');
+      if (blocked) { this.fail(blocked); return; }
       this.abort = new AbortController();
       let result:AttemptResult<T>;
       if (typeof captured==='string') {
@@ -124,15 +129,28 @@ export class CreationAttempt<T extends {displayName:string}> {
       try {spec=this.host.parse(result.spec);} catch {this.fail('Invalid creation returned.');return;}
       const instanceId = 'creation-'+token;
       this.pendingCreation = {instanceId, spec};
-      this.host.spawnCreation(instanceId, spec);
-      this.state.phase = 'spawned'; this.state.phaseSeconds = 0;
-      this.state.message = spec.displayName+' is ahead. Fly into it to activate.'; this.emit();
+      this.state.phase = 'ready'; this.state.phaseSeconds = 0;
+      this.state.message = spec.displayName+' is ready. Preparing its arrival…';
+      this.placeReadyCreation();
+      if (this.getSnapshot().phase === 'ready') this.emit();
     } catch (error) {
       if (this.current(token) && this.getSnapshot().phase !== 'failed') this.fail(error instanceof Error ? error.message : 'Recording or generation failed.');
     } finally {if (this.current(token)) this.voice.cancel();}
   };
+  // A v3 host can wait for the shared event slot. Legacy hosts still spawn immediately.
+  placeReadyCreation = () => {
+    if (!this.state.running || this.state.phase !== 'ready' || !this.pendingCreation) return;
+    const {instanceId, spec} = this.pendingCreation;
+    try {
+      if (this.host.spawnCreation(instanceId, spec) === 'queued') return;
+      this.state.phase = 'spawned'; this.state.phaseSeconds = 0;
+      this.state.message = spec.displayName+' is ahead. Fly into it to activate.'; this.emit();
+    } catch (error) {
+      this.fail(error instanceof Error ? error.message : 'Could not place creation.');
+    }
+  };
   cancelRecording = () => {
-    if (['prompted','preparing','recording','transcribing','generating'].includes(this.state.phase)) this.fail('Input cancelled.');
+    if (['prompted','preparing','recording','transcribing','generating','ready'].includes(this.state.phase)) this.fail('Input cancelled.');
   };
   // Host supplies gameplay seconds; this advances only voice/generation deadlines.
   advanceTime(dt: number) {

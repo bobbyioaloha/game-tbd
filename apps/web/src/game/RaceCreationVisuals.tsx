@@ -4,7 +4,7 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { Box3, DoubleSide, Shape, Vector3, type Group } from 'three';
 import { raceEventPreset, type RaceEventCreation } from '@sky/shared';
 import { RaceEventRenderer } from '../race-events/RaceEventRenderer';
-import { RACE_CREATION_MODEL_DIAMETER, RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
+import { RACE_CREATION_MODEL_DIAMETER, RACE_CREATION_PICKUP_RADIUS, RACE_VOICE_ATTEMPTS } from './race-event-config';
 import { PowerUpModel } from '../components/PowerUpModel';
 import type { RaceEventHost } from './race-event-host';
 import type { initialRaceHud } from './RaceScene';
@@ -80,9 +80,9 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
     if(paused)return;
     const timer=window.setTimeout(()=>setNotice(false),4500);
     return()=>window.clearTimeout(timer);
-  },[state.phase,paused,inputNotice.id]);
+  },[state.phase,state.session,paused,inputNotice.id]);
   if(paused)return null;
-  const busy=['preparing','recording','transcribing','generating'].includes(state.phase);
+  const busy=['preparing','recording','transcribing','generating','ready'].includes(state.phase);
   const recording=microphone.phase==='recording';
   const inputHint=notice&&!busy&&inputNotice.phase===state.phase?inputNotice.text:'';
   const showNotice=enabled&&!finished&&(Boolean(inputHint)||(notice||busy||state.phase==='prompted')&&!['activated','spawned','ended'].includes(state.phase));
@@ -90,8 +90,8 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
     :state.phase==='preparing'?'Opening microphone…'
     :state.phase==='transcribing'?(live?'Understanding your request—keep racing.':'Loading the prepared prompt—keep racing.')
     :state.phase==='generating'?'Creating your object—keep racing.'
-    :state.phase==='missed'?'You missed the pickup. Keep racing; try again next run.'
-    :state.phase==='failed'?'Creation attempt ended. Keep racing.':state.message;
+    :state.phase==='missed'?host.nextOpportunityMessage
+    :state.message;
   return <>
     {event.phase==='active'&&event.instance&&<>
       {playerHit&&<div className={'event-screen-cue '+event.instance.spec.effect.type} aria-hidden="true"/>}
@@ -117,6 +117,7 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
       <strong>{announcement.name} created!</strong><span>AHEAD IN {announcement.distance} METERS!</span>
     </div>}
     {showNotice&&<div className={'creation-notice '+(recording?'is-recording':'')}>
+      <small>VOICE STAR {host.attemptNumber} / {RACE_VOICE_ATTEMPTS}</small>
       <strong role='status'>{recording?'● Recording · release Space to submit':inputHint||(state.phase==='prompted'?(blockedReason?'★ Voice unavailable':'★ Hold Space · 10 words or fewer'):hint)}</strong>
       {recording&&<div className="race-recording-meter">
         <div><span>MIC INPUT</span><span>{(microphone.elapsedMs/1000).toFixed(1)} / 8 s</span></div>
@@ -124,7 +125,7 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
         <span>{microphone.level>0.025?'Picking up sound':'Listening · no sound detected'}</span>
         {!live&&<small>Mock mode uses the selected transcript.</small>}
       </div>}
-      {state.phase==='prompted'&&<span>{blockedReason?'Restart to review voice setup.':'Release to create · one attempt'}<br/>{blockedReason|| (live?'Live speech':'Mock: '+mockText)}</span>}
+      {state.phase==='prompted'&&<span>{blockedReason?'Voice attempt unavailable.':'Release to create · one attempt for this star'}<br/>{blockedReason|| (live?'Live speech':'Mock: '+mockText)}</span>}
     </div>}
     {event.triggererId&&spec&&trophyAge<10&&<div className="creation-trophy" role="status" style={{opacity:Math.min(1,(10-trophyAge)/0.5)}}>
       <div className="creation-trophy-model" aria-hidden="true"><Canvas camera={{position:[0,1,4.5],fov:42}} dpr={[1,1.5]} fallback={<span>★</span>}>

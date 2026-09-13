@@ -31,7 +31,7 @@ export function raceVoiceReadiness({enabled, microphone, profiles, profileId, ar
     if (!profiles.transcription?.available || !profiles.liveUsage.enabled) return blocked('Live voice is unavailable. Choose Mock mode or play without voice.');
     if (profiles.liveUsage.busy) return blocked('Another AI attempt is running. Refresh availability in a moment.');
     if (profiles.liveUsage.attemptsRemaining <= 0) return blocked('No paid attempts remain. Choose Mock mode or play without voice.');
-    if (!armed) return blocked('Allow this run’s one paid attempt before starting.');
+    if (!armed) return blocked('Allow up to two paid voice attempts before starting, or play without voice.');
   }
   return {ready: true, message: profile.mode === 'live'
     ? 'Ready. Collect the yellow star, then hold Space to speak.'

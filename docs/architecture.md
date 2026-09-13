@@ -30,7 +30,7 @@ flowchart TD
     H --> I[First racer to collect it activates the shared effect]
 ```
 
-The race continues during recording and generation. Each voice star grants one attempt. An empty transcript, more than ten words, a timeout, or cancellation ends that attempt; there is no automatic retry.
+The race continues during recording and generation. A run can offer up to two voice stars, each granting one fresh attempt. Later stars depend on the remaining race time; there is no encore. An empty transcript, more than ten words, a timeout, or cancellation ends that attempt; there is no automatic retry.
 
 In live mode, transcription uses a recorded clip. The design model chooses one supported effect type and writes a visual brief; the server supplies its balanced strength and duration. The geometry model receives only the visual brief. Models return structured data, and the browser renders only a completed, validated result.
 
@@ -45,7 +45,7 @@ The generated object and the Voice Power Up are different things. The star grant
 | Main game page | `apps/web/src/pages/GamePage.tsx`, `game/MovementTest.tsx` | Personnel selection, setup, countdown, keyboard actions, and race UI |
 | Simulation and movement | `game/RaceScene.tsx`, `practice-race.ts`, `freefall-controller.ts` | One fixed-step clock; movement, opponents, items, and finish state |
 | World and characters | `game/race-course.ts`, `RaceObjects.tsx`, `GregModel.tsx`, `scripts/build-greg.py` | Course geometry, rendering, and reproducible dinosaur assets |
-| Speaking attempt | `game/race-event-host.ts`, `creation-attempt.ts`, `voice/RaceVoiceControls.tsx` | Voice star, one-attempt lifecycle, setup, cancellation, and spawning |
+| Speaking attempt | `game/race-event-host.ts`, `creation-attempt.ts`, `voice/RaceVoiceControls.tsx` | Two-star scheduling, individual attempts, setup, cancellation, and queued spawning |
 | Microphone and client | `voice/recorder.ts`, `race-event-voice-client.ts`, `race-events/client.ts` | Capture audio, request transcription/generation, and validate progress/results |
 | Shared effects | `apps/web/src/race-events/runtime.ts`, `bridge.ts`, `RaceEventRenderer.tsx` | Resolve collection, calculate effects for racers, and draw feedback |
 | Server pipeline | `apps/server/src/generation/pipeline.ts`, `apps/server/src/generation/stage-transport.ts`, `apps/server/src/voice/routes.ts`, `apps/server/src/voice/transcription.ts` | Shared paid admission, transcription, design, geometry, and request cleanup |
