@@ -20,7 +20,7 @@ Run `bun install --frozen-lockfile` and `bun run dev` from the repository root, 
 
 1. Select a character and choose **Begin as [name]**.
 2. Keep **Mock** selected in the pre-flight setup and choose a prepared prompt.
-3. Click **Enable microphone** and allow access. This permission check immediately releases the device and does not call a provider.
+3. Click **Enable microphone** and allow access. The main race keeps that input open so repeat checks and both voice stars can reuse it without reopening the device. No clip is recorded until you hold Space, and enabling the microphone does not call a provider. Pause, restart, leaving, or finishing releases the input and clears microphone readiness. Enable it again in setup or the pause menu before using voice; the race never silently reopens a released device at a star. In development, reload the page after microphone code changes so Fast Refresh cannot retain an old recorder instance. Opening the device has a separate 10-second timeout; if it stalls, check browser permission and your selected input device, then try the check again. The lab retains its separate open/release capture behavior.
 4. Choose **Start with voice**. Staying at the starting horizontal position lets you reach the yellow star at 180 m depth.
 5. After collecting it, hold Space, speak, and release. The HUD shows the simulated transcript and creation progress.
 6. Keep racing and follow the radar to the generated object. It appears later in the course, not immediately beside you. Fly through its glowing halo; the first racer to reach it activates the effect.
@@ -107,6 +107,7 @@ In the lab, losing focus cancels microphone capture. After submission, requests 
 | It always creates the same thing | Check **Mock** versus **Live AI**. Mock mode uses the selected prepared transcript, regardless of what you say. |
 | Space does nothing | Collect the yellow star first, start within the speaking window, and check that voice is enabled and the race is unpaused. |
 | Microphone unavailable | Check browser permission and input device. Use desktop Chrome/Edge on localhost or HTTPS. You can still play without voice. |
+| Checking or preparing the microphone stalls | Opening the input device times out after 10 seconds, before recording or any API request. The HUD distinguishes opening the input, initializing the recorder, initializing its level meter, and starting recording; the device-opening timeout does not cover a browser call that blocks JavaScript. Main-race setup and both stars reuse the prepared input during an uninterrupted run, including after a generation failure. Check browser permission and the selected device if the initial open fails. An in-race startup failure consumes that star’s attempt; it never automatically retries. Pause/reset cancels startup and releases the input; any late stream is immediately stopped. |
 | Live AI unavailable locally | Check the server is running through `bun run dev:live` and a key is configured in the server environment, then refresh availability. |
 | Live AI unavailable on Vercel | Follow [hosted diagnostics](deployment.md#troubleshooting); an API startup failure can look like disabled AI. |
 | `TRANSCRIPTION_TIMEOUT` | Upload/transcription exceeded its separate budget. Generation may not have started. |

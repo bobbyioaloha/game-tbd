@@ -84,7 +84,7 @@ export class RaceEventHost {
     if(current.instance)this.lastEvent={...current,debris:[],drill:undefined};
     else if(this.race.finished&&this.lastEvent)this.lastEvent={...this.lastEvent,phase:'expired',remainingSeconds:0,expirationReason:'complete'};
   }
-  constructor(readonly race:PracticeRace,capture:PromptCapture,client?:AudioCreationClient<RaceEncounter>,private readonly starRandom:()=>number=Math.random) {
+  constructor(readonly race:PracticeRace,private readonly capture:PromptCapture,client?:AudioCreationClient<RaceEncounter>,private readonly starRandom:()=>number=Math.random) {
     if(!race.events)throw new Error('Race event runtime is required.');
     this.events=race.events;
     this.loop=new CreationAttempt({async generate({text}) {
@@ -160,6 +160,8 @@ export class RaceEventHost {
   pause(){
     if(this.opportunity.secondStar==='collected')this.updateSecondStar('discarded','Saved second request cancelled by pause.');
     this.loop.cancelRecording();
+    // Prepared input also needs releasing when no voice attempt is active.
+    this.capture.cancel();
   }
   dispose(){
     this.opportunitiesClosed=true;this.voice=undefined;
@@ -193,7 +195,7 @@ export class RaceEventHost {
     if(!['spawned','activated','missed','failed'].includes(this.loop.getSnapshot().phase))return;
     this.attemptNumber=2;
     this.updateSecondStar('consumed','');
-    this.loop.reset();this.loop.start();this.loop.collectVoice();
+    this.loop.rearm();this.loop.start();this.loop.collectVoice();
   }
   step(dt:number,from:Position,to:Position) {
     const event=this.events.getSnapshot();
