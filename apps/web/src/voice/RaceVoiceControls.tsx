@@ -26,6 +26,7 @@ export function useRaceVoice(race:PracticeRace) {
   const attempt=useRef<Configuration>({profileId:'mock',geometryMode:'primitives',mockText});
   const [host]=useState(()=>new RaceEventHost(race,recorder,createAudioSafetyDrillClient(()=>attempt.current)));
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
+  const opportunity=useSyncExternalStore(host.subscribe,host.getSnapshot);
   const microphone=useSyncExternalStore(recorder.subscribe,recorder.getSnapshot);
   const profile=profiles?.profiles.find(item=>item.id===profileId);
   const live=profile?.mode==='live';
@@ -53,7 +54,7 @@ export function useRaceVoice(race:PracticeRace) {
   };
   const reset=()=>{setEnabled(true);setArmed(false);attempt.current={profileId:'mock',geometryMode:'primitives',mockText};host.reset();};
   const skipForRun=()=>{host.disableForRun();setEnabled(false);setArmed(false);};
-  return {host,recorder,microphone,enabled,getReadiness,skipForRun,profileId,setProfileId,mockText,setMockText,armed,setArmed,paidAttemptsRemaining,profiles,error,profile,live,paidAvailable,state,
+  return {host,recorder,microphone,enabled,getReadiness,skipForRun,profileId,setProfileId,mockText,setMockText,armed,setArmed,paidAttemptsRemaining,profiles,error,profile,live,paidAvailable,state,opportunity,
     start,finish:()=>{void host.loop.finishRecording();},cancel:()=>host.loop.cancelRecording(),reset,refresh:()=>setRefresh(value=>value+1)};
 }
 export type RaceVoiceController = ReturnType<typeof useRaceVoice>;
@@ -65,7 +66,7 @@ export function RaceVoiceControls({voice,paused}:{voice:RaceVoiceController;paus
     (voice.state.phase==='prompted'&&voice.getReadiness().ready));
   return <section className="race-voice">
     <h2>Hazard reporting</h2>
-    <p>Collect an Inspection Request (yellow star), then report a hazard in ten words or fewer. Describe what it does, or let the department infer it. Hold Space; release submits. Any racer can start the shared drill. Up to two fresh requests per run.</p>
+    <p>Collect an Inspection Request (yellow star), then report a hazard in ten words or fewer. Describe what it does, or let the department infer it. Hold Space; release submits. Any racer can start the shared drill. Two yellow stars per run; the second is 60–70% down the course. A slow creation may arrive too late to use before landing.</p>
     <label>Voice profile<select aria-label="Race voice profile" value={voice.profileId} disabled={!configuring} onChange={event=>voice.setProfileId(event.target.value)}>
       {voice.profiles?.profiles.map(profile=><option key={profile.id} value={profile.id}>{profile.label}{profile.available?'':' · unavailable'}</option>)}
     </select></label>
@@ -83,11 +84,12 @@ export function RaceVoiceControls({voice,paused}:{voice:RaceVoiceController;paus
     {voice.profile?.unavailableReason&&<p>{voice.profile.unavailableReason}</p>}
     <RecorderControls recorder={voice.recorder} mode={voice.live?'live':'mock'} disabled={!canHold} setupDisabled={!paused||active} onStart={voice.start} onFinish={voice.finish} onCancel={voice.cancel}/>
     <p role="status">Star {voice.host.attemptNumber} / {RACE_VOICE_ATTEMPTS} · {voice.state.message}</p>
+    {voice.opportunity.message&&voice.opportunity.message!==voice.state.message&&['offered','collected','missed','discarded'].includes(voice.opportunity.secondStar)&&<p role="status">★ {voice.opportunity.message}</p>}
     {voice.live&&<p>{voice.paidAttemptsRemaining} paid voice attempts allowed for this run.</p>}
     {voice.state.transcript&&<p>{voice.live?'Heard':'Simulated transcript'}: “{voice.state.transcript}”</p>}
     {active&&<button onClick={voice.cancel}>Cancel voice attempt</button>}
     <button onClick={voice.refresh} disabled={active}>Refresh voice profiles</button>
-    <small>8 s recording · 10 s transcription · 30 s generation. Pausing cancels an active attempt.</small>
+    <small>8 s recording · 10 s transcription · 30 s generation. Pausing cancels an active attempt and a saved second request.</small>
   </section>;
 }
 
@@ -134,6 +136,6 @@ export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
       {!liveEnabled && <small>Live AI is unavailable for this session.</small>}
     </>}
     <button disabled={preparing} onClick={voice.refresh}>Refresh availability</button>
-    <small className="race-voice-limits">Desktop Chrome / Edge · English · 8 s recording maximum.<br/>Keep racing during transcription and creation. A second star appears if enough race remains.</small>
+    <small className="race-voice-limits">Desktop Chrome / Edge · English · 8 s recording maximum.<br/>Keep racing during transcription and creation. The second yellow star is 60–70% down the course, whether the first request succeeds or fails. A slow creation may arrive too late to use before landing.</small>
   </section>;
 }

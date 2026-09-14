@@ -162,16 +162,7 @@
 .race-result span{min-width:0;overflow-wrap:anywhere;line-height:1.5}
 @media(max-width:700px){.race-result{flex-direction:column;align-items:flex-start;font-size:11px;padding:12px}.race-result strong{font-size:14px}}
 
-/* Keep the approved title illustration uncropped at every viewport size. */
-.training-title{position:relative;min-height:100svh;background:#102438;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 0 24px;isolation:isolate}
-.training-title>img{display:block;width:100%;max-height:calc(100svh - 160px);object-fit:contain}
-.training-title-actions{display:grid;justify-items:center;gap:12px;margin-top:18px;padding:0 18px;text-align:center;color:#fff1ce}
-.commence-training{border:2px solid #fff0a8;border-radius:8px;background:#ffcd46;color:#172c43;padding:17px 36px;font-size:clamp(18px,2vw,25px);font-weight:900;box-shadow:0 5px 0 #9a6823;cursor:pointer}
-.commence-training:hover{background:#ffe48c;transform:translateY(-2px)}
-.commence-training:focus-visible,.training-title summary:focus-visible{outline:3px solid white;outline-offset:5px}
-.training-title summary{cursor:pointer;font-size:13px;letter-spacing:.06em}.training-title details p{max-width:640px;font-size:14px;line-height:1.7}.training-title details[open]{padding-bottom:16px}
 .training-home{font-weight:800;color:#ffe39a!important}
-@media(prefers-reduced-motion:reduce){.commence-training:hover{transform:none}}
 
 /* Generated safety drills share the existing readable encounter banner. */
 .race-event-status.stampede { border-color: #ffc35c; }
@@ -189,4 +180,37 @@
 .event-screen-cue.buddy { box-shadow: inset 0 0 55px #75e2f430; }
 .event-screen-cue.orbit { box-shadow: inset 0 0 65px #aa95ff45; }
 .event-screen-cue.reconstruction { box-shadow: inset 0 0 65px #bd8cff45; }
-.event-screen-cue.observation { box-shadow: inset 0 0 65px #ff665d45; }
+
+/* Every shared effect explains its rule and current interaction before an impact. */
+.effect-cue{position:absolute;top:max(15%,150px);left:50%;transform:translateX(-50%);z-index:7;width:min(460px,calc(100% - 32px));box-sizing:border-box;padding:14px 18px;border:2px solid var(--effect-color);border-radius:8px;background:#122b3af5;box-shadow:0 5px 24px #08172255;color:#f1f8fc;pointer-events:none;--effect-color:#a5d3ed}
+.effect-cue.warning{--effect-color:#ffd36a}
+.effect-cue.danger{--effect-color:#ff8b7d}
+.effect-cue.benefit{--effect-color:#8ae7c0}
+.effect-cue-label{display:flex;justify-content:space-between;gap:12px;margin-bottom:9px;font:10px/1.35 var(--font-mono);letter-spacing:.05em;text-transform:uppercase;color:#c9dce4}
+.effect-cue-label>span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+.effect-cue-heading{display:flex;align-items:center;gap:10px;color:var(--effect-color)}
+.effect-cue-heading svg{flex:none;width:30px;height:24px;fill:none;stroke:currentColor;stroke-width:2.5}
+.effect-cue-heading strong{font:800 clamp(14px,1.4vw,18px)/1.25 var(--font-ui);letter-spacing:.025em}
+.effect-cue p{font:13px/1.45 var(--font-ui);margin:8px 0 10px;color:#e4edf1}
+.effect-control-hint{display:flex;align-items:center;gap:9px;padding-top:9px;border-top:1px solid #ffffff30;font:11px/1.4 var(--font-ui)}
+.effect-control-hint kbd{flex:none;padding:4px 6px;border:1px solid #adbdc7;border-radius:3px;background:#294655;color:#fff;font:11px var(--font-mono)}
+.effect-meter{margin-top:10px;display:grid;gap:5px;font:10px var(--font-mono);color:var(--effect-color)}
+.effect-meter meter{display:block;width:100%;height:8px;border:0;border-radius:4px;background:#39515e;appearance:none}
+.effect-meter meter::-webkit-meter-bar{height:8px;border:0;background:#39515e;border-radius:4px}
+.effect-meter meter::-webkit-meter-optimum-value{background:var(--effect-color);border-radius:4px}
+.effect-meter meter::-moz-meter-bar{background:var(--effect-color);border-radius:4px}
+.in-game-display:has(.effect-cue) .event-hit-callout{top:52%}
+@media(max-width:700px){.effect-cue{padding:10px 12px}.effect-control-hint{flex-wrap:wrap;gap:5px}.effect-cue p{font-size:12px}}
+
+/* Reserve room for the effect instruction on a narrow playfield. */
+@container(max-width:1000px){
+  .effect-cue{top:12px;width:min(460px,calc(100% - 24px))}
+  .in-game-display:has(.effect-cue) .race-tracker,.in-game-display:has(.effect-cue) .incident-counter{top:320px}
+  .in-game-display:has(.effect-cue) .race-tracker-course{display:none}
+  .in-game-display:has(.effect-cue) .threat-warning{top:215px}
+}
+
+@container(max-width:600px){
+  .in-game-display:has(.effect-cue) .threat-warning{left:50%;right:auto;transform:translateX(-50%);top:235px;width:calc(100% - 24px);max-width:460px;box-sizing:border-box}
+  .in-game-display:has(.effect-cue) .race-tracker,.in-game-display:has(.effect-cue) .incident-counter{top:350px}
+}

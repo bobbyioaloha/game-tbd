@@ -1,3 +1,4 @@
+import { LaunchScreen } from '../launch/LaunchScreen';
 import { RaceCreations } from './RaceCreations';
 import { MusicControls, useGameMusic } from './GameMusic';
 import { Preview } from '../pages/CharacterPage';
@@ -167,14 +168,7 @@ export function MovementTest() {
   }, [runtime, binding, pause, startCountdown]);
 
   return <>
-    {screen==='title' ? <section className="training-title" aria-label="Falling Standards">
-    <img src="/images/falling-standards.png" alt="Falling Standards. Your continued existence is mandatory. Four dinosaur trainees skydive past a refrigerator and sofa toward a forest landing target."/>
-    <div className="training-title-actions">
-      <button autoFocus className="commence-training" onClick={()=>setScreen('selection')}>Commence Training <span aria-hidden="true">→</span></button>
-      <MusicControls music={music} compact/>
-      <details><summary>Training essentials</summary><p>{steeringHelp}<br/>{actionHelp}</p><p>Choose your trainee, then complete the briefing. Voice creation is optional.</p></details>
-    </div>
-  </section> : <section className="movement-test">
+    {screen==='title' ? <LaunchScreen onCommence={()=>setScreen('selection')} music={music}/> : <section className="movement-test">
     <div className="movement-layout">
       <div className={'movement-stage packaged-game '+(screen!=='race'?'personnel-menu':'')}>
         <div className="in-game-toolbar">
@@ -226,7 +220,7 @@ export function MovementTest() {
         <RaceOverlay hud={hud} paused={paused} useKey={label(bindings.use)} boostKey={label(bindings.boost)} dodgeKey={label(bindings.dodge)}/>
         {!paused && hud.finish === null && hud.remaining <= 100 && <div className="race-countdown">{Math.ceil(hud.remaining)} m<br/><small>PREPARE FOR LANDING</small></div>}
         {!paused && hud.finish !== null && <div className="race-result"><strong>EXERCISE COMPLETE · {hud.place} / 4</strong><span>{hud.incidents===0?'Safety inspection: exemplary preparedness.':'Safety inspection: '+hud.incidents+(hud.incidents===1?' incident.':' incidents.')+' Refresher training assigned.'}</span><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={prepareRun}>Race again</button><RaceCreations creations={voice.host.creations} racers={race.racers}/></div>}
-        <RaceCreationHud enabled={voice.enabled} key={voice.host.runId} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
+        <RaceCreationHud enabled={voice.enabled} key={voice.host.runId} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} steeringKeys={[bindings.forward,bindings.left,bindings.backward,bindings.right].map(label).join(' / ')} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && !settings && <div className="movement-pause"><span className="safety-caution">⚠ CAUTION</span><h2>Mandatory fall protection training</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
           <p>{voice.enabled?'Collect ★, then hold Space to report a hazard.':'Voice creation is off for this run.'}<br/>Pausing during a voice attempt cancels it.</p>
           <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); if(runtime.race.elapsed===0)startCountdown();else pause(false);}}>Begin / resume exercise</button>

@@ -16,9 +16,9 @@ export function RaceBriefing({steeringHelp, actionHelp}: {steeringHelp: string; 
   return <>
     <p>Race three rivals to the finish. Steer around obstacles.</p>
     <ol className="race-briefing-steps">
-      <li><strong>Collect an Inspection Request (yellow star).</strong> Each star grants one attempt; up to two stars can appear per run.</li>
+      <li><strong>Collect an Inspection Request (yellow star).</strong> With voice enabled, two stars appear along the course, each granting one attempt. The second is 60–70% through, regardless of the first attempt’s outcome.</li>
       <li><strong>Hold Space and speak.</strong> Report a hazard and what it does in 10 words or fewer. Release to submit; recording stops after 8 seconds.</li>
-      <li><strong>Keep racing.</strong> Your object appears ahead when it is ready.</li>
+      <li><strong>Keep racing.</strong> Your object appears ahead if there is time to use it before landing.</li>
       <li><strong>Fly through its glowing halo.</strong> The first racer to reach it starts a shared safety drill. Bait charges, find gaps, or ride currents; everyone participates, including you.</li>
     </ol>
     <p className="race-essential-controls">{steeringHelp}</p>
