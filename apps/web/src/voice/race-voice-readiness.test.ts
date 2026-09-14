@@ -160,6 +160,7 @@ function hudSetup(phase='prompted') {
     react:{useState:(initial:unknown)=>[initial,()=>{}],useEffect:()=>{},useSyncExternalStore:(_:unknown,get:()=>unknown)=>get()},
     'react/jsx-runtime':{jsx,jsxs:jsx},'@react-three/fiber':{},three:{},'@sky/shared':{},
     '../race-events/RaceEventRenderer':{},'./drill-feedback':{drillAssessment},'./EffectCue':{},
+    './RaceAlerts':{RaceAlert:'race-alert'},
     './race-event-config':{RACE_VOICE_ATTEMPTS},'../components/PowerUpModel':{},
   };
   const sandbox={exports:{} as {RaceCreationHud:(props:unknown)=>unknown},

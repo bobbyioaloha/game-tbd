@@ -1,7 +1,7 @@
 /* Race HUD sizing lives here, after the shared game/menu styles.
-   Keep information around the central view on ultrawide screens. */
-.in-game-display {
-  --hud-edge: max(20px, calc((100% - 1520px) / 2));
+   HUD edges follow the viewport; large type remains responsive. */
+.packaged-game {
+  --hud-edge: clamp(16px, 1.5vw, 40px);
   --hud-text: clamp(16px, 1.15vw, 22px);
   --hud-card: clamp(260px, 21vw, 330px);
 }
@@ -145,4 +145,106 @@
   .in-game-display .race-tracker, .in-game-display .creation-trophy {top: 180px;}
   .in-game-display .race-tracker li {font-size: 14px; margin-top: 6px;}
   .in-game-display .race-tracker > strong {font-size: 12px; padding-block: 8px;}
+}
+
+/* One bottom message area. Its bounded height keeps the flight path clear. */
+.packaged-game .race-alert-dock {
+  position: absolute;
+  left: calc(var(--hud-edge) + var(--hud-card) + 20px);
+  right: calc(var(--hud-edge) + var(--hud-card) + 20px);
+  bottom: 24px;
+  max-height: min(28%, 260px);
+  display: flex; flex-direction: column; gap: 8px;
+  overflow: auto; overscroll-behavior: contain; scrollbar-width: thin;
+  z-index: 3; font-size: var(--hud-text);
+}
+.packaged-game .race-alert-dock:empty {display: none;}
+.race-alert-dock:focus-visible {outline: 2px solid #f0c928; outline-offset: 2px;}
+.packaged-game .race-alert-dock > :is(.creation-notice,.race-event-status,.effect-cue,.threat-warning,.race-feedback,.aim-hint,.creation-announcement,.creation-trophy,.event-hit-callout,.race-countdown) {
+  position: static; inset: auto; transform: none;
+  width: 100%; max-width: none; min-width: 0; margin: 0;
+  box-sizing: border-box; flex: none; padding: 12px 16px;
+  border: 1px solid #d7bd58; border-radius: 0; background: #172c3ef5;
+  color: #f1f8fc; text-shadow: none; box-shadow: none;
+  font-size: var(--hud-text); line-height: 1.4; text-align: left;
+  animation: none; overflow-wrap: anywhere;
+}
+.packaged-game .race-alert-dock > .threat-warning {order: -4; border-color: #ff8b7d; color: #ffe5e8; gap: 12px;}
+.packaged-game .race-alert-dock > .effect-cue {order: -3; border-color: var(--effect-color);}
+.packaged-game .race-alert-dock > .creation-notice {order: -2;}
+.packaged-game .race-alert-dock > .race-countdown {order: -1; font-weight: 800; font-size: 24px;}
+.packaged-game .race-alert-dock > .event-hit-callout {order: -1; font-size: 22px; color: #fff0b8;}
+.race-alert-dock .creation-notice > strong,
+.race-alert-dock .effect-cue-heading strong,
+.race-alert-dock .race-event-status > strong,
+.race-alert-dock .creation-announcement strong {font-size: clamp(18px,1.4vw,26px); line-height: 1.3;}
+.race-alert-dock .creation-notice span,
+.race-alert-dock .creation-announcement span,
+.race-alert-dock .effect-cue p {font-size: var(--hud-text); line-height: 1.4; margin-block: 6px;}
+.race-alert-dock .effect-cue-label,
+.race-alert-dock .effect-control-hint,
+.race-alert-dock .effect-control-hint kbd,
+.race-alert-dock .effect-meter,
+.race-alert-dock .creation-notice small,
+.race-alert-dock .race-event-status small,
+.race-alert-dock .threat-warning small {font-size: 14px;}
+.race-alert-dock .effect-control-hint {flex-wrap: wrap;}
+.race-alert-dock .creation-trophy {flex-direction: row;}
+.race-alert-dock .creation-trophy-model {width: 60px; height: 60px;}
+.race-alert-dock .creation-trophy strong {font-size: 20px;}
+.race-alert-dock .race-countdown small {font-size: 14px;}
+/* Keep instructions visible; decorative congratulations need no second card. */
+.race-alert-dock:has(.effect-cue,.threat-warning,.creation-notice) .creation-trophy,
+.race-alert-dock:has(.race-event-status) .creation-announcement,
+.race-alert-dock:has(.effect-cue,.threat-warning,.creation-notice,.race-feedback) .aim-hint {display: none;}
+/* When three columns cannot fit, messages get their own footer below the scene.
+   This shrinks the canvas rather than covering the item/boost controls or racer. */
+@container (max-width: 1100px) {
+  .packaged-game .race-alert-dock {
+    position: static; flex: 0 0 auto; max-height: 230px;
+    margin: 0 10px 10px; width: auto; padding-top: 8px;
+  }
+  .packaged-game:has(.race-alert-dock:not(:empty)) .race-tracker-course {display: none;}
+}
+@container (max-width: 700px) {
+  .packaged-game .race-alert-dock {font-size: 14px; max-height: 210px;}
+  .packaged-game .race-alert-dock > :is(.creation-notice,.race-event-status,.effect-cue,.threat-warning,.race-feedback,.aim-hint,.creation-announcement,.creation-trophy,.event-hit-callout,.race-countdown) {padding: 10px 12px; font-size: 14px;}
+  .race-alert-dock .creation-notice > strong,.race-alert-dock .effect-cue-heading strong {font-size: 18px;}
+}
+/* A pause/settings overlay stays above the dock, just like the rest of the HUD. */
+.packaged-game:has(.movement-pause,.in-game-settings) .race-alert-dock {visibility: hidden;}
+
+.packaged-game .race-alert-dock > .event-hit-callout {animation: dock-hit .9s both;}
+@keyframes dock-hit {
+  0%,65% {opacity:1;}
+  99% {opacity:0;}
+  100% {opacity:0; max-height:0; padding-block:0; border-width:0; overflow:hidden;}
+}
+
+@container (max-width: 700px) {
+  .in-game-display:has(+ .race-alert-dock:not(:empty)) .race-tracker {display: none;}
+}
+/* Finished-race messages must not cover Race again or the creation viewer. */
+.packaged-game:has(.race-result) .race-alert-dock {
+  position: static; flex: 0 0 auto; width: auto; margin: 0 10px 10px;
+  max-height: 210px;
+}
+
+/* Ordinary item feedback stays with its item; shared drills use the bottom dock. */
+.in-game-display .item-hud {
+  position: absolute; left: var(--hud-edge); bottom: 24px;
+  width: var(--hud-card); display: flex; flex-direction: column; gap: 10px;
+  z-index: 2; pointer-events: none;
+}
+.in-game-display .item-hud > :is(.play-item,.race-feedback,.aim-hint) {
+  position: static; inset: auto; transform: none; width: 100%; max-width: none;
+  box-sizing: border-box; margin: 0;
+}
+.in-game-display .item-hud .race-feedback {order: -1;}
+.in-game-display .item-hud .aim-hint {
+  background: #172c3ef5; border: 1px solid #d7bd58; padding: 10px 14px;
+  color: #fff0a2; text-shadow: none;
+}
+@container (max-width: 700px) {
+  .in-game-display .item-hud {bottom: 10px;}
 }

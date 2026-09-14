@@ -1,3 +1,4 @@
+import { RaceAlert, RaceAlertDock, RaceAlertProvider } from './RaceAlerts';
 import { LaunchScreen } from '../launch/LaunchScreen';
 import { RaceCreations } from './RaceCreations';
 import { MusicControls, useGameMusic } from './GameMusic';
@@ -27,7 +28,7 @@ type Bindings = typeof defaults;
 type Runtime = RaceRuntime;
 const label = (code: string) => code.replace(/^Key/, '').replace(/^Digit/, '');
 const interactingWithUi = (target: EventTarget | null) => target instanceof HTMLElement &&
-  (target.isContentEditable || target.closest('button, a, input, select, textarea, summary') !== null);
+  (target.isContentEditable || target.closest('button, a, input, select, textarea, summary, .race-alert-dock') !== null);
 const initialHud = initialRaceHud;
 
 export function MovementTest() {
@@ -167,7 +168,7 @@ export function MovementTest() {
     };
   }, [runtime, binding, pause, startCountdown]);
 
-  return <>
+  return <RaceAlertProvider>
     {screen==='title' ? <LaunchScreen onCommence={()=>setScreen('selection')} music={music}/> : <section className="movement-test">
     <div className="movement-layout">
       <div className={'movement-stage packaged-game '+(screen!=='race'?'personnel-menu':'')}>
@@ -218,7 +219,7 @@ export function MovementTest() {
         <div className="movement-status">{paused ? 'PAUSED' : hud.look ? 'LOOKING UP' : hud.finish !== null ? 'LANDED' : hud.brake ? 'AIR BRAKE ACTIVE' : 'FREEFALL'}<span>{hud.speed.toFixed(0)} m/s · {Math.ceil(hud.remaining)} m to finish</span></div>
         <div className="race-place">{hud.place} / 4 <small>POSITION</small></div>
         <RaceOverlay hud={hud} paused={paused} useKey={label(bindings.use)} boostKey={label(bindings.boost)} dodgeKey={label(bindings.dodge)}/>
-        {!paused && hud.finish === null && hud.remaining <= 100 && <div className="race-countdown">{Math.ceil(hud.remaining)} m<br/><small>PREPARE FOR LANDING</small></div>}
+        {!paused && hud.finish === null && hud.remaining <= 100 && <RaceAlert><div className="race-countdown">{Math.ceil(hud.remaining)} m<br/><small>PREPARE FOR LANDING</small></div></RaceAlert>}
         {!paused && hud.finish !== null && <div className="race-result"><strong>EXERCISE COMPLETE · {hud.place} / 4</strong><span>{hud.incidents===0?'Safety inspection: exemplary preparedness.':'Safety inspection: '+hud.incidents+(hud.incidents===1?' incident.':' incidents.')+' Refresher training assigned.'}</span><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={prepareRun}>Race again</button><RaceCreations creations={voice.host.creations} racers={race.racers}/></div>}
         <RaceCreationHud enabled={voice.enabled} key={voice.host.runId} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} steeringKeys={[bindings.forward,bindings.left,bindings.backward,bindings.right].map(label).join(' / ')} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && !settings && <div className="movement-pause"><span className="safety-caution">⚠ CAUTION</span><h2>Mandatory fall protection training</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
@@ -269,8 +270,9 @@ export function MovementTest() {
         </details>}
       </div>}
         </div>
+        {screen==='race'&&<RaceAlertDock/>}
       </div>
     </div>
   </section>}
-  </>;
+  </RaceAlertProvider>;
 }

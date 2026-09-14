@@ -1,3 +1,4 @@
+import { RaceAlert } from './RaceAlerts';
 import type { RecorderSnapshot } from '../voice/recorder';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
@@ -112,28 +113,28 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
     {event.phase==='active'&&event.instance&&<>
       {playerHit&&kind!=='observation'&&<div className={'event-screen-cue '+kind} aria-hidden="true"/>}
       {!finished&&<EffectCue event={event} position={host.race.snapshot(host.race.racers[0]).position} steeringKeys={steeringKeys}/>}
-      {finished&&<div className={'race-event-status active '+kind} role="status">
+      {finished&&<RaceAlert><div className={'race-event-status active '+kind} role="status">
         <strong>{event.instance.spec.version===4&&!effectLabel.startsWith('Mandatory ')?'MANDATORY · ':''}{effectLabel.toUpperCase()} · {event.remainingSeconds.toFixed(1)} s</strong>
         <span>{event.instance.spec.displayName} · {triggerer==='You'?'You activated it':triggerer+' activated it'}</span>
         <span>{event.impact?.affectedRacerIds.length??0}/{event.impact?.participants.length??0} racers affected · {playerHit?'DRILL INTERACTION RECORDED':'Choose your route'}</span>
-      </div>}
-      {playerImpulses>0&&kind!=='observation'&&<div key={event.instance.instanceId+'-'+playerImpulses} className="event-hit-callout" aria-hidden="true">
+      </div></RaceAlert>}
+      {playerImpulses>0&&kind!=='observation'&&<RaceAlert><div key={event.instance.instanceId+'-'+playerImpulses} className="event-hit-callout" aria-hidden="true">
         {kind&&impulseLabels[kind]}
-      </div>}
+      </div></RaceAlert>}
     </>}
-    {event.phase==='collectible'&&event.instance&&<div className="race-event-status waiting" role="status">
+    {event.phase==='collectible'&&event.instance&&<RaceAlert><div className="race-event-status waiting" role="status">
       <strong>{event.instance.spec.displayName} → {effectLabel}</strong>
       <span>CREATED · Fly through the glowing halo to activate. Brake to line up. Any racer can trigger it.</span>
       <small>{encounterInstruction(event.instance.spec)}</small>
-    </div>}
+    </div></RaceAlert>}
     {marker&&<div className={'creation-radar '+(marker.edge?'at-edge ':'')+(marker.left>50?'label-left':'')} style={{left:marker.left+'%',top:marker.top+'%'}}>
       <span className="creation-radar-symbol" style={marker.edge?{transform:'rotate('+marker.angle+'deg)'}:undefined}>{marker.edge?'↑':''}</span>
       <div className="creation-radar-label"><strong>{marker.name}</strong><small>{marker.gap}</small></div>
     </div>}
-    {event.phase==='collectible'&&event.elapsedSeconds<3&&announcement&&<div className="creation-announcement" role="status">
+    {event.phase==='collectible'&&event.elapsedSeconds<3&&announcement&&<RaceAlert><div className="creation-announcement" role="status">
       <strong>{announcement.name} created!</strong><span>AHEAD IN {announcement.distance} METERS!</span>
-    </div>}
-    {showNotice&&<div className={'creation-notice '+(recording?'is-recording':'')}>
+    </div></RaceAlert>}
+    {showNotice&&<RaceAlert><div className={'creation-notice '+(recording?'is-recording':'')}>
       <small>{showVoiceNotice?<>INSPECTION REQUEST {host.attemptNumber} / {RACE_VOICE_ATTEMPTS}</>:'SECOND INSPECTION REQUEST'}</small>
       <strong role='status'>{showVoiceNotice?(recording?'● Recording · release Space to submit':inputHint||(state.phase==='prompted'?(blockedReason?'★ Voice unavailable':'★ Hold Space · report a hazard in 10 words'):hint)):opportunity.message}</strong>
       {showVoiceNotice&&showOpportunityNotice&&opportunity.message!==hint&&<span role="status">★ {opportunity.message}</span>}
@@ -144,15 +145,15 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
         {!live&&<small>Mock mode uses the selected transcript.</small>}
       </div>}
       {state.phase==='prompted'&&<span>{blockedReason?'Voice attempt unavailable.':'Describe what it does · release to submit'}<br/>{blockedReason|| (live?'Live speech':'Mock: '+mockText)}</span>}
-    </div>}
-    {assessment&&trophyAge>=10&&trophyAge<16&&<div className="race-event-status drill-assessment" role="status">
+    </div></RaceAlert>}
+    {assessment&&trophyAge>=10&&trophyAge<16&&<RaceAlert><div className="race-event-status drill-assessment" role="status">
       <strong>YOUR INSPECTION FINDINGS</strong><span>{assessment}</span>
-    </div>}
-    {event.triggererId&&spec&&trophyAge<10&&<div className="creation-trophy" role="status" style={{opacity:Math.min(1,(10-trophyAge)/0.5)}}>
+    </div></RaceAlert>}
+    {event.triggererId&&spec&&trophyAge<10&&<RaceAlert><div className="creation-trophy" role="status" style={{opacity:Math.min(1,(10-trophyAge)/0.5)}}>
       <div className="creation-trophy-model" aria-hidden="true"><Canvas camera={{position:[0,1,4.5],fov:42}} dpr={[1,1.5]} fallback={<span>★</span>}>
         <ambientLight intensity={2}/><directionalLight position={[3,4,5]} intensity={3}/><TrophyModel spec={spec}/>
       </Canvas></div>
       <div><small>★ YOU MADE THIS!</small><strong>{spec.displayName}</strong><span>{triggerer==='You'?'You activated it':triggerer+' activated it'}</span></div>
-    </div>}
+    </div></RaceAlert>}
   </>;
 }
