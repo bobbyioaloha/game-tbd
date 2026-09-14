@@ -17,6 +17,7 @@ import { RaceOverlay } from './RaceOverlay';
 import { RaceBriefing, RaceSetup } from './RaceSetup';
 import { BRAKE_SPEED } from './freefall-controller';
 import './movement-test.css';
+import './race-hud.css';
 
 const defaults = defaultBindings;
 type Action = keyof typeof defaults;

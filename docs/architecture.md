@@ -101,3 +101,7 @@ Local live mode defaults to three attempts per server start. Hosted mode default
 - [Generation lab](prompt-to-mesh-pipeline.md): model profiles, comparisons, and wire formats.
 - [Shared race effects](race-events-handoff.md): exact runtime interfaces and effect parameters.
 - [Art guide](dinosaur-art-direction.md): characters, animation, and rebuilding assets.
+
+### Race HUD readability
+
+The final race HUD sizing rules live in `apps/web/src/game/race-hud.css`, loaded after the shared game styles. Main readouts use 16–22 px text, position uses 44–64 px, and held-item/boost/dodge controls use larger cards and explicit key badges. On ultrawide screens these panels stay within a centered 1,520 px region around the play area. Container queries compact the layout for narrow or short windows. Voice prompts take priority over effect summaries, and urgent threats take priority over the cosmetic creation trophy. Movement and screen-projected pickup/target positions are unchanged.
