@@ -3,7 +3,7 @@ import type { RaceEncounter, RaceEventSnapshot } from '@sky/shared';
 export type RaceCreationRecord = Readonly<{
   instanceId: string;
   spec: RaceEncounter;
-  source: 'voice' | 'fixture';
+  source: 'voice' | 'fixture' | 'prepared';
   attemptNumber?: number;
   status: 'ready' | 'collectible' | 'active' | 'expired' | 'discarded';
   snapshot?: RaceEventSnapshot;

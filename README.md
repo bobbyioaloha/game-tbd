@@ -31,7 +31,7 @@ Ordinary items help you compete. The yellow **Inspection Request** gives you one
 | Hold Space | Speak after collecting the star; release to submit |
 | Esc | Pause / resume |
 
-Letter controls can be rebound in **Settings**. Choose **Play without voice** during setup to race without a microphone. Pausing or switching away from the game cancels a pending voice attempt.
+Letter controls can be rebound in **Settings**. Choose **Play without voice** during setup to race with the selected prepared safety drill, without a microphone or AI calls. Its object waits ahead in the course for any racer to activate; yellow voice stars are removed for that run. Pausing or switching away from the game cancels a pending voice attempt.
 
 ## Run locally
 
@@ -81,7 +81,7 @@ The project uses React, Vite, Three.js, React Three Fiber, Fastify, Zod, and Bun
 
 ## Status and further reading
 
-The current prototype includes a complete race flow, three playable characters, ordinary items, voice-triggered shared effects, and a local generation lab. Races have one human player and simulated rivals. Mobile play, online multiplayer, and Susan's finished model are outside the current implementation. AI quality and response time vary; invalid or late results end the attempt.
+The current prototype includes a complete race flow, three playable characters, ordinary items, prepared and voice-triggered shared safety drills, and a local generation lab. Races have one human player and simulated rivals. Mobile play, online multiplayer, and Susan's finished model are outside the current implementation. AI quality and response time vary; invalid or late results end the attempt.
 
 - [Architecture and repository tour](docs/architecture.md)
 - [Voice setup, testing, and troubleshooting](docs/voice-input-plan.md)
