@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { safetyDrillFixtures } from '@sky/shared';
 import { RaceVoiceSetup, type RaceVoiceController } from '../voice/RaceVoiceControls';
+import type { RaceReportSettingsProps } from './RaceReportSettings';
 
 const BRIEFING_SEEN_KEY = 'falling-standards.briefing-seen.v1';
 // Keep returning players' preference across the product rename.
@@ -29,7 +30,7 @@ export function RaceBriefing({steeringHelp, actionHelp}: {steeringHelp: string; 
   </>;
 }
 
-export function RaceSetup({voice, steeringHelp, actionHelp, onStart, onSkipVoice, onBack}: {
+export function RaceSetup({voice, steeringHelp, actionHelp, onStart, onSkipVoice, onBack, ...reportSettings}: RaceReportSettingsProps & {
   voice: RaceVoiceController;
   steeringHelp: string;
   actionHelp: string;
@@ -58,7 +59,7 @@ export function RaceSetup({voice, steeringHelp, actionHelp, onStart, onSkipVoice
         </details>
         {!briefingOpen && <p>{steeringHelp}<br/>Collect ★ → report a hazard → activate the drill.</p>}
       </div>
-      <RaceVoiceSetup voice={voice}/>
+      <RaceVoiceSetup voice={voice} {...reportSettings}/>
     </div>
     <div className="race-setup-actions">
       <p role="status">{readiness.message}</p>

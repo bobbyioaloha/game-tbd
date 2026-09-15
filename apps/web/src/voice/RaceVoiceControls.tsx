@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { safetyDrillFixtures, type VoiceRequest } from '@sky/shared';
 import { RaceEventHost } from '../game/race-event-host';
 import { RACE_VOICE_ATTEMPTS } from '../game/race-event-config';
+import { RaceReportSettings, type RaceReportSettingsProps } from '../game/RaceReportSettings';
 import type { PracticeRace } from '../game/practice-race';
 import { loadPipelineProfiles } from '../generation/pipeline-client';
 import { MicrophoneRecorder } from './recorder';
@@ -62,7 +63,7 @@ export function useRaceVoice(race:PracticeRace) {
 }
 export type RaceVoiceController = ReturnType<typeof useRaceVoice>;
 
-export function RaceVoiceControls({voice,paused}:{voice:RaceVoiceController;paused:boolean}) {
+export function RaceVoiceControls({voice,paused,...reportSettings}:RaceReportSettingsProps & {voice:RaceVoiceController;paused:boolean}) {
   const configuring=paused&&voice.enabled&&voice.host.race.elapsed===0;
   const active=['preparing','recording','transcribing','generating','ready'].includes(voice.state.phase);
   const canHold=!paused&&(['recording','preparing'].includes(voice.state.phase)||
@@ -82,6 +83,7 @@ export function RaceVoiceControls({voice,paused}:{voice:RaceVoiceController;paus
       <p>{voice.profiles?.liveUsage.enabled?'For real speech, select a live Voice profile and allow the paid attempt before starting the race.':'Live speech is unavailable. Choose Mock mode or play without voice.'}{!configuring?' Restart the race to change its profile.':''}</p>
     </div>}
     {voice.live&&<label className="voice-consent"><input type="checkbox" checked={voice.armed} disabled={!configuring||!voice.paidAvailable||!voice.profile?.available} onChange={event=>voice.setArmed(event.target.checked)}/>Allow up to two paid voice attempts this run</label>}
+    <RaceReportSettings {...reportSettings} disabled={!configuring}/>
     {voice.profiles&&<p>{voice.profiles.liveUsage.attemptsRemaining} / {voice.profiles.liveUsage.maxAttempts} paid attempts remaining.</p>}
     {voice.error&&<p role="alert">{voice.error}</p>}
     {voice.profile?.unavailableReason&&<p>{voice.profile.unavailableReason}</p>}
@@ -110,7 +112,7 @@ export function RaceMicrophoneSetup({voice}: {voice: RaceVoiceController}) {
 }
 
 /** Player-facing setup; model configuration and diagnostics stay in RaceVoiceControls. */
-export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
+export function RaceVoiceSetup({voice, ...reportSettings}: RaceReportSettingsProps & {voice: RaceVoiceController}) {
   const {microphone} = voice;
   const liveProfile = voice.profiles?.profiles.find(profile => profile.mode === 'live' && profile.available);
   const liveEnabled = Boolean(liveProfile && voice.profiles?.transcription?.available && voice.profiles.liveUsage.enabled);
@@ -145,6 +147,7 @@ export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
       </label>
       {!liveEnabled && <small>Live AI is unavailable for this session.</small>}
     </>}
+    <RaceReportSettings {...reportSettings} disabled={preparing}/>
     <button disabled={preparing} onClick={voice.refresh}>Refresh availability</button>
     <small className="race-voice-limits">Desktop Chrome / Edge · English · 8 s recording maximum.<br/>Keep racing during transcription and creation. The second yellow star is 60–70% down the course, whether the first request succeeds or fails. A slow creation may arrive too late to use before landing.</small>
   </section>;
