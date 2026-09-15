@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { safetyDrillFixtures } from '@sky/shared';
 import { RaceVoiceSetup, type RaceVoiceController } from '../voice/RaceVoiceControls';
 import type { RaceReportSettingsProps } from './RaceReportSettings';
 
@@ -16,12 +17,14 @@ function hasSeenBriefing() {
 export function RaceBriefing({steeringHelp, actionHelp}: {steeringHelp: string; actionHelp: string}) {
   return <>
     <p>Race three rivals to the finish. Steer around obstacles.</p>
+    <p>Striped boxes hold safety equipment: launch a <strong>Spare Parachute</strong> to slow a rival, use <strong>Bubble Wrap</strong> for five seconds of protection, or discharge an <strong>Emergency Air Canister</strong> for two seconds of fuel-free boost. Braking cancels the canister.</p>
     <ol className="race-briefing-steps">
       <li><strong>Collect an Inspection Request (yellow star).</strong> With voice enabled, two stars appear along the course, each granting one attempt. The second is 60–70% through, regardless of the first attempt’s outcome.</li>
       <li><strong>Hold Space and speak.</strong> Report a hazard and what it does in 10 words or fewer. Release to submit; recording stops after 8 seconds.</li>
       <li><strong>Keep racing.</strong> Your object appears ahead if there is time to use it before landing.</li>
       <li><strong>Fly through its glowing halo.</strong> The first racer to reach it starts a shared safety drill. Bait charges, find gaps, or ride currents; everyone participates, including you.</li>
     </ol>
+    <p>Playing without voice starts with a prepared safety drill ahead in the course. Fly through its glowing halo to activate it; any racer can start it.</p>
     <p className="race-essential-controls">{steeringHelp}</p>
     <details><summary>All controls</summary><p>{actionHelp}</p></details>
   </>;
@@ -38,6 +41,7 @@ export function RaceSetup({voice, steeringHelp, actionHelp, onStart, onSkipVoice
   const heading = useRef<HTMLHeadingElement>(null);
   const [briefingOpen, setBriefingOpen] = useState(() => !hasSeenBriefing());
   const readiness = voice.getReadiness();
+  const preparedDrill = (safetyDrillFixtures.find(fixture => fixture.prompt === voice.mockText) ?? safetyDrillFixtures[0]).spec;
   useEffect(() => { heading.current?.focus(); }, []);
   const begin = (start: () => boolean) => {
     if (!start()) return;
@@ -64,7 +68,7 @@ export function RaceSetup({voice, steeringHelp, actionHelp, onStart, onSkipVoice
         <button onClick={() => begin(onSkipVoice)}>Play without voice</button>
         <button onClick={onBack}>Back to personnel</button>
       </div>
-      <small>Playing without voice removes the yellow stars for this run. You can still race and use ordinary items.</small>
+      <small>Without voice: <strong>{preparedDrill.displayName}</strong> is prepared ahead in the course. Race, use ordinary items, and fly through its glowing halo to start the shared drill. No microphone, yellow stars, or AI calls.</small>
     </div>
   </section>;
 }

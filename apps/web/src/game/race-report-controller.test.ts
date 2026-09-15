@@ -75,7 +75,7 @@ test('voice work defers first report submission; queued reports serialize and pa
   controller.dispose();
 });
 
-test('no live consent and discarded creations retain authored reports without calls; fixtures stay local',async()=>{
+test('no live consent and discarded creations retain authored reports without calls; fixtures and no-voice drills stay local',async()=>{
   const {controller,calls}=deferred(),game=race();
   controller.begin('live',false);
   controller.observe([record()],game.racers,false);
@@ -86,10 +86,13 @@ test('no live consent and discarded creations retain authored reports without ca
   controller.observe([{instanceId:'discarded',spec:fixture,source:'voice',status:'discarded'}],game.racers,false);
   assert.equal(calls.length,0);
   assert.equal(controller.getSnapshot().discarded.status,'complete');
-  controller.observe([{...record('fixture'),source:'fixture'}],game.racers,false);
-  await until(()=>controller.getSnapshot().fixture.status==='complete');
-  assert.equal(controller.getSnapshot().fixture.source,'mock');
-  assert.equal(calls.length,0);
+  for(const source of ['fixture','prepared'] as const) {
+    controller.observe([{...record(source),source}],game.racers,false);
+    assert.equal(controller.liveRequestPending,false);
+    await until(()=>controller.getSnapshot()[source].status==='complete');
+    assert.equal(controller.getSnapshot()[source].source,'mock');
+    assert.equal(calls.length,0,'No provider/client calls for '+source+' with live mode and report consent selected');
+  }
   controller.dispose();
 });
 

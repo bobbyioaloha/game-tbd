@@ -56,7 +56,7 @@ Existing voice consent still covers only two voice attempts and up to six paid c
 
 Reports consume the same allowance as voice attempts and use the same `LiveAttempts` object. No additional busy slot or spending pool is created. Local defaults remain three admitted attempts per server start; hosted defaults remain 100 per instance. Consequently, the local default cannot fund two full voice attempts and two reports in one server session. Unavailable capacity produces the authored report. Do not restart a live server to replenish it.
 
-Keep explicit local `--live`, production-only hosted enablement, exact origins, preview mock-only operation, server-side keys, and sanitized errors. Keys and report opt-in cannot independently enable a server in mock mode. Normal development and fixture/replay verification make no paid calls.
+Keep explicit local `--live`, production-only hosted enablement, exact origins, preview mock-only operation, server-side keys, and sanitized errors. Keys and report opt-in cannot independently enable a server in mock mode. Normal development and fixture/replay verification make no paid calls. Prepared drills from Play without voice also produce local authored reports, even if Live mode and report consent were selected before that choice.
 
 ## Facts and model output
 
@@ -136,7 +136,7 @@ Use free fixtures and mock voice in desktop Chrome or Edge to inspect provisiona
 
 ## Checks performed
 
-- `bun run build`, `bun run typecheck`, and `bun run test` passed; 510 tests passed, none skipped. The existing Vite large-chunk warning remains.
+- `bun run build`, `bun run typecheck`, and `bun run test` passed; 528 tests passed, none skipped. The existing Vite large-chunk warning remains.
 - Local documentation links and diff whitespace checks passed.
 - The isolated preview and its API proxy returned healthy mock-only responses; reporting allowance usage remained zero.
 - Desktop Chrome/Edge verification could not complete: the browser connector had no browser available and the fallback browser launch stalled. No visual playthrough or screenshot is claimed. Mock voice and report cancellation are covered by automated tests.

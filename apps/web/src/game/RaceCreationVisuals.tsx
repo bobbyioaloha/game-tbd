@@ -66,6 +66,7 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
   const state=useSyncExternalStore(host.loop.subscribe,host.loop.getSnapshot);
   const opportunity=useSyncExternalStore(host.subscribe,host.getSnapshot);
   const event=host.race.events!.getSnapshot();
+  const prepared=host.creations.some(creation=>creation.instanceId===event.instance?.instanceId&&creation.source==='prepared');
   const effectLabel=event.instance?encounterLabel(event.instance.spec):'';
   const playerHit=event.affectedRacerIds?.includes('0') ?? false;
   const kind=event.instance?encounterKind(event.instance.spec):'';
@@ -124,7 +125,7 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
     </>}
     {event.phase==='collectible'&&event.instance&&<RaceAlert><div className="race-event-status waiting" role="status">
       <strong>{event.instance.spec.displayName} → {effectLabel}</strong>
-      <span>CREATED · Fly through the glowing halo to activate. Brake to line up. Any racer can trigger it.</span>
+      <span>{prepared?'PREPARED DRILL':'CREATED'} · Fly through the glowing halo to activate. Brake to line up. Any racer can trigger it.</span>
       <small>{encounterInstruction(event.instance.spec)}</small>
     </div></RaceAlert>}
     {marker&&<div className={'creation-radar '+(marker.edge?'at-edge ':'')+(marker.left>50?'label-left':'')} style={{left:marker.left+'%',top:marker.top+'%'}}>
@@ -132,7 +133,7 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
       <div className="creation-radar-label"><strong>{marker.name}</strong><small>{marker.gap}</small></div>
     </div>}
     {event.phase==='collectible'&&event.elapsedSeconds<3&&announcement&&<RaceAlert><div className="creation-announcement" role="status">
-      <strong>{announcement.name} created!</strong><span>AHEAD IN {announcement.distance} METERS!</span>
+      <strong>{announcement.name} {prepared?'is ready!':'created!'}</strong><span>AHEAD IN {announcement.distance} METERS!</span>
     </div></RaceAlert>}
     {showNotice&&<RaceAlert><div className={'creation-notice '+(recording?'is-recording':'')}>
       <small>{showVoiceNotice?<>INSPECTION REQUEST {host.attemptNumber} / {RACE_VOICE_ATTEMPTS}</>:'SECOND INSPECTION REQUEST'}</small>
@@ -153,7 +154,7 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
       <div className="creation-trophy-model" aria-hidden="true"><Canvas camera={{position:[0,1,4.5],fov:42}} dpr={[1,1.5]} fallback={<span>★</span>}>
         <ambientLight intensity={2}/><directionalLight position={[3,4,5]} intensity={3}/><TrophyModel spec={spec}/>
       </Canvas></div>
-      <div><small>★ YOU MADE THIS!</small><strong>{spec.displayName}</strong><span>{triggerer==='You'?'You activated it':triggerer+' activated it'}</span></div>
+      <div><small>{prepared?'★ PREPARED SAFETY DRILL':'★ YOU MADE THIS!'}</small><strong>{spec.displayName}</strong><span>{triggerer==='You'?'You activated it':triggerer+' activated it'}</span></div>
     </div></RaceAlert>}
   </>;
 }

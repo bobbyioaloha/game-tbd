@@ -58,13 +58,16 @@ export class RaceReportController {
         continue;
       }
       const report=authoredRaceReport(input),evidence=buildRaceReportEvidence(input);
-      const eligible=record.status==='expired'&&(this.mode==='mock'||this.consent||record.source==='fixture');
+      // Prepared no-voice drills and replay fixtures must never enter a provider path,
+      // even if live reporting was selected before choosing Play without voice.
+      const local=record.source==='fixture'||record.source==='prepared';
+      const eligible=record.status==='expired'&&(this.mode==='mock'||this.consent||local);
       this.emit(record.instanceId,{status:eligible?'pending':'complete',source:'authored',headline:report.headline,
         highlights:report.evidenceIds.map(id=>evidence.find(fact=>fact.id===id)!.text),finding:report.finding,
         ...(eligible?{message:'The department is preparing its findings.'}:{})});
       if(eligible) {
-        const mode=record.source==='fixture'?'mock':this.mode;
-        this.jobs.set(record.instanceId,{input,mode,done:false,controller:new AbortController(),local:record.source==='fixture',
+        const mode=local?'mock':this.mode;
+        this.jobs.set(record.instanceId,{input,mode,done:false,controller:new AbortController(),local,
           ...(mode==='live'?{attemptId:this.uuid()}: {})});
       }
     }

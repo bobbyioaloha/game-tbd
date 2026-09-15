@@ -7,20 +7,20 @@ import { RACE_EVENT_LIMITS, type EventRacer, type RaceEventPort, type RaceEventS
 import { RaceEventBridge } from '../race-events/bridge';
 import { FreefallController } from './freefall-controller';
 import type { PlayerSnapshot, SteeringInput, Position } from './player-controller';
-import { makeCourse, seededRandom, makeItemBoxes, makeFuelRings, obstacleHit, obstaclePose, OBSTACLE_RULES, segmentSphere, type Item, type Obstacle } from './race-course';
+import { makeCourse, seededRandom, makeItemBoxes, makeFuelRings, obstacleHit, obstaclePose, OBSTACLE_RULES, ITEM_NAMES, segmentSphere, type Item, type Obstacle } from './race-course';
 
 export const FINISH_DEPTH = 3600;
 export const LANE_HALF_WIDTH = 36;
 export const ITEM_PICKUP_RADIUS = 3.5;
 export const DODGE_COOLDOWN = 15;
-export const SUN_DURATION = 2.5;
+export const AIR_CANISTER_DURATION = 2;
 export const BOOST_CAPACITY = 4;
 export type RaceStanding={id:number;name:string;color:string;place:number;progress:number;gap:number;finished:boolean};
 export type Racer = {
   id:number;name:string;color:string;model:PlayableCharacter|null;incidents:number;controller:FreefallController;landed?:PlayerSnapshot;finishTime?:number;
   aiRandom:()=>number;temperament:number;wander:[number,number];maneuverUntil:number;target:[number,number];decision:number;brakeUntil:number;item:Item|null;
   creationSlowUntil:number;creationSlowMultiplier:number;creationShieldUntil:number;eventObstacleProtection:boolean;
-  slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;sunUntil:number;sunOrigin:Position|null;nextUse:number;aiLock:TargetLock;dodgeReaction:RivalDodgeReaction;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;sunVictims:Set<number>;
+  slowUntil:number;shieldUntil:number;boostUntil:number;flailUntil:number;immuneUntil:number;airCanisterUntil:number;nextUse:number;aiLock:TargetLock;dodgeReaction:RivalDodgeReaction;danger:boolean;boostFuel:number;boosting:boolean;dodgeUntil:number;dodgeReady:number;dodgeDirection:SteeringInput;
 };
 export type Projectile={id:number;owner:number;position:Position;velocity:Position;target?:number;expires:number};
 export type Pickup={id:number;position:Position;rotation?:Position;active:boolean};
@@ -65,7 +65,7 @@ export class PracticeRace {
       id,name:person.name,color:person.color,model:person.model,incidents:0,controller:new FreefallController(LANE_HALF_WIDTH,(id-1.5)*5,0),
       aiRandom:seededRandom(this.seed^(id*0x45d9f3b)),temperament:id===1?0.25:id===2?0.6:0.95,wander:[0,0],maneuverUntil:0,target:[0,0],decision:0,brakeUntil:0,item:null,
       creationSlowUntil:0,creationSlowMultiplier:1,creationShieldUntil:0,eventObstacleProtection:false,
-      slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,sunUntil:0,sunOrigin:null,nextUse:0,aiLock:new TargetLock(),dodgeReaction:new RivalDodgeReaction(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},sunVictims:new Set(),
+      slowUntil:0,shieldUntil:0,boostUntil:0,flailUntil:0,immuneUntil:0,airCanisterUntil:0,nextUse:0,aiLock:new TargetLock(),dodgeReaction:new RivalDodgeReaction(),danger:false,boostFuel:0,boosting:false,dodgeUntil:0,dodgeReady:0,dodgeDirection:{x:1,z:0},
     }));
     this.obstacles=this.courseEnabled?makeCourse(seededRandom(this.seed^0x51f15e)):[];
     this.boxes=this.courseEnabled?makeItemBoxes(this.obstacles,()=>this.random()):[];
@@ -91,8 +91,8 @@ export class PracticeRace {
   threat(owner:number){
     const p=this.snapshot(this.racers[owner]).position;
     const shot=this.projectiles.filter(s=>s.target===owner).sort((a,b)=>distance(a.position,p)-distance(b.position,p))[0];
-    if(shot)return {kind:'MISSILE INCOMING',position:shot.position};
-    const targeting=this.racers.find(r=>r.id!==owner&&r.item==='umbrella'&&r.aiLock.target===owner&&r.aiLock.progress>0);
+    if(shot)return {kind:'PARACHUTE INCOMING',position:shot.position};
+    const targeting=this.racers.find(r=>r.id!==owner&&r.item==='parachute'&&r.aiLock.target===owner&&r.aiLock.progress>0);
     return targeting?{kind:'BEING TARGETED',position:this.snapshot(targeting).position}:null;
   }
   snapshot(racer:Racer){return racer.landed??racer.controller.getSnapshot();}
@@ -118,18 +118,13 @@ export class PracticeRace {
     const racer=this.racers[owner];
     if(!racer||racer.finishTime!==undefined||!racer.item)return false;
     const item=racer.item;racer.item=null;
-    if(item==='cloak')racer.shieldUntil=this.elapsed+5;
-    if(item==='sun'){
-      racer.sunUntil=this.elapsed+SUN_DURATION;racer.sunVictims.clear();let cleared=0;
-      const p=this.snapshot(racer).position;
-      racer.sunOrigin=[...p];
-      for(const obstacle of this.obstacles)if(obstacle.active&&distance(p,obstaclePose(obstacle,this.elapsed).position)<=12){
-        obstacle.active=false;obstacle.hitAt=this.elapsed;cleared++;
-      }
-      if(owner===0)this.announce(cleared?'SUN BURST — '+cleared+' obstacles cleared':'SUN BURST — No obstacles in range');
+    if(item==='bubbleWrap')racer.shieldUntil=this.elapsed+5;
+    if(item==='airCanister'){
+      racer.airCanisterUntil=this.elapsed+AIR_CANISTER_DURATION;
+      if(owner===0)this.announce('AIR CANISTER - RESERVE THRUST');
     }
 
-    if(item==='umbrella'){
+    if(item==='parachute'){
       const state=this.snapshot(racer);
       const targetId=target!==undefined&&this.eligibleTarget(owner,target,lookUp)?target:undefined;
       const velocity:Position=[0,(lookUp?60:-60)-state.fallSpeed,0];
@@ -188,25 +183,30 @@ export class PracticeRace {
         const p=this.snapshot(racer).position;
         steering={x:(racer.target[0]-p[0])*0.8,z:(racer.target[1]-p[2])*0.8};
         racer.controller.braking=this.elapsed<racer.brakeUntil;
-        const nearby=this.obstacles.some(o=>o.active&&distance(p,obstaclePose(o,this.elapsed).position)<=12);
         const rival=this.racers.filter(r=>r.id!==racer.id&&r.finishTime===undefined&&Math.max(r.shieldUntil,r.creationShieldUntil)<=this.elapsed)
           .filter(r=>this.eligibleTarget(racer.id,r.id,this.snapshot(r).position[1]>p[1]))
           .sort((a,b)=>this.snapshot(a).position[1]-this.snapshot(b).position[1])[0];
         const up=rival?this.snapshot(rival).position[1]>p[1]:false;
         const currentEligible=racer.aiLock.target===undefined||this.eligibleTarget(racer.id,racer.aiLock.target,up);
-        const locked=racer.item==='umbrella'?racer.aiLock.update(rival?.id,dt,up,currentEligible):undefined;
-        if(racer.item!=='umbrella')racer.aiLock.reset();
+        const locked=racer.item==='parachute'?racer.aiLock.update(rival?.id,dt,up,currentEligible):undefined;
+        if(racer.item!=='parachute')racer.aiLock.reset();
         if(racer.item&&this.elapsed>=racer.nextUse){
-          const use=racer.item==='umbrella'?locked!==undefined:racer.item==='cloak'?racer.danger:nearby;
+          const clearForThrust=!racer.danger&&!racer.controller.braking&&this.elapsed>=Math.max(racer.slowUntil,racer.creationSlowUntil,racer.flailUntil,racer.airCanisterUntil);
+          const use=racer.item==='parachute'?locked!==undefined:racer.item==='bubbleWrap'?racer.danger:clearForThrust;
           if(use){this.useItem(racer.id,up,locked);racer.nextUse=this.elapsed+1;racer.aiLock.reset();}
         }
       }
       if(racer.id!==0&&racer.dodgeReaction.update(racer.id,this.snapshot(racer).position,this.projectiles,this.elapsed,racer.dodgeReady,racer.aiRandom))
         this.dodge(racer.id,{x:racer.id%2?1:-1,z:0});
+      if(racer.controller.braking)racer.airCanisterUntil=0;
+      // Reserve thrust funds the start of this tick; normal boost pays only for
+      // the remainder after expiry. Both use the same acceleration and speed cap.
+      const reserveSeconds=Math.min(dt,Math.max(0,racer.airCanisterUntil-this.elapsed));
       const wantsBoost=racer.id===0?boost:!racer.danger&&this.elapsed>=racer.slowUntil;
-      racer.boosting=wantsBoost&&!racer.controller.braking&&racer.boostFuel>0;
-      const boostSeconds=racer.boosting?Math.min(dt,racer.boostFuel):0;
-      racer.boostFuel=Math.max(0,racer.boostFuel-boostSeconds);
+      const fuelSeconds=wantsBoost&&!racer.controller.braking?Math.min(dt-reserveSeconds,racer.boostFuel):0;
+      const boostSeconds=reserveSeconds+fuelSeconds;
+      racer.boostFuel=Math.max(0,racer.boostFuel-fuelSeconds);
+      racer.boosting=boostSeconds>0;
       racer.boostUntil=racer.boosting?this.elapsed+boostSeconds:0;
       const dodging=this.elapsed<racer.dodgeUntil;
       if(dodging)steering=racer.dodgeDirection;
@@ -225,7 +225,7 @@ export class PracticeRace {
           if(racer.id===0&&this.feedbackUntil<=this.elapsed)this.announce('ITEM SLOT FULL');
         }else{
           box.active=false;racer.item=itemForPlace(places.get(racer.id)!,this.random());
-          if(racer.id===0)this.announce('PICKED UP — '+({umbrella:'Jellyfish umbrella',cloak:'Ghost cloak',sun:'Angry sun'})[racer.item]);
+          if(racer.id===0)this.announce('PICKED UP — '+ITEM_NAMES[racer.item]);
         }
       }
       for(const ring of this.rings)if(!ring.used.has(racer.id)&&motion.previousPosition[1]>ring.position[1]&&motion.position[1]<=ring.position[1]){
@@ -247,25 +247,10 @@ export class PracticeRace {
       if(motion.position[1]<=-FINISH_DEPTH){
         const t=(-FINISH_DEPTH-motion.previousPosition[1])/(motion.position[1]-motion.previousPosition[1]);
         racer.controller.clearExternalMotion();racer.eventObstacleProtection=false;
+        racer.airCanisterUntil=0;racer.boostUntil=0;racer.boosting=false;
         racer.finishTime=this.elapsed+dt*t;racer.landed={fallSpeed:0,position:[
           motion.previousPosition[0]+(motion.position[0]-motion.previousPosition[0])*t,-FINISH_DEPTH,
           motion.previousPosition[2]+(motion.position[2]-motion.previousPosition[2])*t]};
-      }
-    }
-    for(const attacker of this.racers)if(attacker.sunOrigin&&this.elapsed<attacker.sunUntil){
-      const radius=12*Math.min(1,(this.elapsed-(attacker.sunUntil-SUN_DURATION))/0.35);
-      for(const victim of this.racers){
-        if(victim.id===attacker.id||victim.finishTime!==undefined||attacker.sunVictims.has(victim.id))continue;
-        const p=this.snapshot(victim).position;
-        if(distance(p,attacker.sunOrigin)>radius)continue;
-        if(!this.protected(victim)){
-          attacker.sunVictims.add(victim.id);
-          const dx=p[0]-attacker.sunOrigin[0],dz=p[2]-attacker.sunOrigin[2],length=Math.hypot(dx,dz)||1;
-          victim.controller.impact(0.5,[dx/length*4,0,dz/length*4]);
-          victim.incidents++;victim.flailUntil=this.elapsed+0.6;victim.immuneUntil=this.elapsed+1.5;
-          if(victim.id===0)this.announce('HIT BY ANGRY SUN');
-          else if(attacker.id===0)this.announce('SUN HIT — '+victim.name);
-        }
       }
     }
     for(const shot of this.projectiles){
@@ -288,7 +273,7 @@ export class PracticeRace {
         const b=shot.position.map((v,i)=>v-now[i]) as Position;
         if(segmentSphere(a,b,[0,0,0],1.1)){
           if(!this.protected(victim))victim.slowUntil=this.elapsed+3;
-          if(shot.owner===0)this.announce(this.protected(victim)?'SHOT BLOCKED':'UMBRELLA HIT — '+victim.name);
+          if(shot.owner===0)this.announce(this.protected(victim)?'SHOT BLOCKED':'PARACHUTE HIT — '+victim.name);
           shot.expires=0;break;
         }
       }

@@ -54,7 +54,10 @@ export function useRaceVoice(race:PracticeRace) {
     host.loop.startRecording();
   };
   const reset=()=>{setEnabled(true);setArmed(false);attempt.current={profileId:'mock',geometryMode:'primitives',mockText};host.reset();};
-  const skipForRun=()=>{host.disableForRun();setEnabled(false);setArmed(false);};
+  const skipForRun=()=>{
+    const prepared=safetyDrillFixtures.find(fixture=>fixture.prompt===mockText)??safetyDrillFixtures[0];
+    host.loadPreparedDrill(prepared.spec);setEnabled(false);setArmed(false);
+  };
   return {host,recorder,microphone,enabled,getReadiness,skipForRun,profileId,setProfileId,mockText,setMockText,armed,setArmed,paidAttemptsRemaining,profiles,error,profile,live,paidAvailable,state,opportunity,
     start,finish:()=>{void host.loop.finishRecording();},cancel:()=>host.loop.cancelRecording(),reset,refresh:()=>setRefresh(value=>value+1)};
 }

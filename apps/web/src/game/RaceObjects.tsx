@@ -3,10 +3,9 @@ import { useFrame } from '@react-three/fiber';
 import { CanvasTexture, type Group, type Mesh, type MeshStandardMaterial } from 'three';
 import { wornSurface, cargoLabel } from './scenery-materials';
 import type { Texture } from 'three';
-import { PowerUpModel } from '../components/PowerUpModel';
-import { fixtures } from '@sky/shared';
+import { AirCanister, AirCanisterExhaust, BubbleWrapProtection, DeployedParachute, PackedParachute } from './SafetyItemModels';
 import { obstaclePose, type ObstacleKind } from './race-course';
-import { SUN_DURATION, type PracticeRace } from './practice-race';
+import { AIR_CANISTER_DURATION, type PracticeRace } from './practice-race';
 
 const SurfaceContext=createContext<Texture|null>(null);
 const LabelContext=createContext<Texture|null>(null);
@@ -109,15 +108,15 @@ export function RaceObjects({race}:{race:PracticeRace}){
     const y=race.snapshot(race.racers[0]).position[1];
     effects.current?.children.forEach((group,index)=>{
       const racer=race.racers[index],p=race.snapshot(racer).position;
-      const burst=group.children[0],umbrella=group.children[1];
-      const remaining=racer.sunUntil-race.elapsed;
-      burst.visible=remaining>0;
-      if(racer.sunOrigin){
-        burst.position.set(racer.sunOrigin[0],racer.sunOrigin[1]-y,racer.sunOrigin[2]);
-        burst.scale.setScalar(12*Math.min(1,(SUN_DURATION-remaining)/0.35));
-      }
-      umbrella.visible=racer.finishTime===undefined&&race.elapsed<racer.slowUntil;
-      umbrella.position.set(p[0],p[1]-y+2.8,p[2]);
+      group.visible=racer.finishTime===undefined&&Math.abs(p[1]-y)<230;
+      group.position.set(p[0],p[1]-y+.3,p[2]);
+      const canister=group.children[0],parachute=group.children[1],wrap=group.children[2];
+      const remaining=racer.airCanisterUntil-race.elapsed;
+      canister.visible=remaining>0;
+      const exhaust=canister.children[1];
+      exhaust.scale.y=.9+.12*Math.sin((AIR_CANISTER_DURATION-remaining)*30);
+      parachute.visible=race.elapsed<racer.slowUntil;
+      wrap.visible=race.elapsed<racer.shieldUntil;
     });
     obstacles.current?.children.forEach((group,i)=>{
       const obstacle=race.obstacles[i],pose=obstaclePose(obstacle,race.elapsed);
@@ -144,16 +143,21 @@ export function RaceObjects({race}:{race:PracticeRace}){
     });
     shots.current?.children.forEach((group,i)=>{
       const shot=race.projectiles[i];group.visible=!!shot;
-      if(shot)group.position.set(shot.position[0],shot.position[1]-y,shot.position[2]);
+      if(shot){
+        group.position.set(shot.position[0],shot.position[1]-y,shot.position[2]);
+        group.rotation.set(race.elapsed*4+i,race.elapsed*2,0);
+      }
     });
   });
   return <>
     <group ref={effects}>{race.racers.map(racer=><group key={racer.id}>
-      <group>
-        <mesh><sphereGeometry args={[1,24,16]}/><meshBasicMaterial color="#ffbf38" transparent opacity={0.35} depthWrite={false}/></mesh>
-        {[0,1,2].map(axis=><mesh key={axis} rotation={[axis===0?Math.PI/2:0,axis===1?Math.PI/2:0,0]}><torusGeometry args={[1,0.025,8,48]}/><meshBasicMaterial color="#fff19a"/></mesh>)}
+      <group position={[1.7,.2,.4]} rotation={[0,0,-.25]} visible={false}>
+        <AirCanister/>
+        <group position={[0,1.1,0]}><AirCanisterExhaust/></group>
+        <mesh position={[-.75,-.38,0]}><boxGeometry args={[1.15,.12,.13]}/><meshStandardMaterial color="#46544e" roughness={1}/></mesh>
       </group>
-      <group scale={0.8}><PowerUpModel spec={fixtures[0]}/></group>
+      <group visible={false}><DeployedParachute/></group>
+      <group visible={false}><BubbleWrapProtection/></group>
     </group>)}</group>
     <SurfaceContext.Provider value={surface}><LabelContext.Provider value={label}><group ref={obstacles}>{race.obstacles.map(o=><group key={o.id}><ObstacleModel kind={o.kind}/></group>)}</group></LabelContext.Provider></SurfaceContext.Provider>
     <group ref={boxes}>{race.boxes.map(box=><group key={box.id}>
@@ -167,6 +171,6 @@ export function RaceObjects({race}:{race:PracticeRace}){
         <coneGeometry args={[0.65,1.2,3]}/><meshStandardMaterial color="#d3fff1" emissive="#5effc9" emissiveIntensity={1}/>
       </mesh>)}
     </group>)}</group>
-    <group ref={shots}>{Array.from({length:16},(_,i)=><group key={i} scale={0.5}><PowerUpModel spec={fixtures[0]}/></group>)}</group>
+    <group ref={shots}>{Array.from({length:16},(_,i)=><group key={i} scale={1.1} visible={false}><PackedParachute/></group>)}</group>
   </>;
 }

@@ -3,15 +3,26 @@ import type { initialRaceHud } from './RaceScene';
 
 function ItemIcon({item}:{item:Item|null}){
   return <svg viewBox="0 0 64 64" aria-hidden="true">
-    {item==='umbrella'?<g fill="none" stroke="#caa9ff" strokeWidth="4" strokeLinecap="round">
-      <path fill="#b99aff" d="M8 30a24 24 0 0 1 48 0c-5-4-9-4-14 0-6-4-13-4-20 0-5-4-9-4-14 0Z"/>
-      <path d="M32 30v19q0 10 10 6M16 33v12m32-12v12M23 34v17"/>
-    </g>:item==='cloak'?<g>
-      <path fill="#e2f6ff" stroke="#b79bff" strokeWidth="3" d="M13 53V27a19 19 0 0 1 38 0v26l-10-6-9 7-9-7Z"/>
-      <ellipse cx="25" cy="28" rx="4" ry="6" fill="#253851"/><ellipse cx="39" cy="28" rx="4" ry="6" fill="#253851"/>
-    </g>:item==='sun'?<g stroke="#ffb336" strokeWidth="4" strokeLinecap="round">
-      {Array.from({length:8},(_,i)=><path key={i} transform={'rotate('+i*45+' 32 32)'} d="M32 3v7"/>)}
-      <circle cx="32" cy="32" r="18" fill="#ffbd38"/><path stroke="#593548" d="m21 26 8 3m14-3-8 3M26 41q6-7 12 0"/>
+    {item==='parachute'?<g stroke="#ddd4b5" strokeWidth="2.5" strokeLinejoin="round">
+      <path d="m10 28 16 25h12l16-25M23 29l6 24m12-24-6 24" fill="none"/>
+      <path fill="#d8d2b9" d="M7 29C8 14 18 7 32 7s24 7 25 22l-10-3-10 3-10-3-10 3Z"/>
+      <path fill="#be9d42" stroke="none" d="M32 8c-9 4-13 10-15 21l10-3c0-8 1-13 5-18m0 0c9 4 13 10 15 18l-10 3c0-11-1-16-5-21"/>
+      <rect x="25" y="51" width="14" height="9" rx="1" fill="#a78b48"/>
+      <path d="M29 52v7m6-7v7" stroke="#394a48"/>
+    </g>:item==='bubbleWrap'?<g stroke="#cbd9d1" strokeWidth="2.5" strokeLinejoin="round">
+      <path d="M17 13h35v39H17" fill="#a9c3c1"/>
+      <ellipse cx="17" cy="32" rx="10" ry="21" fill="#dae5dc"/>
+      <ellipse cx="17" cy="32" rx="4" ry="11" fill="#405953"/>
+      {[23,33,43].flatMap(x=>[20,31,42].map(y=><circle key={x+','+y} cx={x+3} cy={y} r="3.3" fill="#e6eee3" strokeWidth="1"/>))}
+      <path d="M49 13h7v39h-7" fill="#bba55f" stroke="none"/>
+    </g>:item==='airCanister'?<g stroke="#3c4c48" strokeWidth="2.5" strokeLinejoin="round">
+      <path d="M27 11h10v8H27Z" fill="#929d8a"/>
+      <path d="M23 9h18M32 5v8" fill="none" stroke="#bc6b51" strokeWidth="4"/>
+      <path d="M18 23q0-7 14-7t14 7v29q0 7-14 7t-14-7Z" fill="#c5ad50"/>
+      <path d="M18 26h28M18 49h28" fill="none" strokeWidth="4"/>
+      <rect x="25" y="31" width="14" height="13" rx="1" fill="#e2dcc2" stroke="none"/>
+      <path d="m28 39 4-5 4 5m-4-5v8" fill="none" strokeWidth="2"/>
+      <circle cx="45" cy="18" r="7" fill="#e6e2cc"/><path d="m45 18 3-3" strokeWidth="2"/>
     </g>:<g fill="none" stroke="#6a859d" strokeWidth="3"><rect x="12" y="12" width="40" height="40" rx="9" strokeDasharray="5 5"/><path d="M23 32h18"/></g>}
   </svg>;
 }
@@ -49,9 +60,9 @@ export function RaceOverlay({hud,paused,useKey,boostKey,dodgeKey}:{hud:typeof in
       {marker.selected&&<div className={'jet-label '+(marker.left>65?'on-left':'')}><strong>{marker.locked?'LOCKED':'ACQUIRING'} · {marker.name}</strong><small>{marker.gap}</small></div>}
     </div>)}
     <div className="item-hud">
-    {!paused&&!hud.feedback&&hud.itemKey==='umbrella'&&hud.finish===null&&<div className="aim-hint">{selected?<>{selected.locked?'LOCKED':'ACQUIRING'} · {selected.name}<br/>{selected.locked?useKey+' · Fire missile':'Keep the rival near the middle'}</>:<>Bring a rival near the middle to lock · {useKey} fires straight without a lock</>}</div>}
+    {!paused&&!hud.feedback&&hud.itemKey==='parachute'&&hud.finish===null&&<div className="aim-hint">{selected?<>{selected.locked?'LOCKED':'ACQUIRING'} · {selected.name}<br/>{selected.locked?useKey+' · Launch parachute':'Keep the rival near the middle'}</>:<>Bring a rival near the middle to lock · {useKey} launches straight without a lock</>}</div>}
     {hud.finish===null&&<div className={'play-item '+(hud.itemKey?'loaded':'')} aria-label={'Held item: '+hud.item}>
-      <ItemIcon item={hud.itemKey}/><div><small>HELD ITEM</small><strong>{hud.item}</strong><span>{hud.itemKey?<><kbd className="hud-key">{useKey}</kbd>{hud.itemKey==='umbrella'?(hud.look?'Fire upward':'Fire downward'):'Use item'}</>:'Collect a striped box'}</span></div>
+      <ItemIcon item={hud.itemKey}/><div><small>HELD ITEM</small><strong>{hud.item}</strong><span>{hud.itemKey?<><kbd className="hud-key">{useKey}</kbd>{hud.itemKey==='parachute'?(hud.look?'Launch upward':'Launch downward'):hud.itemKey==='bubbleWrap'?'Wrap for protection':'Release emergency air'}</>:'Collect a striped box'}</span></div>
     </div>}
     {!paused&&hud.feedback&&<div className="race-feedback" role="status" key={hud.feedback}>{hud.feedback}</div>}
     </div>
@@ -60,7 +71,7 @@ export function RaceOverlay({hud,paused,useKey,boostKey,dodgeKey}:{hud:typeof in
       <span>{hud.fuel.toFixed(1)} / 4.0 s {hud.boost?' · BOOSTING':''}</span>
       <strong><kbd className="hud-key">{dodgeKey}</kbd>{hud.dodgeCooldown>0?'DODGE '+hud.dodgeCooldown.toFixed(1)+'s':'DODGE READY'}</strong>
     </div>}
-    {!paused&&hud.threat&&<div role="status" className={'threat-warning '+(hud.threat==='MISSILE INCOMING'?'incoming':'')}>
+    {!paused&&hud.threat&&<div role="status" className={'threat-warning '+(hud.threat==='PARACHUTE INCOMING'?'incoming':'')}>
       <span className="threat-arrow" style={{transform:'rotate('+hud.threatAngle+'deg)'}}>↑</span>
       <div><strong>{hud.threat}</strong><small>{hud.threatDistance} · {hud.dodgeCooldown>0?'Dodge ready in '+hud.dodgeCooldown.toFixed(1)+'s':dodgeKey+' · DODGE TO EVADE'}</small></div>
     </div>}

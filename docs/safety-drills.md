@@ -94,7 +94,7 @@ Recording remains capped at eight seconds, upload/transcription has its own ten-
 
 ## Free testing and evaluating the AI contribution
 
-Start `bun run dev` and use the development Generation lab's drill fixtures/replay or the game's mock voice path. Mocks are deterministic authored examples for hippos, jellyfish, ducks, rockets, fish, avocados, staplers, planets, photocopiers, and geese. They can vary supported behavior words, but they are not a language model. Unknown objects return a clear error instead of silently becoming a rubber duck. Mock recording uses the selected prepared prompt rather than recognizing microphone speech.
+Start `bun run dev` and choose **Play without voice** to use the selected prepared drill in the main race, or use the development Generation lab's drill fixtures/replay or the game's mock voice path. The no-voice drill uses normal course placement, shared activation, and no microphone or provider calls. Mocks are deterministic authored examples for hippos, jellyfish, ducks, rockets, fish, avocados, staplers, planets, photocopiers, and geese. They can vary supported behavior words, but they are not a language model. Unknown objects return a clear error instead of silently becoming a rubber duck. Mock recording uses the selected prepared prompt rather than recognizing microphone speech.
 
 Keep the mesh and seed constant when comparing angry, nervous, and sleepy hippos: the warning, reaction, opening, and useful wake should change the player's decision. Then keep the behavior constant and change the object; the mechanics should remain consistent while the generated geometry changes. Check deliberate drafting, dodging a committed charge, approaching to scatter, choosing the fast fork, and recovering in an eddy.
 

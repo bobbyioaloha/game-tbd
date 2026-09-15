@@ -30,21 +30,22 @@ test('planner seeks reachable items instead of crossing the lane for impossible 
   planRival(race,racer);
   assert.deepEqual(racer.target,[p[0]+4,0]);
 });
-test('rivals save defensive items in clear air and use sun near junk',()=>{
+test('rivals save bubble wrap in clear air and use it when the route becomes dangerous',()=>{
   const race=new PracticeRace(false),racer=race.racers[1],p=race.snapshot(racer).position;
-  racer.item='sun';race.step(0.01,{x:0,z:0},false);assert.equal(racer.item,'sun');
+  racer.controller.setFallSpeed(30);
+  racer.item='bubbleWrap';race.step(0.01,{x:0,z:0},false);assert.equal(racer.item,'bubbleWrap');
   race.obstacles=[{id:0,kind:'fridge',position:[p[0],-8,0],rotation:[0,0,0],active:true,hitAt:-1}];
-  race.step(0.01,{x:0,z:0},false);
-  assert.equal(racer.item,null);assert.equal(race.obstacles[0].active,false);
+  racer.decision=0;race.step(0.01,{x:0,z:0},false);
+  assert.equal(racer.item,null);assert.ok(racer.shieldUntil>race.elapsed);assert.equal(race.obstacles[0].active,true);
 });
-test('rivals acquire a lock before using umbrellas',()=>{
+test('rivals acquire a lock before using parachutes',()=>{
   const race=new PracticeRace(false),racer=race.racers[1];
   racer.controller=new FreefallController(40,0,0);
   race.racers[0].controller=new FreefallController(40,0,0);
   race.racers[0].controller.step(2,{x:0,z:0},{fallSpeedMultiplier:1});
-  racer.item='umbrella';
+  racer.item='parachute';
   for(let i=0;i<30;i++)race.step(1/120,{x:0,z:0},false);
-  assert.equal(racer.item,'umbrella');
+  assert.equal(racer.item,'parachute');
   for(let i=0;i<60;i++)race.step(1/120,{x:0,z:0},false);
   assert.equal(racer.item,null);
 });

@@ -6,14 +6,14 @@ import { FreefallController } from './freefall-controller';
 
 const shot=(id=1):Projectile=>({id,owner:0,target:1,position:[0,-20,0],velocity:[0,0,0],expires:8});
 test('placement odds match the agreed percentages across the entire random range',()=>{
-  const expected=[{umbrella:10,sun:35,cloak:55},{umbrella:20,sun:50,cloak:30},{umbrella:45,sun:40,cloak:15},{umbrella:65,sun:25,cloak:10}];
+  const expected=[{parachute:10,airCanister:35,bubbleWrap:55},{parachute:20,airCanister:50,bubbleWrap:30},{parachute:45,airCanister:40,bubbleWrap:15},{parachute:65,airCanister:25,bubbleWrap:10}];
   for(let place=1;place<=4;place++){
-    const count={umbrella:0,sun:0,cloak:0};
+    const count={parachute:0,airCanister:0,bubbleWrap:0};
     for(let i=0;i<100;i++)count[itemForPlace(place,(i+0.5)/100)]++;
     assert.deepEqual(count,expected[place-1]);
   }
 });
-test('the same collection roll favors jellyfish at the back for players and rivals',()=>{
+test('the same collection roll favors parachute at the back for players and rivals',()=>{
   for(const owner of [0,1])for(const place of [1,4]){
     const race=new PracticeRace(false,()=>0);
     const others=race.racers.map(r=>r.id).filter(id=>id!==owner);
@@ -28,7 +28,7 @@ test('the same collection roll favors jellyfish at the back for players and riva
     race.boxes=[{id:0,position:race.snapshot(race.racers[owner]).position,active:true}];
     race.step(1/120,{x:0,z:0},false);
     assert.equal(race.boxes[0].active,false);
-    assert.equal(race.racers[owner].item,place===1?'sun':'umbrella');
+    assert.equal(race.racers[owner].item,place===1?'airCanister':'parachute');
   }
 });
 test('rivals wait for their reaction time and only dodge once per projectile',()=>{

@@ -18,6 +18,7 @@ type Props = {
 type View = {rotation: number; tilt: number; zoom: number};
 const initialView: View = {rotation: -25, tilt: 10, zoom: 100};
 const wrapAngle = (angle: number) => ((angle + 180) % 360 + 360) % 360 - 180;
+const creationsTitle = (creations: readonly RaceCreationRecord[]) => creations.length > 0 && creations.every(creation => creation.source === 'prepared') ? 'Prepared drill' : 'Your creations';
 
 function CreationModel({spec, view}: {spec: RaceEncounter; view: View}) {
   const content = useRef<Group>(null);
@@ -80,7 +81,7 @@ function CreationDialog({creations, racers, reports, onClose}: Props & {onClose:
     onClick={event => {if (event.target === event.currentTarget) onClose();}}
     onKeyDown={event => event.stopPropagation()} onKeyUp={event => event.stopPropagation()}>
     <div className="race-creations-heading">
-      <div><span>DEPARTMENT OF WORKPLACE SAFETY</span><h2 id={titleId}>Your creations</h2></div>
+      <div><span>DEPARTMENT OF WORKPLACE SAFETY</span><h2 id={titleId}>{creationsTitle(creations)}</h2></div>
       <button autoFocus type="button" onClick={onClose}>Close viewer <span aria-hidden="true">&times;</span></button>
     </div>
     {creation ? <div className="race-creations-content">
@@ -108,7 +109,7 @@ function CreationDialog({creations, racers, reports, onClose}: Props & {onClose:
           </div>
         </section>
         <div className="race-creation-file">
-          <span className="race-creation-file-label">{creation.source === 'fixture' ? 'PRACTICE FIXTURE' : 'CREATION ' + (creation.attemptNumber ?? selected + 1)}</span>
+          <span className="race-creation-file-label">{creation.source === 'prepared' ? 'PREPARED SAFETY DRILL' : creation.source === 'fixture' ? 'PRACTICE FIXTURE' : 'CREATION ' + (creation.attemptNumber ?? selected + 1)}</span>
           <h3>{creation.spec.displayName}</h3>
           <section className="race-creation-effect" aria-label="Creation effect"><h4>{encounterLabel(creation.spec)}</h4><p>{encounterInstruction(creation.spec)}</p></section>
           <RaceCreationOutcome key={creation.instanceId} creation={creation} racers={racers} report={reports?.[creation.instanceId]}/>
@@ -127,7 +128,7 @@ export function RaceCreations({creations, racers, reports}: Props) {
   const [open, setOpen] = useState(false);
   return <>
     <button type="button" className="race-creations-open" aria-haspopup="dialog" onClick={() => setOpen(true)}>
-      Your creations{creations.length > 0 && ' (' + creations.length + ')'}
+      {creationsTitle(creations)}{creations.length > 0 && ' (' + creations.length + ')'}
     </button>
     {open && <CreationDialog creations={creations} racers={racers} reports={reports} onClose={() => setOpen(false)}/>}
   </>;

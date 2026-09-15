@@ -17,6 +17,7 @@ import { RaceMicrophoneSetup, RaceVoiceControls, useRaceVoice } from '../voice/R
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PracticeRace } from './practice-race';
+import { ITEM_NAMES } from './race-course';
 import { RaceScene, defaultBindings, initialRaceHud, type RaceRuntime } from './RaceScene';
 import { RaceOverlay } from './RaceOverlay';
 import { RaceBriefing, RaceSetup } from './RaceSetup';
@@ -261,7 +262,7 @@ export function MovementTest() {
         {!paused && hud.finish !== null && <div className="race-result"><strong>EXERCISE COMPLETE · {hud.place} / 4</strong><span>{hud.incidents===0?'Safety inspection: exemplary preparedness.':'Safety inspection: '+hud.incidents+(hud.incidents===1?' incident.':' incidents.')+' Refresher training assigned.'}</span><span>{hud.finish.toFixed(2)} seconds · {hud.allFinished ? 'Everyone landed.' : 'Watch the others land…'}</span><button onClick={prepareRun}>Race again</button><RaceCreations creations={voice.host.creations} racers={race.racers} reports={incidentReports}/></div>}
         <RaceCreationHud enabled={voice.enabled} key={voice.host.runId} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} steeringKeys={[bindings.forward,bindings.left,bindings.backward,bindings.right].map(label).join(' / ')} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && !settings && <div className="movement-pause"><span className="safety-caution">⚠ CAUTION</span><h2>Mandatory fall protection training</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
-          <p>{voice.enabled?'Collect ★, then hold Space to report a hazard.':'Voice creation is off for this run.'}<br/>Pausing during a voice attempt cancels it.</p>
+          <p>{voice.enabled?<>Collect ★, then hold Space to report a hazard.<br/>Pausing during a voice attempt cancels it.</>:<>Prepared safety drill · no voice required.<br/>Fly through the glowing halo to activate it. Any racer can trigger it.</>}</p>
           {voice.enabled&&<RaceMicrophoneSetup voice={voice}/>}
           <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); if(runtime.race.elapsed===0)startCountdown();else pause(false);}}>Begin / resume exercise</button>
           <small>Escape resumes · leaving this window pauses</small></div>}
@@ -290,6 +291,15 @@ export function MovementTest() {
           </button>)}</div>
           <p role="status">{fixtureNotice}</p>
         </details>}
+        {import.meta.env.DEV&&<details className="race-detail">
+          <summary>Ordinary item practice <small>Equip safety equipment while paused</small></summary>
+          <p>Pause an unfinished race, equip an item, then close settings and resume to use it.</p>
+          <div className="event-fixture-buttons">{(['parachute','bubbleWrap','airCanister'] as const).map(item=><button key={item}
+            disabled={!paused||screen!=='race'||hud.finish!==null}
+            onClick={()=>{race.racers[0].item=item;setHud(current=>({...current,itemKey:item,item:ITEM_NAMES[item]}));}}>
+            Equip {ITEM_NAMES[item]}
+          </button>)}</div>
+        </details>}
         <details className="race-detail">
           <summary>Controls <small>Steering, items &amp; key bindings</small></summary>
           <p>Click a key to rebind. Changes last for this session.</p>
@@ -305,7 +315,7 @@ export function MovementTest() {
           <p>{hud.time.toFixed(1)} s elapsed · 72 × 72 m lane<br/>X {hud.x.toFixed(1)} m · Z {hud.z.toFixed(1)} m</p>
           <p>Brake target: {BRAKE_SPEED} m/s · Steering: 20 m/s</p>
           <p>{hud.effects||'No active effects'}</p>
-          <p>Jellyfish are more common near the back, suns in the middle, and ghosts in first. Gold pipe rings give double boost fuel.</p>
+          <p>Spare parachutes are more common near the back, air canisters in the middle, and bubble wrap in first. Gold pipe rings give double boost fuel.</p>
         </details>}
       </div>}
         </div>
