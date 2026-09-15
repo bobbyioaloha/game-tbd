@@ -104,7 +104,7 @@ export function RaceCreationHud({enabled,host,paused,finished,marker,live,mockTe
     (notice||finished)&&['missed','discarded'].includes(opportunity.secondStar));
   const showNotice=enabled&&(showVoiceNotice||showOpportunityNotice);
   const hint=state.phase==='available'?'Collect an Inspection Request (yellow star).'
-    :state.phase==='preparing'?'Opening microphone…'
+    :state.phase==='preparing'?(microphone.phase==='preparing'?microphone.message:'Starting microphone…')
     :state.phase==='transcribing'?(live?'Understanding your request—keep racing.':'Loading the prepared prompt—keep racing.')
     :state.phase==='generating'?'The department is reproducing your concern. Keep racing.'
     :state.phase==='missed'?host.nextOpportunityMessage

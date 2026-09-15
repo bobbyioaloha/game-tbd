@@ -11,7 +11,7 @@ import { paidVoiceAvailable, raceVoiceReadiness } from './race-voice-readiness';
 
 type Configuration=Omit<VoiceRequest,'captureMs'>;
 export function useRaceVoice(race:PracticeRace) {
-  const [recorder]=useState(()=>new MicrophoneRecorder());
+  const [recorder]=useState(()=>new MicrophoneRecorder(undefined,undefined,undefined,{retainPreparedStream:true}));
   const [profileId,setSelectedProfileId]=useState('mock'),[mockText,setSelectedMockText]=useState(safetyDrillFixtures[0].prompt);
   const [enabled,setEnabled]=useState(true);
   const [paidAttemptsRemaining,setPaidAttemptsRemaining]=useState(0),[refresh,setRefresh]=useState(0);
@@ -93,6 +93,19 @@ export function RaceVoiceControls({voice,paused}:{voice:RaceVoiceController;paus
   </section>;
 }
 
+/** Device preparation is available before a run and after pausing releases it. */
+export function RaceMicrophoneSetup({voice}: {voice: RaceVoiceController}) {
+  const {microphone} = voice;
+  const preparing = microphone.phase === 'preparing';
+  return <div className="race-microphone-check">
+      <button disabled={preparing} onClick={() => {void voice.recorder.prepare();}}>
+        {preparing ? 'Checking microphone…' : microphone.ready && microphone.phase !== 'error' ? 'Check microphone again' : 'Enable microphone'}
+      </button>
+      <p role="status">{microphone.message}</p>
+      <small>The microphone stays open for this run. Recording starts only when you hold Space. Pausing, restarting, leaving, or finishing releases it. Enabling it does not call AI.</small>
+    </div>;
+}
+
 /** Player-facing setup; model configuration and diagnostics stay in RaceVoiceControls. */
 export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
   const {microphone} = voice;
@@ -101,13 +114,7 @@ export function RaceVoiceSetup({voice}: {voice: RaceVoiceController}) {
   const preparing = microphone.phase === 'preparing';
   return <section className="race-voice-setup" aria-labelledby="voice-setup-title">
     <h2 id="voice-setup-title">Hazard reporting</h2>
-    <div className="race-microphone-check">
-      <button disabled={preparing} onClick={() => {void voice.recorder.prepare();}}>
-        {preparing ? 'Checking microphone…' : microphone.ready && microphone.phase !== 'error' ? 'Check microphone again' : 'Enable microphone'}
-      </button>
-      <p role="status">{microphone.message}</p>
-      <small>This permission check stays on your device. It does not record a clip or call AI.</small>
-    </div>
+    <RaceMicrophoneSetup voice={voice}/>
     <label>Creation mode
       <select aria-label="Creation mode" value={voice.live ? 'live' : 'mock'} disabled={preparing} onChange={event => {
         voice.setProfileId(event.target.value === 'live' && liveProfile ? liveProfile.id : 'mock');

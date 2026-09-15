@@ -169,7 +169,7 @@ function hudSetup(phase='prompted') {
   runInNewContext(hudCode,sandbox);
   let opportunity:RaceVoiceOpportunitySnapshot={secondStar:'scheduled',message:''};
   const props={enabled:true,paused:false,finished:false,live:false,mockText:'angry orange sun',blockedReason:'',
-    microphone:{phase:'ready'},inputNotice:{id:1,text:'Collect the yellow star first.',phase:'available'},
+    microphone:{phase:'ready',message:'Microphone ready.'},inputNotice:{id:1,text:'Collect the yellow star first.',phase:'available'},
     host:{loop:{subscribe:()=>()=>{},getSnapshot:()=>({phase})},attemptNumber:1,
       subscribe:()=>()=>{},getSnapshot:()=>opportunity,
       race:{elapsed:0,racers:[],events:{getSnapshot:()=>({phase:'empty'})}}},
@@ -177,6 +177,18 @@ function hudSetup(phase='prompted') {
   return {props,render:()=>JSON.stringify(sandbox.exports.RaceCreationHud(props)),
     setOpportunity:(next:RaceVoiceOpportunitySnapshot)=>{opportunity=next;}};
 }
+
+test('microphone startup shows the current browser operation instead of a generic opening label', () => {
+  const ui=hudSetup('preparing');
+  ui.props.microphone.phase='preparing';
+  for(const message of ['Opening microphone…','Starting audio recorder…','Starting microphone level meter…','Starting recording…']) {
+    ui.props.microphone.message=message;
+    assert.ok(ui.render().includes(message));
+  }
+  ui.props.microphone.phase='ready';
+  assert.match(ui.render(),/Starting microphone/);
+  assert.doesNotMatch(ui.render(),/Starting recording/);
+});
 
 test('a pre-pickup Space warning cannot override the collected-star prompt', () => {
   const ui=hudSetup();

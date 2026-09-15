@@ -1,5 +1,7 @@
 import { AUDIO_UPLOAD_LIMIT_BYTES, RECORDING_LIMIT_MS } from '@sky/shared';
 
+const MICROPHONE_SETUP_TIMEOUT_MS = 10_000;
+
 export type Recording = {blob:Blob;captureMs:number};
 export type RecorderSnapshot = {phase:'idle'|'preparing'|'ready'|'recording'|'stopped'|'error';ready:boolean;elapsedMs:number;level:number;message:string};
 export interface AudioCapture {
@@ -7,6 +9,8 @@ export interface AudioCapture {
   start(onLimit?:()=>void,onError?:(error:Error)=>void):Promise<void>;
   stop():Promise<Recording>;
   cancel():void;
+  // Clear per-attempt capture resources while an opted-in race keeps its prepared device.
+  finishAttempt?():void;
 }
 export type RecorderDependencies = {
   media():Promise<MediaStream>;
@@ -45,6 +49,7 @@ export class MicrophoneRecorder implements AudioCapture {
   private listeners=new Set<()=>void>();
   private serial=0;
   private stream?:MediaStream;
+  private stopTrackEvents?:()=>void;
   private mediaRecorder?:MediaRecorder;
   private stopMeter?:()=>void;
   private ticker?:ReturnType<typeof setInterval>;
@@ -53,33 +58,85 @@ export class MicrophoneRecorder implements AudioCapture {
   private completion?:Promise<Recording>;
   private reject?:(reason:unknown)=>void;
   private onError?:(error:Error)=>void;
-  constructor(private deps:RecorderDependencies=browserDependencies(),private maxMs=RECORDING_LIMIT_MS) {}
+  private cancelAcquisition?:()=>void;
+  constructor(private deps:RecorderDependencies=browserDependencies(),private maxMs=RECORDING_LIMIT_MS,private setupTimeoutMs=MICROPHONE_SETUP_TIMEOUT_MS,private options:{retainPreparedStream?:boolean}={}) {}
   getSnapshot=()=>this.state;
   subscribe=(listener:()=>void)=>{this.listeners.add(listener);return()=>{this.listeners.delete(listener);};};
   private update(patch:Partial<RecorderSnapshot>) {this.state={...this.state,...patch};this.listeners.forEach(listener=>listener());}
-  private release() {
+  private preparedStream() {
+    return this.options.retainPreparedStream&&this.stream?.getAudioTracks().some(track=>track.readyState==='live')?this.stream:undefined;
+  }
+  private retainStream(stream:MediaStream) {
+    this.stream=stream;
+    const tracks=stream.getAudioTracks();
+    const ended=()=>{
+      if(this.stream===stream&&!this.preparedStream())this.fail('Microphone disconnected. Enable the microphone again before speaking.');
+    };
+    tracks.forEach(track=>track.addEventListener('ended',ended));
+    this.stopTrackEvents=()=>tracks.forEach(track=>track.removeEventListener('ended',ended));
+    if(!this.preparedStream()) {
+      this.release();
+      throw new Error('Microphone disconnected. Enable the microphone again before speaking.');
+    }
+  }
+  private release(retainPreparedStream=false) {
     clearTimeout(this.limit);clearInterval(this.ticker);this.stopMeter?.();this.stopMeter=undefined;
-    this.stream?.getTracks().forEach(track=>track.stop());this.stream=undefined;
+    if(retainPreparedStream&&this.preparedStream())return;
+    this.stopTrackEvents?.();this.stopTrackEvents=undefined;
+    const stream=this.stream;this.stream=undefined;stream?.getTracks().forEach(track=>track.stop());
+  }
+  private acquire(token:number):Promise<MediaStream> {
+    if(token!==this.serial)return Promise.reject(new Error('Recording cancelled.'));
+    return new Promise((resolve,reject)=>{
+      let settled=false;
+      const finish=()=>{
+        settled=true;clearTimeout(timer);
+        if(this.cancelAcquisition===cancel)this.cancelAcquisition=undefined;
+      };
+      const fail=(error:unknown)=>{if(!settled){finish();reject(error);}};
+      const cancel=()=>fail(new Error('Recording cancelled.'));
+      const timer=setTimeout(()=>fail(new Error('Microphone did not respond. Check browser permission and your input device, then enable it again.')),this.setupTimeoutMs);
+      this.cancelAcquisition=cancel;
+      try {
+        // getUserMedia cannot be aborted. Settle our wait and release any stream
+        // that arrives after cancellation or the separate device-opening budget.
+        void this.deps.media().then(stream=>{
+          if(settled||token!==this.serial){
+            stream.getTracks().forEach(track=>track.stop());cancel();return;
+          }
+          finish();resolve(stream);
+        },fail);
+      } catch(error){fail(error);}
+    });
   }
   prepare=async()=>{
     if (['preparing','recording'].includes(this.state.phase)) return;
-    this.cancel();const token=++this.serial;this.update({phase:'preparing',message:'Requesting microphone permission…'});
+    this.finishAttempt();
+    if(this.preparedStream()) {this.update({phase:'ready',ready:true,message:'Microphone ready. Hold to speak.'});return;}
+    const token=++this.serial;this.update({phase:'preparing',message:'Requesting microphone permission…'});
     try {
-      const stream=await this.deps.media();
-      stream.getTracks().forEach(track=>track.stop());
-      if (token!==this.serial) return;
+      const stream=await this.acquire(token);
+      if (token!==this.serial) {stream.getTracks().forEach(track=>track.stop());return;}
+      if(this.options.retainPreparedStream)this.retainStream(stream);
+      else stream.getTracks().forEach(track=>track.stop());
       this.update({phase:'ready',ready:true,message:'Microphone ready. Hold to speak.'});
     } catch (error) {if (token===this.serial) this.update({phase:'error',ready:false,message:mediaMessage(error)});}
   };
   start=async(onLimit?:()=>void,onError?:(error:Error)=>void)=>{
     if (!this.state.ready) throw new Error('Enable the microphone before starting a voice attempt.');
     if (this.state.phase==='recording' || this.state.phase==='preparing') throw new Error('Recording is already starting.');
-    this.cancel();const token=++this.serial;this.onError=onError;
-    this.update({phase:'preparing',elapsedMs:0,message:'Preparing microphone…'});
+    if(this.options.retainPreparedStream&&!this.preparedStream()) {
+      this.cancel();throw new Error('Enable the microphone again before starting a voice attempt.');
+    }
+    this.finishAttempt();const token=++this.serial;this.onError=onError;
+    this.update({phase:'preparing',elapsedMs:0,message:this.options.retainPreparedStream?'Starting audio recorder…':'Opening microphone…'});
     try {
-      const stream=await this.deps.media();
-      if (token!==this.serial) {stream.getTracks().forEach(track=>track.stop());throw new Error('Recording cancelled.');}
+      const stream=await (this.options.retainPreparedStream?this.preparedStream():this.acquire(token));
+      if (token!==this.serial) {stream?.getTracks().forEach(track=>track.stop());throw new Error('Recording cancelled.');}
+      if(!stream)throw new Error('Enable the microphone again before starting a voice attempt.');
       this.stream=stream;
+      if(!this.options.retainPreparedStream)this.update({message:'Starting audio recorder…'});
+      if(token!==this.serial)throw new Error('Recording cancelled.');
       const recorder=this.deps.recorder(stream);this.mediaRecorder=recorder;
       const chunks:Blob[]=[];let size=0;
       this.completion=new Promise<Recording>((resolve,reject)=>{
@@ -93,7 +150,7 @@ export class MicrophoneRecorder implements AudioCapture {
         recorder.onerror=()=>{if (token===this.serial) this.fail('The microphone stopped unexpectedly.');};
         recorder.onstop=()=>{
           if (token!==this.serial) return;
-          this.release();
+          this.release(true);
           const blob=new Blob(chunks,{type:recorder.mimeType.split(';')[0]});
           const captureMs=Math.min(this.maxMs,Math.max(0,performance.now()-this.started));
           if (!blob.size) {this.fail('The recording was empty. Nothing was submitted.');return;}
@@ -104,9 +161,17 @@ export class MicrophoneRecorder implements AudioCapture {
       });
       // Cancellation may reject before the UI awaits stop().
       void this.completion.catch(()=>{});
-      this.stopMeter=this.deps.meter?.(stream,level=>{if (token===this.serial) this.update({level});});
+      if(this.deps.meter) {
+        this.update({message:'Starting microphone level meter…'});
+        if(token!==this.serial)throw new Error('Recording cancelled.');
+        this.stopMeter=this.deps.meter(stream,level=>{if (token===this.serial) this.update({level});});
+      }
+      if(token!==this.serial) {this.release();throw new Error('Recording cancelled.');}
+      this.update({message:'Starting recording…'});
+      if(token!==this.serial)throw new Error('Recording cancelled.');
       recorder.start(100);this.started=performance.now();
       this.update({phase:'recording',message:'Recording… release to submit.'});
+      if(token!==this.serial)throw new Error('Recording cancelled.');
       this.ticker=setInterval(()=>this.update({elapsedMs:Math.min(this.maxMs,performance.now()-this.started)}),100);
       this.limit=setTimeout(()=>{void this.stop().then(()=>{if (token===this.serial) onLimit?.();}).catch(()=>{});},this.maxMs);
     } catch (error) {
@@ -118,7 +183,7 @@ export class MicrophoneRecorder implements AudioCapture {
     if (this.state.phase==='preparing') {this.cancel();throw new Error('Released before the microphone was ready. Nothing was submitted.');}
     if (!this.completion) throw new Error('No active recording.');
     if (this.mediaRecorder?.state==='recording') this.mediaRecorder.stop();
-    this.release();
+    this.release(true);
     return this.completion;
   };
   private fail(message:string) {
@@ -127,10 +192,15 @@ export class MicrophoneRecorder implements AudioCapture {
     this.cancel();this.update({phase:'error',message});
     onError?.(error);
   }
-  cancel=()=>{
+  private clearAttempt(retainPreparedStream:boolean) {
     this.serial++;this.onError=undefined;
+    this.cancelAcquisition?.();
     if (this.mediaRecorder && this.mediaRecorder.state!=='inactive') this.mediaRecorder.stop();
     this.reject?.(new Error('Recording cancelled.'));this.reject=undefined;this.completion=undefined;this.mediaRecorder=undefined;
-    this.release();this.update({phase:this.state.ready?'ready':'idle',elapsedMs:0,level:0,message:this.state.ready?'Microphone ready. Hold to speak.':'Enable the microphone before speaking.'});
-  };
+    this.release(retainPreparedStream);
+    const ready=this.options.retainPreparedStream?Boolean(this.preparedStream()):this.state.ready;
+    this.update({phase:ready?'ready':'idle',ready,elapsedMs:0,level:0,message:ready?'Microphone ready. Hold to speak.':'Enable the microphone before speaking.'});
+  }
+  finishAttempt=()=>{this.clearAttempt(true);};
+  cancel=()=>{this.clearAttempt(false);};
 }

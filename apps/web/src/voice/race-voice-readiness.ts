@@ -21,7 +21,7 @@ export function raceVoiceReadiness({enabled, microphone, profiles, profileId, ar
   const blocked = (message: string): VoiceReadiness => ({ready: false, message});
   if (!enabled) return blocked('Voice creation is off for this run.');
   if (!microphone.ready || microphone.phase === 'preparing' || microphone.phase === 'error') {
-    return blocked(microphone.phase === 'preparing' ? 'Checking microphone permission…' : 'Enable your microphone to race with voice.');
+    return blocked(microphone.phase === 'preparing' ? 'Checking microphone permission…' : 'Enable your microphone in setup or the pause menu to race with voice.');
   }
   if (error) return blocked(error);
   if (!profiles) return blocked('Checking creation availability…');

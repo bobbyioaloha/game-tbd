@@ -29,13 +29,20 @@ export class CreationAttempt<T extends {displayName:string}> {
   getSnapshot = () => this.state;
   subscribe = (listener: () => void) => { this.listeners.add(listener); return () => { this.listeners.delete(listener); }; };
   private emit() { this.state = {...this.state}; this.listeners.forEach(listener => listener()); }
-  reset = () => {
-    this.abort?.abort(); this.voice.cancel(); this.serial++;
+  private clearCapture(keepPrepared: boolean) {
+    if (keepPrepared && 'finishAttempt' in this.voice && this.voice.finishAttempt) this.voice.finishAttempt();
+    else this.voice.cancel();
+  }
+  private resetState(keepPrepared: boolean) {
+    this.abort?.abort(); this.clearCapture(keepPrepared); this.serial++;
     this.pendingCreation = undefined;
     this.state = {session: this.serial, running: false, phase: 'available', phaseSeconds: 0,
       message: 'Start a run and fly into the gold Voice Power Up.'};
     this.emit();
-  };
+  }
+  reset = () => this.resetState(false);
+  // A fresh authored grant may reuse prepared input; a new run never does.
+  rearm = () => this.resetState(true);
   start = () => { if (this.state.phase === 'available') { this.state.running = true; this.emit(); } };
   end = (message = 'Run ended. Late results are discarded.') => {
     this.abort?.abort(); this.voice.cancel(); this.serial++; this.pendingCreation = undefined;
@@ -43,8 +50,8 @@ export class CreationAttempt<T extends {displayName:string}> {
   };
   dispose = () => { this.abort?.abort(); this.serial++; this.voice.cancel(); this.pendingCreation = undefined; this.state.running = false; };
   private current(token: number) { return this.serial === token && this.state.running; }
-  private fail(message: string) {
-    this.abort?.abort(); this.voice.cancel(); this.pendingCreation = undefined; this.state.phase = 'failed';
+  private fail(message: string, releaseInput = false) {
+    this.abort?.abort(); this.clearCapture(!releaseInput); this.pendingCreation = undefined; this.state.phase = 'failed';
     this.state.message = message+' Attempt consumed.'; this.emit();
   }
   // The world reports collisions. Duplicate events cannot grant extra attempts.
@@ -135,7 +142,7 @@ export class CreationAttempt<T extends {displayName:string}> {
       if (this.getSnapshot().phase === 'ready') this.emit();
     } catch (error) {
       if (this.current(token) && this.getSnapshot().phase !== 'failed') this.fail(error instanceof Error ? error.message : 'Recording or generation failed.');
-    } finally {if (this.current(token)) this.voice.cancel();}
+    } finally {if (this.current(token)) this.clearCapture(true);}
   };
   // A v3 host can wait for the shared event slot. Legacy hosts still spawn immediately.
   placeReadyCreation = () => {
@@ -150,7 +157,7 @@ export class CreationAttempt<T extends {displayName:string}> {
     }
   };
   cancelRecording = () => {
-    if (['prompted','preparing','recording','transcribing','generating','ready'].includes(this.state.phase)) this.fail('Input cancelled.');
+    if (['prompted','preparing','recording','transcribing','generating','ready'].includes(this.state.phase)) this.fail('Input cancelled.', true);
   };
   // Host supplies gameplay seconds; this advances only voice/generation deadlines.
   advanceTime(dt: number) {

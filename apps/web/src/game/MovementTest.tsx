@@ -10,7 +10,7 @@ import { RaceEventRuntime } from '../race-events/runtime';
 import { RACE_CREATION_PICKUP_RADIUS } from './race-event-config';
 import { RaceEventReport } from './RaceEventReport';
 import { RaceCreationHud } from './RaceCreationVisuals';
-import { RaceVoiceControls, useRaceVoice } from '../voice/RaceVoiceControls';
+import { RaceMicrophoneSetup, RaceVoiceControls, useRaceVoice } from '../voice/RaceVoiceControls';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { PracticeRace } from './practice-race';
@@ -152,7 +152,14 @@ export function MovementTest() {
       }
     };
     const up = (event: KeyboardEvent) => { runtime.keys.delete(event.code);if(event.code==='Space')voiceActions.current.finish(); };
-    const blur = () => {pause(true);if(screenRef.current==='countdown')setScreen('race');};
+    const blur = () => {
+      // Browser permission dialogs can take focus during setup. Only an actual
+      // race pause or a hidden page should release its pending/prepared input.
+      if(screenRef.current!=='race'&&screenRef.current!=='countdown'&&!document.hidden)return;
+      if(!document.hidden&&screenRef.current==='race'&&runtime.paused&&voiceActions.current.recorder.getSnapshot().phase==='preparing')return;
+      pause(true);
+      if(screenRef.current==='countdown')setScreen('race');
+    };
     const visibility = () => { if (document.hidden) blur(); };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
@@ -224,6 +231,7 @@ export function MovementTest() {
         <RaceCreationHud enabled={voice.enabled} key={voice.host.runId} host={voice.host} paused={paused} finished={hud.finish!==null} marker={hud.creationMarker} steeringKeys={[bindings.forward,bindings.left,bindings.backward,bindings.right].map(label).join(' / ')} live={!!voice.live} mockText={voice.mockText} blockedReason={voiceBlockedReason} inputNotice={voiceInputNotice} microphone={microphone}/>
         {paused && !settings && <div className="movement-pause"><span className="safety-caution">⚠ CAUTION</span><h2>Mandatory fall protection training</h2><p>{label(bindings.forward)}{label(bindings.left)}{label(bindings.backward)}{label(bindings.right)} to steer · hold {label(bindings.brake)} to brake</p>
           <p>{voice.enabled?'Collect ★, then hold Space to report a hazard.':'Voice creation is off for this run.'}<br/>Pausing during a voice attempt cancels it.</p>
+          {voice.enabled&&<RaceMicrophoneSetup voice={voice}/>}
           <button disabled={binding !== null} onClick={event => {event.currentTarget.blur(); if(runtime.race.elapsed===0)startCountdown();else pause(false);}}>Begin / resume exercise</button>
           <small>Escape resumes · leaving this window pauses</small></div>}
         </>}
