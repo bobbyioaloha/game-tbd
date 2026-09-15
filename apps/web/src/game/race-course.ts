@@ -1,8 +1,8 @@
 import { Euler, Quaternion, Vector3 } from 'three';
 import type { Position } from './player-controller';
 
-export type Item = 'umbrella' | 'cloak' | 'sun';
-export const ITEM_NAMES: Record<Item,string> = {umbrella:'Jellyfish umbrella',cloak:'Ghost cloak',sun:'Angry sun'};
+export type Item = 'parachute' | 'bubbleWrap' | 'airCanister';
+export const ITEM_NAMES: Record<Item,string> = {parachute:'Spare parachute',bubbleWrap:'Bubble wrap',airCanister:'Emergency air canister'};
 export type ObstacleKind = 'balloon'|'fridge'|'satellite'|'sofa'|'duct'|'cone'|'extinguisher'|'barrier'|'crate'|'capsule';
 export type Collider = {center:Position; size:Position; sphere?:number; penalty:number};
 export type Obstacle = {id:number;kind:ObstacleKind;position:Position;rotation:Position;active:boolean;hitAt:number};

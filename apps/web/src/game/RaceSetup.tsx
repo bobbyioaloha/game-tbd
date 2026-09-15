@@ -15,6 +15,7 @@ function hasSeenBriefing() {
 export function RaceBriefing({steeringHelp, actionHelp}: {steeringHelp: string; actionHelp: string}) {
   return <>
     <p>Race three rivals to the finish. Steer around obstacles.</p>
+    <p>Striped boxes hold safety equipment: launch a <strong>Spare Parachute</strong> to slow a rival, use <strong>Bubble Wrap</strong> for five seconds of protection, or discharge an <strong>Emergency Air Canister</strong> for two seconds of fuel-free boost. Braking cancels the canister.</p>
     <ol className="race-briefing-steps">
       <li><strong>Collect an Inspection Request (yellow star).</strong> With voice enabled, two stars appear along the course, each granting one attempt. The second is 60–70% through, regardless of the first attempt’s outcome.</li>
       <li><strong>Hold Space and speak.</strong> Report a hazard and what it does in 10 words or fewer. Release to submit; recording stops after 8 seconds.</li>

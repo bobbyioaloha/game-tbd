@@ -102,7 +102,7 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
       if(projected.z>=-1&&projected.z<=1&&score<threshold&&priority<aimScore){candidateId=candidate.id;aimScore=priority;}
     }
     const eligible=lock.current.target===undefined||race.eligibleTarget(0,lock.current.target,look);
-    if(!runtime.paused&&!landed&&player.item==='umbrella'){
+    if(!runtime.paused&&!landed&&player.item==='parachute'){
       runtime.target=lock.current.update(candidateId,dt,look,eligible);
     }else{lock.current.reset();runtime.target=undefined;}
     if(runtime.fireRequested&&!runtime.paused){
@@ -121,7 +121,8 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         const roll=(1-(racer.dodgeUntil-race.elapsed)/0.35)*Math.PI*2;
         group.rotation.x=racer.dodgeDirection.z*roll;group.rotation.z=-racer.dodgeDirection.x*roll;
       }
-      const protectedNow=race.elapsed<racer.immuneUntil||race.elapsed<Math.max(racer.shieldUntil,racer.creationShieldUntil);
+      // Ordinary protection is shown as bubble wrap; keep the dinosaur visible inside it.
+      const protectedNow=race.elapsed<racer.immuneUntil||race.elapsed<racer.creationShieldUntil;
       group.visible=racer.finishTime!==undefined||!protectedNow||Math.floor(race.elapsed*12)%2===0;
       const aura=group.getObjectByName('event-aura') as Mesh|undefined;
       const eventOnRacer=eventState?.phase==='active'&&eventState.affectedRacerIds.includes(String(racer.id));
@@ -171,11 +172,11 @@ export function RaceScene({runtime,report}:{runtime:RaceRuntime;report:(hud:type
         targetName:runtime.target===undefined?'':race.racers[runtime.target].name,
         effects:[
           race.elapsed<Math.max(player.slowUntil,player.creationSlowUntil)?'SLOWED '+(Math.max(player.slowUntil,player.creationSlowUntil)-race.elapsed).toFixed(1)+'s':'',
-          race.elapsed<Math.max(player.shieldUntil,player.creationShieldUntil)?'GHOST '+(Math.max(player.shieldUntil,player.creationShieldUntil)-race.elapsed).toFixed(1)+'s':'',
-          player.boosting?'BOOST ACTIVE':'',
+          race.elapsed<player.shieldUntil?'BUBBLE WRAP '+(player.shieldUntil-race.elapsed).toFixed(1)+'s':'',
+          race.elapsed<player.creationShieldUntil?'PROTECTED '+(player.creationShieldUntil-race.elapsed).toFixed(1)+'s':'',
+          race.elapsed<player.airCanisterUntil?'AIR THRUST '+(player.airCanisterUntil-race.elapsed).toFixed(1)+'s':player.boosting?'BOOST ACTIVE':'',
           player.eventObstacleProtection?'IN PROTECTIVE ZONE':'',
           race.elapsed<player.flailUntil?'FLAILING':'',
-          race.elapsed<player.sunUntil?'SUN BURST':'',
         ].filter(Boolean).join(' · ')});
     }
   });
