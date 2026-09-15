@@ -239,5 +239,3 @@ def build_dinosaurs(finish_target):
         _dinosaur("Susan",finish-susan,(-.65,-.67,-.25),(susan.x,susan.z),7.0,susan.y,True,aim_at=finish),
         _dinosaur("Steve",finish-steve,(.05,-.65,.78),(steve.x,steve.z),5.5,steve.y,max_height=4.4,aim_at=finish),
     ]
-
-

@@ -1,3 +1,4 @@
+import { RaceAlert } from './RaceAlerts';
 import { encounterKind, encounterLabel, type EventVector, type RaceEventSnapshot } from '@sky/shared';
 import type { ReactNode } from 'react';
 import { effectFeedback } from './effect-feedback';
@@ -20,7 +21,7 @@ export function EffectCue({event,position,steeringKeys}:{event:RaceEventSnapshot
   const feedback=effectFeedback(event,position);
   if(!feedback||!event.instance)return null;
   const {tone,title,detail,meter,controls}=feedback,kind=encounterKind(event.instance.spec);
-  return <div className={'effect-cue '+kind+' '+tone}>
+  return <RaceAlert><div className={'effect-cue '+kind+' '+tone}>
     <div className="effect-cue-label"><span>{encounterLabel(event.instance.spec)}</span><span>{event.remainingSeconds.toFixed(1)} s</span></div>
     <div className="effect-cue-heading" role="status" aria-atomic="true">
       <svg viewBox="0 0 40 28" aria-hidden="true">{symbols[kind]}</svg>
@@ -32,5 +33,5 @@ export function EffectCue({event,position,steeringKeys}:{event:RaceEventSnapshot
       <span>{meter.label}</span>
       <meter aria-label={meter.label} min={0} max={1} value={meter.value}/>
     </div>}
-  </div>;
+  </div></RaceAlert>;
 }

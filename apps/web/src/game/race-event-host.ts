@@ -75,10 +75,10 @@ export class RaceEventHost {
   get creations() { return this.history.creations; }
   private readonly events:RaceEventPort;
   get report():RaceEventSnapshot|undefined {
-    const current=this.events.getSnapshot();
+    const current=this.race.finalEventSnapshot??this.events.getSnapshot();
     return current.instance?current:this.lastEvent;
   }
-  private remember(current=this.events.getSnapshot()) {
+  private remember(current=this.race.finalEventSnapshot??this.events.getSnapshot()) {
     this.history.observe(current,this.race.finished);
     // Retain the latest result separately for the existing development replay.
     if(current.instance)this.lastEvent={...current,debris:[],drill:undefined};
@@ -197,7 +197,7 @@ export class RaceEventHost {
   }
   step(dt:number,from:Position,to:Position) {
     const event=this.events.getSnapshot();
-    this.remember(event);
+    this.remember(this.race.finalEventSnapshot??event);
     if(event.instance&&event.phase==='active')this.loop.collectCreation(event.instance.instanceId);
     if(event.instance&&event.phase==='expired')this.loop.missCreation(event.instance.instanceId);
     if(this.race.racers[0].finishTime!==undefined) {

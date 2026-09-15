@@ -48,15 +48,17 @@ export function RaceOverlay({hud,paused,useKey,boostKey,dodgeKey}:{hud:typeof in
       </svg>}
       {marker.selected&&<div className={'jet-label '+(marker.left>65?'on-left':'')}><strong>{marker.locked?'LOCKED':'ACQUIRING'} · {marker.name}</strong><small>{marker.gap}</small></div>}
     </div>)}
-    {!paused&&hud.itemKey==='umbrella'&&!selected&&hud.finish===null&&<div className="aim-hint">Bring a rival near the middle to lock · {useKey} fires straight without a lock</div>}
+    <div className="item-hud">
+    {!paused&&!hud.feedback&&hud.itemKey==='umbrella'&&hud.finish===null&&<div className="aim-hint">{selected?<>{selected.locked?'LOCKED':'ACQUIRING'} · {selected.name}<br/>{selected.locked?useKey+' · Fire missile':'Keep the rival near the middle'}</>:<>Bring a rival near the middle to lock · {useKey} fires straight without a lock</>}</div>}
     {hud.finish===null&&<div className={'play-item '+(hud.itemKey?'loaded':'')} aria-label={'Held item: '+hud.item}>
-      <ItemIcon item={hud.itemKey}/><div><small>PPE / ISSUED EQUIPMENT</small><strong>{hud.item}</strong><span>{hud.itemKey?useKey+' · '+(hud.itemKey==='umbrella'?(hud.look?'Fire upward':'Fire downward'):'Activate'):'Collect a striped box'}</span></div>
+      <ItemIcon item={hud.itemKey}/><div><small>HELD ITEM</small><strong>{hud.item}</strong><span>{hud.itemKey?<><kbd className="hud-key">{useKey}</kbd>{hud.itemKey==='umbrella'?(hud.look?'Fire upward':'Fire downward'):'Use item'}</>:'Collect a striped box'}</span></div>
     </div>}
     {!paused&&hud.feedback&&<div className="race-feedback" role="status" key={hud.feedback}>{hud.feedback}</div>}
+    </div>
     {hud.finish===null&&<div className="flight-tools">
-      <div className="safety-label">AUTHORIZED CONTROLS</div><label>BOOST FUEL · {boostKey}<progress aria-label="Boost fuel" value={hud.fuel} max={4}/></label>
+      <div className="safety-label">BOOST & DODGE</div><label><kbd className="hud-key">{boostKey}</kbd> BOOST<progress aria-label="Boost fuel" value={hud.fuel} max={4}/></label>
       <span>{hud.fuel.toFixed(1)} / 4.0 s {hud.boost?' · BOOSTING':''}</span>
-      <strong>{dodgeKey} · {hud.dodgeCooldown>0?'DODGE '+hud.dodgeCooldown.toFixed(1)+'s':'DODGE READY'}</strong>
+      <strong><kbd className="hud-key">{dodgeKey}</kbd>{hud.dodgeCooldown>0?'DODGE '+hud.dodgeCooldown.toFixed(1)+'s':'DODGE READY'}</strong>
     </div>}
     {!paused&&hud.threat&&<div role="status" className={'threat-warning '+(hud.threat==='MISSILE INCOMING'?'incoming':'')}>
       <span className="threat-arrow" style={{transform:'rotate('+hud.threatAngle+'deg)'}}>↑</span>

@@ -103,3 +103,7 @@ Local live mode defaults to three attempts per server start. Hosted mode default
 - [Generation lab](prompt-to-mesh-pipeline.md): model profiles, comparisons, and wire formats.
 - [Shared race effects](race-events-handoff.md): exact runtime interfaces and effect parameters.
 - [Art guide](dinosaur-art-direction.md): characters, animation, and rebuilding assets.
+
+### Race HUD readability
+
+The final race HUD sizing rules live in `apps/web/src/game/race-hud.css`, loaded after the shared game styles. Main readouts use 16–22 px text, position uses 44–64 px, and held-item/boost/dodge controls use larger cards and explicit key badges. HUD edges follow the viewport width, including ultrawide screens. Container queries compact the layout for narrow or short windows. RaceAlertProvider routes screen messages into RaceAlertDock at the bottom: voice progress, drill instructions, generated-effect hit feedback, creation notices, and landing warnings. Ordinary item feedback and lock-on instructions stay directly above the left item card; missile threats remain at the top of the playfield. Wide layouts place the bounded, scrollable dock between item and boost cards; narrow layouts put it in a separate footer below the canvas. Urgent instructions take priority over decorative trophies. World-space target and pickup markers stay attached to their objects. Movement and screen-projected pickup/target positions are unchanged.

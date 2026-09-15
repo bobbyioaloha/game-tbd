@@ -186,3 +186,25 @@ test('a stale result arriving after reset cannot enter the next run history', as
   assert.equal(game.host.creation, undefined);
   game.host.dispose();
 });
+
+test('the final landing tick retains activation before clearing the runtime', () => {
+  const game = setup();
+  game.host.loadFixture(sun, true);
+  const instance = game.runtime.getSnapshot().instance!;
+  game.runtime.reset();
+  game.runtime.spawn({ ...instance, position: [0, -FINISH_DEPTH, 0] });
+  game.race.racers.slice(1).forEach(racer => { racer.finishTime = 0; });
+  game.place(0, 0, FINISH_DEPTH - 0.05);
+  game.step();
+  assert.equal(game.race.finished, true);
+  assert.equal(game.runtime.getSnapshot().phase, 'empty');
+  assert.equal(game.host.creations[0].snapshot?.triggererId, '0');
+  assert.equal(game.host.creations[0].snapshot?.expirationReason, 'complete');
+  assert.deepEqual(game.host.report, game.host.creations[0].snapshot);
+  assert.ok(game.race.racers.every(racer => !racer.eventObstacleProtection));
+  game.race.reset();
+  assert.equal(game.race.finalEventSnapshot, undefined);
+  game.host.reset();
+  assert.equal(game.host.creations.length, 0);
+  game.host.dispose();
+});

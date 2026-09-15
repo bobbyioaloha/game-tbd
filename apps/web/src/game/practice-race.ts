@@ -3,7 +3,7 @@ import { itemForPlace, RivalDodgeReaction } from './race-balance';
 // Race item boxes have a forgiving pickup volume independent of model size.
 import { planRival } from './rival-planner';
 import { TargetLock } from './target-lock';
-import { RACE_EVENT_LIMITS, type EventRacer, type RaceEventPort, type RacerSegment, type PowerUpEffect } from '@sky/shared';
+import { RACE_EVENT_LIMITS, type EventRacer, type RaceEventPort, type RaceEventSnapshot, type RacerSegment, type PowerUpEffect } from '@sky/shared';
 import { RaceEventBridge } from '../race-events/bridge';
 import { FreefallController } from './freefall-controller';
 import type { PlayerSnapshot, SteeringInput, Position } from './player-controller';
@@ -35,6 +35,8 @@ export class PracticeRace {
   private readonly recordedDrillCollisions=new Map<string,number>();
   readonly eventBridge?:RaceEventBridge;
   movementSegments:readonly RacerSegment[]=[];
+  private completedEvent?:RaceEventSnapshot;
+  get finalEventSnapshot(){return this.completedEvent;}
   constructor(private courseEnabled=true,private seedSource:()=>number=Math.random,readonly events?:RaceEventPort) {
     this.eventBridge=events?new RaceEventBridge(events):undefined;this.reset();
   }
@@ -56,7 +58,7 @@ export class PracticeRace {
     });
   }
   reset(){
-    this.eventBridge?.reset();this.movementSegments=[];
+    this.eventBridge?.reset();this.movementSegments=[];this.completedEvent=undefined;
     this.drillIncidentInstance=undefined;this.recordedDrillCollisions.clear();
     this.feedback='';this.feedbackUntil=0;this.elapsed=0;this.seed=Math.floor(this.seedSource()*4294967296)>>>0;this.shotId=0;this.projectiles=[];
     this.racers=raceLineup(this.selectedCharacter).map((person,id)=>({
@@ -295,7 +297,16 @@ export class PracticeRace {
     this.eventBridge?.afterStep(this.eventRacers(),segments);
     this.recordDrillIncidents();
     if(this.events?.getSnapshot().phase!=='active')for(const racer of this.racers)racer.eventObstacleProtection=false;
-    if(this.finished)this.eventBridge?.reset();
+    if(this.finished) {
+      // Contacts on the landing tick still count. Save only report data before
+      // clearing live effects, so the host can observe that tick after step().
+      const event=this.events?.getSnapshot();
+      if(event?.instance)this.completedEvent={...event,debris:[],drill:undefined,
+        phase:'expired',remainingSeconds:0,
+        expirationReason:event.expirationReason??'complete'};
+      this.eventBridge?.reset();
+      for(const racer of this.racers)racer.eventObstacleProtection=false;
+    }
     this.elapsed+=dt;
     this.projectiles=this.projectiles.filter(shot=>shot.expires>this.elapsed);
   }
