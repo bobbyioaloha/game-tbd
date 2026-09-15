@@ -112,3 +112,11 @@ The API's `outputDirectory: "."` is intentional. Vercel CLI 59.11.7 otherwise di
 Set `HOSTED_LIVE_ENABLED=false` and redeploy to disable live AI on the new deployment. Old deployments retain their old variables; keep their URLs protected. Revoke the provider key if you need to stop new calls across old deployments too. Already-dispatched work may finish and incur charges.
 
 To rotate a key, save its replacement as a Secret, redeploy, then revoke the old key. For rollback, choose a known-good mock-only deployment. Never paste keys or raw provider errors into reports.
+
+## Optional paid incident reports
+
+The game deploys `GET /api/race-reports/status` and `POST /api/race-reports` alongside existing voice/event APIs. Availability reads never call providers. Default development and previews remain mock-only; live reports require the same production/origin gates and a separate player opt-in. No additional credential or spending pool is introduced.
+
+One report may run after each event ends, up to two per run. Reporting adds up to two paid generation calls to the six-call voice ceiling; input/output moderation remains separately accounted. Every report consumes one entry in the existing allowance and shares the single live slot with voice creation. The local default of three attempts cannot cover two voice attempts plus two reports. Exhaustion retains authored reports; do not restart or redeploy to replenish it.
+
+Report deduplication keys (run UUID and creation ID) and attempt IDs are bounded per instance. They reset on cold starts/redeployments and are not shared across instances, just like existing allowance accounting. They are not durable exactly-once or global spending controls. See [incident report behavior and limits](race-incident-report-proposal.md).
