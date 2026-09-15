@@ -30,7 +30,7 @@ Movement speeds, cooldowns, and course parameters are defined in the source. Whe
 
 ## Playtest a change
 
-Run `bun run dev` and open [the local game](http://localhost:5173). Choose a character, then begin a race without voice for basic mechanics or with a prepared mock prompt for voice work.
+Run `bun run dev` and open [the local game](http://localhost:5173). Choose a character, then begin a race without voice to try basic mechanics and a selected prepared safety drill, or enable the microphone with a prepared mock prompt for voice work. The no-voice drill uses normal course placement and makes no capture or provider calls.
 
 1. Steer to each boundary, brake, pause/resume, and restart.
 2. Rebind an action in Settings and check both the displayed hint and actual key.

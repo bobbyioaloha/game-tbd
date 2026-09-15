@@ -8,7 +8,7 @@ Use this guide to try the microphone in the game or Generation lab. For the code
 
 | Mode | What happens | What you need |
 | --- | --- | --- |
-| Play without voice | A normal race with ordinary items; the yellow voice star is removed. | A supported desktop browser and keyboard. |
+| Play without voice | A race with ordinary items and the selected prepared safety drill waiting ahead for any racer to activate. Both yellow voice stars are removed. | A supported desktop browser and keyboard. No microphone or AI calls. |
 | Mock | The microphone records, but a selected prepared transcript determines the creation. Your spoken words are not recognized. | Microphone permission and the local mock API. No key or paid calls. |
 | Live AI | The recording is transcribed, then its words drive the design and geometry stages. | A configured live server, microphone permission, and explicit paid consent. |
 
@@ -25,7 +25,9 @@ Run `bun install --frozen-lockfile` and `bun run dev` from the repository root, 
 5. After collecting it, hold Space, speak, and release. The HUD shows the simulated transcript and creation progress.
 6. Keep racing and follow the radar to the generated object. It appears later in the course, not immediately beside you. Fly through its glowing halo; the first racer to reach it activates the effect.
 
-You have 10 gameplay seconds after a collected grant becomes available to start speaking. Recording auto-submits after 8 seconds. Each normal voice-enabled run offers two stars if you reach their locations, with one fresh attempt per star; failure, cancellation, or missing a star consumes that opportunity. Restart returns to setup and clears consent. **Play without voice** lets you skip all microphone setup.
+To play without a microphone, select a prepared prompt and choose **Play without voice** instead of enabling the microphone. The setup names the selected drill beside that button, even if Live AI is selected. The drill uses normal course placement and shared activation, with no recording, transcription, generation, or paid consent. Follow its radar and glowing halo; ordinary items remain available.
+
+You have 10 gameplay seconds after a collected grant becomes available to start speaking. Recording auto-submits after 8 seconds. Each normal voice-enabled run offers two stars if you reach their locations, with one fresh attempt per star; failure, cancellation, or missing a star consumes that opportunity. Restart returns to setup and clears consent. **Play without voice** skips all microphone setup and includes one prepared safety drill.
 
 The second yellow star has a fixed depth chosen randomly between 60% and 70% of the course at the start of each run. It appears with at least 120 m of approach, or four seconds at your current fall speed when that needs more distance. At reveal it aligns with your current horizontal position, then stays fixed. The HUD announces its arrival. The first star's outcome, a waiting generated object, an active effect, and rival progress never suppress this offer. Rivals can activate generated objects, but cannot collect your yellow voice stars.
 

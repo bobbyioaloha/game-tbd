@@ -1,4 +1,4 @@
-import { RaceEncounterSchema, mockSafetyDrillForText, mockRaceEventForText, encounterDurationSeconds, type RaceEncounter, type RaceEventSnapshot, type RaceEventPort, type VoicePickup } from '@sky/shared';
+import { RaceEncounterSchema, SafetyDrillSpecSchema, mockSafetyDrillForText, mockRaceEventForText, encounterDurationSeconds, type SafetyDrillSpec, type RaceEncounter, type RaceEventSnapshot, type RaceEventPort, type VoicePickup } from '@sky/shared';
 import { CreationAttempt } from './creation-attempt';
 import { PracticeRace, ITEM_PICKUP_RADIUS, LANE_HALF_WIDTH } from './practice-race';
 import { BRAKE_SPEED } from './freefall-controller';
@@ -10,14 +10,21 @@ import type { AudioCreationClient } from '../voice/voice-client';
 import { RaceCreationHistory } from './race-creation-history';
 
 /** Course-owned placement. Never delete obstacles as a side effect of generation. */
-export function eventPlacement(race:PracticeRace,durationSeconds=10):{position:Position;pickupLifetimeSeconds:number} {
+export function eventPlacement(race:PracticeRace,durationSeconds=10,includeLaneFallback=false):{position:Position;pickupLifetimeSeconds:number} {
   const player=race.snapshot(race.racers[0]);
   const desired=raceEventSpawnPosition(player.position,player.fallSpeed,durationSeconds);
   const offsets=[[0,0],[-10,0],[10,0],[0,-10],[0,10],[-10,-10],[10,10],[-10,10],[10,-10]];
-  const position=offsets.map(([x,z]):Position=>[
+  const candidates=offsets.map(([x,z]):Position=>[
     Math.max(-LANE_HALF_WIDTH+RACE_CREATION_PICKUP_RADIUS,Math.min(LANE_HALF_WIDTH-RACE_CREATION_PICKUP_RADIUS,desired[0]+x)),desired[1],
     Math.max(-LANE_HALF_WIDTH+RACE_CREATION_PICKUP_RADIUS,Math.min(LANE_HALF_WIDTH-RACE_CREATION_PICKUP_RADIUS,desired[2]+z)),
-  ]).find(candidate=>race.obstacles.every(obstacle=>{
+  ]);
+  // Prepared runs must also fit crowded starting rows. Keep the usual depth,
+  // pickup bounds, and obstacle clearance; search the wider lane only as fallback.
+  if(includeLaneFallback) {
+    const edge=LANE_HALF_WIDTH-RACE_CREATION_PICKUP_RADIUS;
+    for(const x of [-edge,0,edge])for(const z of [-edge,0,edge])candidates.push([x,desired[1],z]);
+  }
+  const position=candidates.find(candidate=>race.obstacles.every(obstacle=>{
     if(!obstacle.active)return true;
     const p=obstaclePose(obstacle,race.elapsed).position;
     return Math.abs(p[1]-candidate[1])>(obstacle.kind==='duct'?30:12)||
@@ -124,6 +131,9 @@ export class RaceEventHost {
     if(this.race.racers[0].finishTime!==undefined)throw new Error('Race finished before generation completed.');
     const player=this.race.snapshot(this.race.racers[0]);
     const placement=quick?{position:[player.position[0],player.position[1]-30,player.position[2]] as Position,pickupLifetimeSeconds:60}:eventPlacement(this.race,encounterDurationSeconds(spec));
+    this.spawnAt(spec,instanceId,placement);
+  }
+  private spawnAt(spec:RaceEncounter,instanceId:string,placement:ReturnType<typeof eventPlacement>) {
     // Separate deterministic stream: debris never consumes the inventory/rival RNG.
     const seed=Math.imul(++this.spawnSerial,2654435761)>>>0;
     this.remember();
@@ -137,6 +147,16 @@ export class RaceEventHost {
     this.spawn(spec,instanceId,quick);
     this.history.add(instanceId,this.events.getSnapshot().instance!.spec,'fixture');this.remember();
   }
+  /** A no-voice run still gets one prepared drill through normal shared contact. */
+  loadPreparedDrill(spec:SafetyDrillSpec) {
+    const prepared=SafetyDrillSpecSchema.parse(spec);
+    this.checkBeforeRun();
+    const placement=eventPlacement(this.race,encounterDurationSeconds(prepared),true);
+    this.disableForRun();
+    const instanceId='prepared-'+this.runId;
+    this.spawnAt(prepared,instanceId,placement);
+    this.history.add(instanceId,prepared,'prepared');this.remember();
+  }
   reset() {
     this.remember();
     if(this.lastEvent&&this.lastEvent.phase!=='expired')this.lastEvent={...this.lastEvent,phase:'expired',remainingSeconds:0,expirationReason:'reset'};
@@ -148,10 +168,13 @@ export class RaceEventHost {
     this.voice={kind:'voice',instanceId:'voice-'+this.runId+'-1',position:[player.position[0],-180,player.position[2]]};
     this.updateSecondStar('scheduled','A second yellow star appears at 60-70% of the course.');
   }
-  disableForRun() {
-    if (this.race.elapsed !== 0 || this.loop.getSnapshot().running || this.creation) {
+  private checkBeforeRun() {
+    if (this.race.elapsed !== 0 || this.loop.getSnapshot().running || this.creation || this.race.racers[0].finishTime !== undefined) {
       throw new Error('Voice can only be disabled before the race.');
     }
+  }
+  disableForRun() {
+    this.checkBeforeRun();
     this.voice = undefined;this.opportunitiesClosed=true;
     this.updateSecondStar('discarded','Voice creation is off for this run.');
     this.loop.end('Voice creation is off for this run.');
