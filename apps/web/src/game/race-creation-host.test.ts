@@ -81,3 +81,23 @@ test('generated pickup accepts a glancing high-speed crossing and applies effect
   assert.equal(game.race.racers[0].creationSlowUntil,expiry);
   game.host.dispose();
 });
+
+test('legacy generated clearing uses current obstacle positions and leaves distant or already-hit objects alone',()=>{
+  const race=new PracticeRace(false),player=race.racers[0],p=race.snapshot(player).position;
+  race.elapsed=3*Math.PI/(2*0.4);
+  race.obstacles=[
+    // The first balloon drifts into range; the second drifts out of range.
+    {id:0,kind:'balloon',position:[p[0]+13,0,0],rotation:[0,0,0],active:true,hitAt:-1},
+    {id:3,kind:'balloon',position:[p[0]+11,0,0],rotation:[0,0,0],active:true,hitAt:-1},
+    {id:4,kind:'fridge',position:[p[0],-12,0],rotation:[0,0,0],active:true,hitAt:-1},
+    {id:5,kind:'fridge',position:[p[0],-30,0],rotation:[0,0,0],active:true,hitAt:-1},
+    {id:6,kind:'fridge',position:[p[0],-3,0],rotation:[0,0,0],active:false,hitAt:2.5},
+  ];
+  race.applyCreationEffects([{type:'clearNearbyObstacles',radiusMeters:12}]);
+  assert.deepEqual(race.obstacles.map(obstacle=>obstacle.active),[false,true,false,true,false]);
+  assert.equal(race.obstacles[0].hitAt,race.elapsed);assert.equal(race.obstacles[2].hitAt,race.elapsed);
+  assert.equal(race.obstacles[4].hitAt,2.5);
+  player.finishTime=race.elapsed;race.obstacles[0].active=true;
+  race.applyCreationEffects([{type:'clearNearbyObstacles',radiusMeters:12}]);
+  assert.equal(race.obstacles[0].active,true);
+});

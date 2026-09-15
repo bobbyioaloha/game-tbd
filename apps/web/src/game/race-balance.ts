@@ -2,14 +2,14 @@ import type { Item } from './race-course';
 import type { Position } from './player-controller';
 import type { Projectile } from './practice-race';
 
-// Percentages are jellyfish / sun / ghost, evaluated at collection time.
+// Percentages are parachute / air canister / bubble wrap, evaluated at collection time.
 export const POSITION_ITEM_ODDS = [
   [10,35,55], [20,50,30], [45,40,15], [65,25,10],
 ] as const;
 export function itemForPlace(place:number,roll:number):Item {
-  const [jellyfish,sun]=POSITION_ITEM_ODDS[Math.max(0,Math.min(3,place-1))];
+  const [parachute,airCanister]=POSITION_ITEM_ODDS[Math.max(0,Math.min(3,place-1))];
   const percent=roll*100;
-  return percent<jellyfish?'umbrella':percent<jellyfish+sun?'sun':'cloak';
+  return percent<parachute?'parachute':percent<parachute+airCanister?'airCanister':'bubbleWrap';
 }
 
 // Each targeted projectile gets one reaction roll, never a new roll each frame.

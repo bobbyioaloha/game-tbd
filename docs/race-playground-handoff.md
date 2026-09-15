@@ -22,7 +22,15 @@ Keep microphone/provider work out of movement integration. Shared effects enter 
 
 ## Ordinary items versus generated events
 
-Ordinary boxes can grant the jellyfish umbrella, ghost cloak, or angry sun. These are authored inventory mechanics: a homing slow projectile, temporary protection, and a stationary blast. Their behavior is implemented in `practice-race.ts`; sharing names with original fixtures does not make them generated v3 effects.
+Ordinary boxes grant three pieces of safety equipment, implemented in `practice-race.ts`:
+
+| Item | Role | Behavior |
+| --- | --- | --- |
+| Spare Parachute | Attack | Launch a packed chute down or up; a confirmed target lock homes toward the rival. On an unprotected hit, the chute opens and halves their falling speed for 3 seconds. Dodge breaks the lock. |
+| Bubble Wrap | Protection | Wrap the racer for 5 seconds of ordinary obstacle and projectile protection. Steering and falling speed are unchanged. |
+| Emergency Air Canister | Speed | Automatically provides 2 seconds of reserve thrust using the existing boost acceleration and 60 m/s cap. Stored boost fuel is preserved while reserve thrust is active; holding boost cannot stack speed. Braking cancels the reserve. Slows, collisions, and normal steering still apply. |
+
+Canister time advances only with the race simulation; pause freezes it, and reset or finishing clears it. Rivals use canisters on clear routes. Existing position-weighted item odds are retained: parachutes are most common at the back, canisters in the middle, and bubble wrap in first. The legacy generated fixtures and APIs remain separate from these ordinary items.
 
 The yellow star grants one speaking attempt. A successfully generated object waits ahead for any racer to collect it, then activates a shared event. Generated events do not replace inventory or its timers. Their four effect types and current presets are in [the event reference](race-events-handoff.md#contract).
 
@@ -35,8 +43,8 @@ Run `bun run dev` and open [the local game](http://localhost:5173). Choose a cha
 1. Steer to each boundary, brake, pause/resume, and restart.
 2. Rebind an action in Settings and check both the displayed hint and actual key.
 3. Collect an item, acquire a target, fire while looking down/up, and try dodging a projectile.
-4. Use the sun near a rival, checking that the blast expires and protection behaves as expected.
-5. Collect boost fuel and check acceleration, fuel use, and braking.
+4. Use Bubble Wrap and confirm the dinosaur remains visible inside its packaging and protection expires after 5 seconds.
+5. Use an Emergency Air Canister with empty and full fuel. Check acceleration, unchanged stored fuel, the 2-second expiry, braking cancellation, pause/resume, and reset. In development, Settings → Ordinary item practice equips each item while paused for repeatable checks. Then collect boost fuel and verify normal fuel use.
 6. Check standings, progress, finish results, and HUD readability at a narrower desktop window.
 7. For generated effects, use [free fixtures/replay](race-events-handoff.md#free-gameplay-check), then try the [mock microphone flow](voice-input-plan.md#try-the-game-without-spending-credits). Restart during a request to check that stale results cannot enter the next race.
 8. If you changed shared generation/rendering code, also inspect the local Generation lab.

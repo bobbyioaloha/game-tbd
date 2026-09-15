@@ -14,9 +14,9 @@ function duel(up=false){
   race.racers[up?0:1].controller.step(2,idle,{fallSpeedMultiplier:1});
   return race;
 }
-test('umbrella fires downward and upward, with inherited velocity and delayed impact',()=>{
+test('parachute fires downward and upward, with inherited velocity and delayed impact',()=>{
   for(const up of [false,true]){
-    const race=duel(up);race.racers[0].item='umbrella';
+    const race=duel(up);race.racers[0].item='parachute';
     const speed=race.snapshot(race.racers[0]).fallSpeed;
     race.useItem(0,up,1);
     assert.equal(race.racers[0].item,null);
@@ -26,28 +26,23 @@ test('umbrella fires downward and upward, with inherited velocity and delayed im
     assert.ok(race.racers[1].slowUntil>race.elapsed);
   }
 });
-test('ghost blocks jellyfish, lasts five seconds, and finished racers cannot use items',()=>{
-  const race=duel();race.racers[1].item='cloak';race.useItem(1,false);
+test('bubble wrap blocks parachutes, lasts five seconds, and finished racers cannot use items',()=>{
+  const race=duel();race.racers[1].item='bubbleWrap';race.useItem(1,false);
   assert.equal(race.racers[1].shieldUntil,5);
-  race.racers[0].item='umbrella';race.useItem(0,false,1);advance(race,0.8);
+  race.racers[0].item='parachute';race.useItem(0,false,1);advance(race,0.8);
   assert.equal(race.racers[1].slowUntil,0);
-  race.racers[0].finishTime=1;race.racers[0].item='sun';
+  race.racers[0].finishTime=1;race.racers[0].item='airCanister';
   assert.equal(race.useItem(0,false),false);
-  assert.equal(race.racers[0].item,'sun');
+  assert.equal(race.racers[0].item,'airCanister');
 });
-test('sun clears only active obstacles within twelve metres',()=>{
-  const race=new PracticeRace(false),p=race.snapshot(race.racers[0]).position;
-  race.obstacles=[5,30].map((d,id)=>({id,kind:'fridge',position:[p[0],-d,0],rotation:[0,0,0],active:true,hitAt:-1}));
-  race.racers[0].item='sun';race.useItem(0,false);
-  assert.equal(race.obstacles[0].active,false);assert.equal(race.obstacles[1].active,true);
-});
+
 test('item slot does not overwrite held items; rings store boost fuel',()=>{
   const race=new PracticeRace(false);
   race.boxes=[{id:0,position:[-7.5,-1,0],active:true}];
   race.rings=[{id:0,position:[-7.5,-2,0],used:new Set()}];
   race.racers.slice(1).forEach(r=>{r.finishTime=0;}); // Isolate slot behavior from rival pickups.
-  race.racers[0].item='cloak';advance(race,0.5);
-  assert.equal(race.boxes[0].active,true);assert.equal(race.racers[0].item,'cloak');
+  race.racers[0].item='bubbleWrap';advance(race,0.5);
+  assert.equal(race.boxes[0].active,true);assert.equal(race.racers[0].item,'bubbleWrap');
   advance(race,1);
   assert.ok(race.rings[0].used.has(0));assert.equal(race.racers[0].boostFuel,2);
   const before=race.snapshot(race.racers[0]).fallSpeed;
@@ -59,7 +54,7 @@ test('empty slot collects only the supported items and restart clears course eff
   const race=new PracticeRace(false);
   race.boxes=[{id:0,position:[-7.5,-1,0],active:true}];
   advance(race,0.5);
-  assert.ok(['umbrella','cloak','sun'].includes(race.racers[0].item!));
+  assert.ok(['parachute','bubbleWrap','airCanister'].includes(race.racers[0].item!));
   assert.equal(race.boxes[0].active,false);
   race.racers[0].slowUntil=99;race.reset();
   assert.equal(race.racers[0].item,null);assert.equal(race.racers[0].slowUntil,0);assert.equal(race.projectiles.length,0);
@@ -72,14 +67,14 @@ test('rotated obstacle colliders distinguish satellite panels from body',()=>{
   assert.equal(obstacleHit([0,5,4],[0,-5,4],obstacle,0),0.75);
   assert.equal(obstacleHit([10,5,10],[10,-5,10],obstacle,0),null);
 });
-test('obstacle hits flail and protect against repeat hits; ghosts pass safely',()=>{
-  for(const ghost of [false,true]){
+test('obstacle hits flail and protect against repeat hits; bubble-wrapped racers pass safely',()=>{
+  for(const protectedRacer of [false,true]){
     const race=new PracticeRace(false);
     race.obstacles=[{id:0,kind:'fridge',position:[-7.5,-3,0],rotation:[0,0,0],active:true,hitAt:-1}];
-    if(ghost)race.racers[0].shieldUntil=5;
+    if(protectedRacer)race.racers[0].shieldUntil=5;
     advance(race,0.7);
-    assert.equal(race.racers[0].immuneUntil>0,!ghost);
-    assert.equal(race.obstacles[0].active,ghost);
+    assert.equal(race.racers[0].immuneUntil>0,!protectedRacer);
+    assert.equal(race.obstacles[0].active,protectedRacer);
   }
 });
 test('full course remains finite and all racers finish',()=>{
